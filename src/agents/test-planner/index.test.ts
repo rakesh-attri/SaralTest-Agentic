@@ -23,6 +23,7 @@ import {
   buildRtm,
   draftProblems,
   mechanicalDrafts,
+  normalizeDrafts,
   planTests,
   priorityFor,
   revisePlan,
@@ -462,5 +463,35 @@ describe('revise accepts valid cases individually', () => {
     expect(r.rejected?.map((x) => x.key)).toEqual([b.id]);
     expect(r.testCases.find((c) => c.id === a.id)?.steps[0]?.expected.text).toMatch(/Last Name field shows an error/);
     expect(r.testCases.find((c) => c.id === b.id)?.steps).toEqual(b.steps);
+  });
+});
+
+describe('normalizeDrafts', () => {
+  it('fills omitted evidence with the obligation allowed list and drops unknown recipes', () => {
+    const neg = obligations.find((o) => o.mustCite.includes('OC-003'));
+    if (!neg) throw new Error('no obligation');
+    const [d] = normalizeDrafts(ctx, [
+      {
+        key: 'k',
+        title: 'Email required',
+        obligationIds: [neg.id],
+        persona: 'system-admin',
+        type: 'negative',
+        technique: 'use case',
+        preconditions: [],
+        dataRecipe: 'Create 50 Contacts somehow',
+        steps: [
+          {
+            action: 'Leave Email empty and Save',
+            expected: 'The save is rejected',
+            obligationId: neg.id,
+            evidence: [],
+          },
+        ],
+      },
+    ]);
+    expect(d?.dataRecipe).toBeUndefined();
+    expect(d?.steps[0]?.evidence).toEqual(neg.evidenceIds);
+    expect(draftProblems(ctx, d ? [d] : [], [neg])).toEqual([]);
   });
 });

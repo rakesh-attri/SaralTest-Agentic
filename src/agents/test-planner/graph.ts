@@ -213,6 +213,26 @@ export function buildCases(
   });
 }
 
+/**
+ * Mechanical normalisation of model drafts before checking: a step that cites nothing gets its obligation's full
+ * allowed evidence (the level is then computed over all of it, so contested items still pull it down), and a data
+ * recipe name that does not exist is dropped (recipes are optional). Neither changes what is asserted.
+ */
+export function normalizeDrafts(ctx: PlannerContext, drafts: readonly CaseDraft[]): CaseDraft[] {
+  const obById = new Map(ctx.obligations.map((o) => [o.id, o]));
+  return drafts.map((d) => {
+    const { dataRecipe, ...rest } = d;
+    const keepRecipe = dataRecipe !== undefined && (ctx.recipes ?? []).includes(dataRecipe);
+    return {
+      ...rest,
+      ...(keepRecipe ? { dataRecipe } : {}),
+      steps: d.steps.map((st) =>
+        st.evidence.length ? st : { ...st, evidence: [...(obById.get(st.obligationId)?.evidenceIds ?? [])] },
+      ),
+    };
+  });
+}
+
 /** Deterministic problems in model drafts (sent back to the model by runStructured). */
 export function draftProblems(
   ctx: PlannerContext,
@@ -488,11 +508,11 @@ export async function planTests(
         ...(deps.skills ? { skills: { loader: deps.skills, names: TEST_PLANNER_SKILLS } } : {}),
         ...(deps.redactor ? { redactor: deps.redactor } : {}),
         ...(deps.logger ? { logger: deps.logger } : {}),
-        check: (out) => draftProblems(ctx, out.cases, batch),
+        check: (out) => draftProblems(ctx, normalizeDrafts(ctx, out.cases), batch),
       });
       models.push(`planner=${res.model}${res.usedFallback ? ' (fallback)' : ''}`);
       envs.push(res.environment);
-      cases.push(...buildCases(ctx, res.value.cases, 'planned', deps.ids));
+      cases.push(...buildCases(ctx, normalizeDrafts(ctx, res.value.cases), 'planned', deps.ids));
     } catch (e) {
       if (!isInvalidOutput(e)) throw e;
       degraded.push({ obligationIds: batch.map((o) => o.id), reason: (e as Error).message.slice(0, 300) });
@@ -619,7 +639,7 @@ export async function revisePlan(
     const rejected: { key: string; problems: string[] }[] = [];
     const byId = new Map(cases.map((c) => [c.id, c]));
     const accepted: CaseDraft[] = [];
-    for (const d of res.value.cases) {
+    for (const d of normalizeDrafts(ctx, res.value.cases)) {
       const problems = draftProblems(ctx, [d], ctx.obligations).filter((m) => !m.startsWith('not covered:'));
       if (problems.length) {
         rejected.push({ key: d.key, problems });
