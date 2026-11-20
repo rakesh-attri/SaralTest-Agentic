@@ -48,3 +48,16 @@ export function groundingProblems(
   }
   return problems;
 }
+
+const VAGUE =
+  /\b(works?( correctly| fine| properly)?|as expected|is correct|properly|appropriately|successfully)\s*\.?\s*$/i;
+/** Restates the rule instead of naming what is observed ("the system enforces the requirement"). */
+const RESTATES =
+  /\b(as per|according to)\b.*\b(rule|requirement)|\b(system )?(enforces|validates|handles|applies|checks)\b/i;
+
+/** An expectation that names no observable outcome (test-design skill: "no 'works correctly'"). */
+export function isVagueExpectation(text: string): boolean {
+  const t = text.trim();
+  const n = t.split(/\s+/).length;
+  return (VAGUE.test(t) && n < 8) || (RESTATES.test(t) && n < 12);
+}

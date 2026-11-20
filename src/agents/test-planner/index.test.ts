@@ -339,8 +339,9 @@ describe('live-demo regressions (revise never loses coverage)', () => {
       'reasoning:fallback': { responder: remover },
     });
     const r = await revisePlan(ctx, { ids: ids(), router }, res.testCases, [finding], 'llm');
-    expect(r.degraded).toBe(true);
-    expect(r.testCases.map((c) => c.id)).toEqual(res.testCases.map((c) => c.id));
+    expect(r.testCases.map((c) => c.id).sort()).toEqual(res.testCases.map((c) => c.id).sort());
+    expect(r.rejected?.some((x) => x.problems[0]?.startsWith('removal would leave'))).toBe(true);
+    expect(r.changedFor).toEqual([]);
   });
 });
 
@@ -404,5 +405,62 @@ describe('live-demo regressions (must-cite + persona)', () => {
       [pos],
     );
     expect(p.some((m) => m.includes('has no test user') && m.includes('use "system-admin"'))).toBe(true);
+  });
+});
+
+describe('revise accepts valid cases individually', () => {
+  it('one invalid revised case does not discard a valid one', async () => {
+    const res = await planTests(ctx, { ids: ids() }, 'mechanical');
+    const a = res.testCases.find((c) => c.refs.includes('AC2') && c.type === 'functional');
+    const b = res.testCases.find((c) => c.refs.includes('AC1'));
+    if (!a || !b) throw new Error('cases missing');
+    const obA = obligations.find((o) => o.id === a.obligationIds[0]);
+    const finding = (id: string, caseId: string) => ({
+      id,
+      key: `vague:${caseId}`,
+      escalated: false,
+      round: 1,
+      severity: 'M' as const,
+      rule: 'vague-expectation' as const,
+      caseIds: [caseId],
+      requirementIds: [],
+      refs: [],
+      text: 'not observable',
+      origin: 'deterministic' as const,
+      status: 'OPEN' as const,
+    });
+    const draft = (key: string, obligationId: string, evidence: string, expected: string) => ({
+      key,
+      title: 'revised case title',
+      obligationIds: [obligationId],
+      persona: 'system-admin',
+      type: 'functional',
+      technique: 'use case',
+      steps: [{ action: 'Leave Last Name empty and click Save', expected, obligationId, evidence: [evidence] }],
+    });
+    const responder = () =>
+      JSON.stringify({
+        cases: [
+          draft(
+            a.id,
+            obA?.id ?? '',
+            obA?.evidenceIds[0] ?? '',
+            'The record is not saved and the Last Name field shows an error',
+          ),
+          draft(b.id, b.obligationIds[0] ?? '', 'SF-219#AC1', 'An error "Totally invented" appears'),
+        ],
+      });
+    const router = await mockRouter({ reasoning: { responder } });
+    const r = await revisePlan(
+      ctx,
+      { ids: ids(), router },
+      res.testCases,
+      [finding('RF-001', a.id), finding('RF-002', b.id)],
+      'llm',
+    );
+    expect(r.changedFor).toEqual(['RF-001']);
+    expect(r.rejected?.map((x) => x.key)).toEqual([b.id]);
+    expect(r.testCases.find((c) => c.id === a.id)?.steps[0]?.expected.text).toMatch(/Last Name field shows an error/);
+    expect(r.testCases.find((c) => c.id === b.id)?.steps).toEqual(b.steps);
   });
 });

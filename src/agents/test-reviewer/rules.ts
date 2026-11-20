@@ -1,5 +1,5 @@
 import type { ReviewRule, TestCase } from '../../core/schemas/index.js';
-import { groundingProblems } from '../../oracles/index.js';
+import { groundingProblems, isVagueExpectation } from '../../oracles/index.js';
 import { jaccard } from '../spec-analyst/lint.js';
 import type { PlannerContext } from '../test-planner/graph.js';
 
@@ -14,11 +14,6 @@ export interface FindingDraft {
   text: string;
 }
 
-const VAGUE =
-  /\b(works?( correctly| fine| properly)?|as expected|is correct|properly|appropriately|successfully)\s*\.?\s*$/i;
-/** Restates the rule instead of naming what is observed ("the system enforces the requirement"). */
-const RESTATES =
-  /\b(as per|according to)\b.*\b(rule|requirement)|\b(system )?(enforces|validates|handles|applies|checks)\b/i;
 const words = (t: string): Set<string> =>
   new Set(
     t
@@ -117,7 +112,13 @@ export function deterministicFindings(ctx: PlannerContext, cases: readonly TestC
     // boundary values actually at the boundary
     if (o.kind === 'boundary') {
       const actions = oc.flatMap((c) => c.steps.map((s) => s.action)).join(' ');
-      const missing = o.values.filter((v) => !new RegExp(`(?<!\\d)${v}(?!\\d)`).test(actions));
+      // a value is exercised when it appears literally ("80 characters") or as an input of that length ('123456789')
+      const lengths = new Set(
+        [...actions.matchAll(/'([^']+)'|"([^"]+)"|\b(\d{2,})\b/g)].map((m) => (m[1] ?? m[2] ?? m[3] ?? '').length),
+      );
+      const missing = o.values.filter(
+        (v) => !new RegExp(`(?<!\\d)${v}(?!\\d)`).test(actions) && !lengths.has(Number(v)),
+      );
       if (missing.length) {
         add({
           key: `boundary:${o.id}`,
@@ -181,7 +182,7 @@ export function deterministicFindings(ctx: PlannerContext, cases: readonly TestC
     c.steps.forEach((s, n) => {
       const where = `${c.id} step ${String(n + 1)}`;
       const t = s.expected.text.trim();
-      if ((VAGUE.test(t) && t.split(/\s+/).length < 8) || (RESTATES.test(t) && t.split(/\s+/).length < 12)) {
+      if (isVagueExpectation(t)) {
         add({
           key: `vague:${c.id}:${String(n)}`,
           severity: 'M',

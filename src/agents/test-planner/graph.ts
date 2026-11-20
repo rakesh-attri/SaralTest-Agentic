@@ -17,7 +17,13 @@ import type {
 import type { ModelRouter } from '../../models/router.js';
 import type { SkillLoader } from '../../skills/skillLoader.js';
 import type { Redactor } from '../../security/redact.js';
-import { caseStatus, expectedFrom, groundingProblems, type EvidenceIndex } from '../../oracles/index.js';
+import {
+  caseStatus,
+  expectedFrom,
+  groundingProblems,
+  isVagueExpectation,
+  type EvidenceIndex,
+} from '../../oracles/index.js';
 import type { ResolvedPersona } from '../impact-risk/personas.js';
 import { findRefs } from '../../inputs/sections.js';
 import { runStructured } from '../shared/structured.js';
@@ -269,7 +275,7 @@ export function draftProblems(
       }
       for (const g of groundingProblems(ctx.index, s.expected, s.evidence, `${s.action} ${d.preconditions.join(' ')}`))
         problems.push(`${where}: ${g.message}`);
-      if (/^(it\s+)?(works( correctly)?|as expected|successfully|is successful)\.?$/i.test(s.expected.trim())) {
+      if (isVagueExpectation(s.expected)) {
         problems.push(
           `${where}: expected "${s.expected}" is not observable — name the field value, message or record state`,
         );
@@ -527,6 +533,8 @@ export interface ReviseResult {
   justifications: { findingId: string; reason: string }[];
   /** Finding ids the model changed cases for. */
   changedFor: string[];
+  /** Revised cases (or removals) rejected by the deterministic checks; the original case stays. */
+  rejected?: { key: string; problems: string[] }[];
   environment: DesignEnvironment;
   models: string[];
   degraded: boolean;
@@ -591,46 +599,75 @@ export async function revisePlan(
       ...(deps.skills ? { skills: { loader: deps.skills, names: TEST_PLANNER_SKILLS } } : {}),
       ...(deps.redactor ? { redactor: deps.redactor } : {}),
       ...(deps.logger ? { logger: deps.logger } : {}),
+      // Only id-level problems are reflected; each revised case is then validated on its own and accepted or rejected
+      // individually, so one bad case does not throw away the whole revision.
       check: (out) => {
-        const p = draftProblems(ctx, out.cases, ctx.obligations).filter((m) => !m.startsWith('not covered:'));
+        const p: string[] = [];
         for (const j of out.justifications)
           if (!openIds.has(j.findingId)) p.push(`justification for unknown finding ${j.findingId}`);
         for (const r of out.remove) if (!existing.has(r)) p.push(`remove: unknown case ${r}`);
-        // a revision may never lose coverage: every obligation covered before stays covered
-        const replaced = new Set([...out.remove, ...out.cases.map((d) => d.key)]);
-        const after = [
-          ...cases.filter((c) => !replaced.has(c.id)).flatMap((c) => c.obligationIds),
-          ...out.cases.flatMap((d) => d.obligationIds),
-        ];
-        const lost = [...new Set(cases.flatMap((c) => c.obligationIds))].filter((o) => !after.includes(o));
-        if (lost.length)
-          p.push(`this revision leaves ${lost.join(', ')} without any case — keep or replace their coverage`);
         return p;
       },
     });
-    const keep: Record<string, string> = {};
-    for (const d of res.value.cases) if (existing.has(d.key)) keep[d.key] = d.key;
-    const rebuilt = buildCases(ctx, res.value.cases, 'planned', deps.ids, keep);
+    const covered = (list: readonly { obligationIds: readonly string[] }[]): Set<string> =>
+      new Set(list.flatMap((c) => c.obligationIds));
+    const before = covered(cases);
+    const keepsCoverage = (list: readonly { obligationIds: readonly string[] }[]): string[] => {
+      const now = covered(list);
+      return [...before].filter((o) => !now.has(o));
+    };
+    const rejected: { key: string; problems: string[] }[] = [];
     const byId = new Map(cases.map((c) => [c.id, c]));
-    for (const id of res.value.remove) byId.delete(id);
-    for (const c of rebuilt) {
-      const prev = byId.get(c.id);
-      byId.set(
-        c.id,
-        prev?.origin === 'manual-reuse' && !c.manualTestId
-          ? { ...c, origin: 'manual-reuse', manualTestId: prev.manualTestId ?? '' }
-          : c,
+    const accepted: CaseDraft[] = [];
+    for (const d of res.value.cases) {
+      const problems = draftProblems(ctx, [d], ctx.obligations).filter((m) => !m.startsWith('not covered:'));
+      if (problems.length) {
+        rejected.push({ key: d.key, problems });
+        continue;
+      }
+      const [built] = buildCases(ctx, [d], 'planned', deps.ids, existing.has(d.key) ? { [d.key]: d.key } : {});
+      if (!built) continue;
+      const trial = new Map(byId);
+      const prev = trial.get(built.id);
+      trial.set(
+        built.id,
+        prev?.origin === 'manual-reuse' && !built.manualTestId
+          ? { ...built, origin: 'manual-reuse', manualTestId: prev.manualTestId ?? '' }
+          : built,
       );
+      const lost = keepsCoverage([...trial.values()]);
+      if (lost.length) {
+        rejected.push({ key: d.key, problems: [`would leave ${lost.join(', ')} without any case`] });
+        continue;
+      }
+      byId.clear();
+      for (const [k, v] of trial) byId.set(k, v);
+      accepted.push(d);
+    }
+    const removed: string[] = [];
+    for (const id of res.value.remove) {
+      const trial = new Map(byId);
+      trial.delete(id);
+      const lost = keepsCoverage([...trial.values()]);
+      if (lost.length) {
+        rejected.push({ key: id, problems: [`removal would leave ${lost.join(', ')} without any case`] });
+        continue;
+      }
+      byId.delete(id);
+      removed.push(id);
     }
     deps.ids.save();
-    const touched = new Set([...res.value.cases.map((d) => d.key), ...res.value.remove]);
+    for (const r of rejected)
+      deps.logger?.warn({ case: r.key, problems: r.problems.slice(0, 3) }, 'revised case rejected');
+    const touched = new Set([...accepted.map((d) => d.key), ...removed]);
     const changedFor = open
-      .filter((f) => f.caseIds.some((c) => touched.has(c)) || (!f.caseIds.length && res.value.cases.length > 0))
+      .filter((f) => f.caseIds.some((c) => touched.has(c)) || (!f.caseIds.length && accepted.length > 0))
       .map((f) => f.id);
     return {
       testCases: [...byId.values()],
       justifications: res.value.justifications,
       changedFor,
+      rejected,
       environment: res.environment,
       models: [`planner=${res.model}${res.usedFallback ? ' (fallback)' : ''}`],
       degraded: false,

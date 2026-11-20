@@ -258,3 +258,27 @@ describe('live-demo regressions (restated rules are vague)', () => {
     ).toBe(true);
   });
 });
+
+describe('boundary values as input lengths', () => {
+  it("'123456789' / '1234567890' / '12345678901' exercise a 9 / 10 / 11 digit boundary", async () => {
+    const cases = await mechanical();
+    const phone = obligations.find((o) => o.kind === 'boundary' && o.values.join() === '9,10,11');
+    const c = cases.find((x) => phone && x.obligationIds.includes(phone.id));
+    if (!c || !phone) throw new Error('no phone boundary case');
+    const step = c.steps[0]!;
+    const changed = cases.map((x) =>
+      x.id === c.id
+        ? {
+            ...x,
+            steps: ["'123456789'", "'1234567890'", "'12345678901'"].map((v) => ({
+              ...step,
+              action: `Enter ${v} in Phone and click Save`,
+            })),
+          }
+        : x,
+    );
+    expect(
+      deterministicFindings(ctx, changed).some((f) => f.rule === 'boundary-values' && f.caseIds.includes(c.id)),
+    ).toBe(false);
+  });
+});

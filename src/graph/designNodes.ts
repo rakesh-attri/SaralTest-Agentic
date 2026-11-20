@@ -154,7 +154,7 @@ export function createPlanNode(d: DesignDeps) {
         );
       }
       d.say(
-        `  ✓ ${String(r.changedFor.length)} finding(s) addressed by changes, ${String(r.justifications.length)} justified`,
+        `  ✓ ${String(r.changedFor.length)} finding(s) addressed by changes, ${String(r.justifications.length)} justified${r.rejected?.length ? `, ${String(r.rejected.length)} revised case(s) rejected by the checks (originals kept)` : ''}`,
       );
       return {
         testCases: r.testCases,
