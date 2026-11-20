@@ -1,0 +1,39 @@
+# Orgs are selected by exact 18-char Organization ID. Any org not listed here = HARD_STOP.
+orgs:
+  - orgId: 00D000000000000AAA          # your Full Copy sandbox
+    alias: fc-admin
+    profile: sandbox-qa                # sandbox-qa | prod-test-org | prod-readonly
+    instanceUrl: https://<mydomain>--fullcopy.sandbox.my.salesforce.com
+    release: "<current release name>"  # tags learnings and snapshots
+    runTagField: QA_Run_Id__c          # or null → name prefix QA-<runId>-
+    keepDataOnFailure: true
+  - orgId: 00D000000000002AAA          # production org that holds ONLY test data (build scripts, test the framework)
+    alias: qa-prod
+    profile: dedicated-qa-prod
+    instanceUrl: https://<mydomain>.my.salesforce.com
+    release: "<current release name>"
+    runTagField: QA_Run_Id__c
+    allowedEmailDomains: [example.invalid]    # plus any approved test mailboxes
+  # - orgId: 00D000000000001AAA        # a production org with REAL business data, used for some testing
+  #   alias: prod-test
+  #   profile: prod-test-org
+  #   instanceUrl: https://<mydomain>.my.salesforce.com
+  #   emailDeliverabilityConfirmedSafe: false   # if false, runs that may send email are BLOCKED
+  #   bulkLimit: 20                              # smaller bulk tests
+profiles:
+  sandbox-qa:
+    mutations: allowed
+    approvals: per-policy
+  dedicated-qa-prod:                 # production org containing only test data
+    mutations: all-record-data       # create/edit/delete any records, incl. existing test data
+    authorization: once-per-org-id   # no per-run approval
+    bulk: full-size
+    cleanupDefault: run-owned        # deleting non-run records allowed but audit-logged
+    confirmBulkDeleteOver: 200       # one confirmation guards against a wrong filter
+    blocked: [metadata, permission-changes, payments, real-callouts, emails-outside-allowed-domains]
+  prod-test-org:
+    mutations: run-tagged-records-only
+    approvalPerRun: true
+    blocked: [metadata, bulk-untagged, mass-delete, permission-changes, payments, real-callouts]
+  prod-readonly:
+    mutations: none

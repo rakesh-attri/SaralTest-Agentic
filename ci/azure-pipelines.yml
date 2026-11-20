@@ -1,0 +1,33 @@
+# Copy to azure-pipelines.yml
+trigger: none
+pr: { branches: { include: [main] } }
+schedules:
+  - cron: "30 20 * * *"            # nightly regression (02:00 IST)
+    displayName: Nightly regression
+    branches: { include: [main] }
+    always: true
+pool: { vmImage: windows-latest }
+variables: [ { group: sf-qa-secrets } ]   # SF_JWT_KEY (secure file preferred), SF_ECA_CLIENT_ID, SF_USERNAME, GOOGLE_API_KEY, JIRA_*
+steps:
+  - checkout: self
+    fetchDepth: 0
+  - task: NodeTool@0
+    inputs: { versionSpec: "22.x" }
+  - task: DownloadSecureFile@1
+    name: jwtKey
+    inputs: { secureFile: server.key }
+  - pwsh: |
+      npm i -g pnpm @salesforce/cli
+      pip install uv
+      pnpm install --frozen-lockfile
+      npx playwright install chromium
+      sf org login jwt --client-id $(SF_ECA_CLIENT_ID) --jwt-key-file $(jwtKey.secureFilePath) --username $(SF_USERNAME) --alias fc-admin --instance-url $(SF_INSTANCE_URL)
+      pnpm qa doctor --ci
+      if ("$(Build.Reason)" -eq "PullRequest") { pnpm qa run --regression pr --diff origin/main --ci } else { pnpm qa run --regression nightly --ci }
+    env:
+      GOOGLE_API_KEY: $(GOOGLE_API_KEY)
+      JIRA_API_TOKEN: $(JIRA_API_TOKEN)
+    displayName: QA run
+  - task: PublishPipelineArtifact@1
+    condition: always()
+    inputs: { targetPath: runs, artifact: qa-run }

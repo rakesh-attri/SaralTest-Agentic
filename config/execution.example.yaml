@@ -1,0 +1,11 @@
+browser: chromium          # chromium (Playwright bundled, CI default) | chrome (local install) | msedge (fallback)
+fallbackBrowser: msedge
+headless: true
+viewports:
+  - { name: desktop, width: 1440, height: 900 }
+  - { name: laptop,  width: 1280, height: 720 }
+  - { name: tablet,  width: 1024, height: 768 }
+visual:
+  maxDiffPixelRatio: 0.01
+  mask: [dates, recordIds, spinners, userNames, pii]
+  allowExternalUpload: false   # screenshots never sent to an external model unless true for the run

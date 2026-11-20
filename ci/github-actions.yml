@@ -1,0 +1,40 @@
+# Copy to .github/workflows/qa.yml
+name: sf-qa
+on:
+  schedule: [{ cron: "30 20 * * *" }]   # nightly regression (02:00 IST)
+  pull_request:
+  workflow_dispatch:
+    inputs: { story: { description: "JIRA key", required: false } }
+jobs:
+  qa:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: lts/* }
+      - uses: astral-sh/setup-uv@v6
+      - run: npm i -g pnpm @salesforce/cli
+      - run: pnpm install --frozen-lockfile
+      - run: npx playwright install chromium
+      - name: Salesforce JWT login (no MFA)
+        shell: pwsh
+        run: |
+          Set-Content -Path server.key -Value "${{ secrets.SF_JWT_KEY }}"
+          sf org login jwt --client-id ${{ secrets.SF_ECA_CLIENT_ID }} --jwt-key-file server.key --username ${{ secrets.SF_USERNAME }} --alias fc-admin --instance-url ${{ vars.SF_INSTANCE_URL }}
+          Remove-Item server.key
+      - name: Run QA
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          pnpm qa doctor --ci
+          if ("${{ github.event_name }}" -eq "pull_request") { pnpm qa run --regression pr --diff origin/${{ github.base_ref }} --ci }
+          elseif ("${{ inputs.story }}") { pnpm qa run --story ${{ inputs.story }} --ci }
+          else { pnpm qa run --regression nightly --ci }
+        shell: pwsh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: qa-run, path: runs/, retention-days: 30 }

@@ -1,0 +1,14 @@
+# One OpenTelemetry instrumentation; these are the destinations (span processors / exporters).
+exporters:
+  langfuse:
+    enabled: true            # primary: Langfuse Cloud (Hobby). Keys: LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY / LANGFUSE_BASE_URL in .env
+  phoenix:
+    enabled: false           # optional local tracer (uvx arize-phoenix serve) for runs whose data must stay on this machine
+redactBeforeExport: true     # PII from Full Copy data masked before anything leaves the machine
+includeScreenshots: false
+sendEvalScores: true         # DeepEval gate scores -> Langfuse Scores on the run's trace
+tags: [runId, storyKey, orgProfile, agent, persona, autonomy]
+perOrgProfile:               # optional overrides, e.g. keep sensitive orgs local-only
+  sandbox-qa:    { langfuse: true, phoenix: false }
+  prod-test-org: { langfuse: false, phoenix: true }
+onExporterError: warn        # never fail a run because tracing is down

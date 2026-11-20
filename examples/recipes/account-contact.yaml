@@ -1,0 +1,22 @@
+# Approved business recipe: Account -> Contact. Values marked {synthetic} are generated; others are business-approved.
+recipe: account-contact
+approvedBy: "<name>"
+objects:
+  - object: Account
+    recordType: null              # resolved from snapshot if required
+    fields:
+      Name: "QA-{runId}-Acme {synthetic}"
+      Industry: Technology        # must be a valid picklist value in the snapshot
+      BillingCountry: India
+  - object: Contact
+    parent: { field: AccountId, ref: Account }
+    fields:
+      FirstName: "{synthetic}"
+      LastName: "QA-{runId}-{synthetic}"
+      Email: "qa+{runId}-{synthetic}@example.invalid"   # never a real mailbox
+negativeVariants:
+  - name: missing-last-name
+    object: Contact
+    remove: [LastName]
+    expect: rejected               # asserts the save fails with the required-field error
+cleanup: reverse-dependency

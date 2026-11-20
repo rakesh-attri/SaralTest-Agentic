@@ -1,0 +1,16 @@
+node_modules/
+.env
+.mcp.json
+.auth/
+.qa-memory/
+runs/
+test-results/
+playwright-report/
+reporting-labs/
+*.key
+*.pem
+config/*.yaml
+!config/*.example.yaml
+!config/policy.yaml
+!config/mcp-tools.yaml
+eval/.venv/

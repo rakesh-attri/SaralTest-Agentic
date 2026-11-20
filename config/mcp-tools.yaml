@@ -1,0 +1,15 @@
+# Allow-list: only these MCP tools load. Each tool is tagged observe | mutate.
+playwright:
+  observe: [browser_navigate, browser_navigate_back, browser_snapshot, browser_take_screenshot, browser_console_messages,
+            browser_network_requests, browser_tabs, browser_wait_for, browser_find, browser_resize]
+  mutate:  [browser_click, browser_type, browser_fill_form, browser_select_option, browser_press_key, browser_hover,
+            browser_file_upload, browser_handle_dialog, browser_drag, browser_drop]
+  blocked: [browser_evaluate, browser_run_code_unsafe]
+salesforce:
+  # Tool names differ by @salesforce/mcp version: Phase 0 must list the real tool names and classify each one here.
+  observe: ["<query / describe / list / retrieve tools>"]
+  mutate:  ["<record create / update / delete tools>", "<assign permission set (test users only)>"]
+  blocked: ["<deploy tools>", "<anonymous apex>", "<metadata write tools>", "<org create/delete tools>"]
+atlassian-rovo:
+  observe: ["<search / get issue tools>"]
+  mutate:  ["<add comment>", "<create issue (only with approved publication policy)>"]

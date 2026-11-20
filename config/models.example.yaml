@@ -1,0 +1,30 @@
+# Provider-agnostic model routing. Agents ask for a ROLE, never a provider.
+# Default: Google Gemini everywhere. Change any role (or embeddings) to another provider here; no code changes.
+# Supported providers: google | anthropic | openai | azure-openai | ollama
+# Fill in model IDs you have access to (check Google AI Studio / Vertex AI for current names).
+# Rule: judge must use a different model than coder (e.g. a larger Gemini tier).
+roles:
+  reasoning:   # QA Lead, Spec Analyst, Impact & Risk, Test Planner, Failure Investigator, Autonomous Explorer
+    provider: google
+    model: <gemini-pro-model-id>
+    temperature: 0.2
+    fallback: { provider: google, model: <gemini-flash-model-id> }
+  coder:       # Test Generator, Application Explorer, Self-Healer
+    provider: google
+    model: <gemini-flash-model-id>
+    temperature: 0
+  fast:        # Salesforce Intelligence summaries, Test Data, Reporter
+    provider: google
+    model: <gemini-flash-lite-model-id>
+    temperature: 0
+  judge:       # Test Reviewer, Defect Judge, Eval Guardian, DeepEval judge
+    provider: google
+    model: <gemini-pro-model-id>   # different from coder
+    temperature: 0
+embeddings:
+  provider: google                 # google | openai | voyage | ollama
+  model: <gemini-embedding-model-id>
+  # Changing provider/model triggers `pnpm memory:reindex` (vectors from different models never mix).
+budgets:
+  tokensPerRun: 2000000
+  minutesPerRun: 90

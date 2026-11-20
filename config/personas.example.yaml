@@ -1,0 +1,22 @@
+# All users are dedicated test users in the Full Copy sandbox.
+# defaultPersona runs every test unless the story needs another persona.
+defaultPersona: system-admin
+personas:
+  - id: system-admin
+    username: qa.admin@example.com.fullcopy
+    sfAlias: fc-admin
+    profile: System Administrator
+    permissionSets: []
+    use: [setup, data, default-execution]
+# Story-driven personas: the Impact & Risk Analyst proposes them from the profiles / permission sets the
+# story touches. Add an entry once the matching test user exists (or let the agent ask you for one).
+  - id: example-story-persona
+    username: qa.salesrep@example.com.fullcopy
+    sfAlias: fc-salesrep
+    profile: Sales User
+    permissionSets: [Opportunity_Edit]
+    recordTypes: [Enterprise]
+    use: [story-driven]
+nonAdminCheckRequiredFor: [security, permission, visibility, sharing, fls]
+missingPersonaPolicy: ask        # ask | assign-permset-to-existing-test-user | skip-and-report
+sessionTtlMinutes: 60

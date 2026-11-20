@@ -1,0 +1,34 @@
+{
+  "_comment": "Copy to .mcp.json. Used by Claude Code during development AND loaded by src/mcp/client.ts at runtime. JIRA = Atlassian Rovo MCP Server (official, remote). Local: OAuth 2.1 via mcp-remote (browser consent). Headless/CI: API token (org admin must enable) sent as an Authorization header - see Atlassian Rovo MCP docs for the current endpoint. Only tools listed in config/mcp-tools.yaml are loaded (allow-list). Optional: add an Azure DevOps MCP server here if you use ADO.",
+  "mcpServers": {
+    "salesforce": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@salesforce/mcp",
+        "--orgs",
+        "fc-admin",
+        "--toolsets",
+        "orgs,data,metadata,users,testing",
+        "--allow-non-ga-tools"
+      ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--browser",
+        "chromium",
+        "--isolated"
+      ]
+    },
+    "atlassian-rovo": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.atlassian.com/v1/mcp"
+      ]
+    }
+  }
+}

@@ -1,0 +1,62 @@
+# QA Lead resilience policy: IssueKind -> ordered allowed responses.
+# The QA Lead may choose/reorder among these with a logged reason, never add new ones.
+autonomy: L2                     # L1 assist | L2 supervised | L3 autonomous
+clarification:
+  maxQuestionsPerRound: 5
+  waitMinutes: { L1: 0, L2: 30, L3: 0 }   # 0 in L1 = wait indefinitely; in L3 = do not wait, assume
+issues:
+  TRANSIENT:          [retry, fallback, escalate]
+  TOOL_UNAVAILABLE:   [fallback, degrade, escalate]
+  AUTH:               [retry, degrade, escalate]      # degrade = mark persona BLOCKED, continue others
+  AMBIGUOUS_SPEC:     [ask, degrade]                  # degrade = continue with flagged assumption
+  INVALID_LLM_OUTPUT: [retry, fallback, degrade]
+  LOCATOR:            [investigate, heal, degrade]
+  PRODUCT_DEFECT:     [judge, file_bug]
+  DATA:               [retry, fallback, degrade]
+  ENVIRONMENT:        [retry, escalate]
+  BUDGET:             [degrade]                       # stop new work, report PARTIAL
+  HARD_STOP:          [halt]
+  UNKNOWN:            [retry, escalate]
+retry:
+  maxAttempts: 3
+  backoffSeconds: [2, 8, 30]
+healing:
+  maxAttemptsPerTest: 3
+  allowAssertionChanges: false   # never set true
+hardStops:
+  unlistedOrg: true            # org ID not in config/orgs.yaml
+  identityMismatch: true       # org/user/instance differs from the org profile
+  profileForbiddenMutation: true
+  metadataWrites: true
+  secretsInPrompts: true
+  untaggedDataCleanup: true     # not applied on dedicated-qa-prod (audit-logged instead)
+security:
+  auditLog: true
+  redactPii: true
+  idempotencyKeys: true
+  reconcileUncertainWrites: true
+  defaultBlocked: [payments, mass-delete, bulk-update-untagged, permission-changes, real-callouts]
+  allowExternalUpload: false
+defectPublication:
+  enabled: false               # requires project + field mapping + this flag
+  project: null
+  fieldMapping: null
+exploration:
+  minutesPerRun: 20            # time box for the Autonomous Explorer
+  maxCharters: 3
+  priority: [uncovered-acs, high-risks, recent-failures, changed-components]
+  promoteFindingsVia: [planner, test-reviewer]   # findings never become tests without review
+checkpoints:                     # human checkpoints; autonomy level decides which wait
+  - missing-rules-and-unknown-transitions
+  - review-required-expectations
+  - new-data-recipe-or-mutation-type
+  - side-effect-browser-actions-and-high-risk-exploration
+  - behaviour-changing-locator-repairs
+  - confirm-bug-and-external-submission
+  - publish-learnings
+  - prod-test-org-mutations
+approvals:
+  L1: all
+  L2: [missing-rules-and-unknown-transitions, review-required-expectations, new-data-recipe-or-mutation-type,
+       behaviour-changing-locator-repairs, confirm-bug-and-external-submission, publish-learnings, prod-test-org-mutations]
+  L3: [prod-test-org-mutations]
