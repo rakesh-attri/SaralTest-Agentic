@@ -27,7 +27,7 @@
       "args": [
         "-y",
         "mcp-remote",
-        "https://mcp.atlassian.com/v1/mcp"
+        "https://mcp.atlassian.com/v2/mcp"
       ]
     }
   }

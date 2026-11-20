@@ -14,3 +14,5 @@ config/*.yaml
 !config/policy.yaml
 !config/mcp-tools.yaml
 eval/.venv/
+dist/
+coverage/

@@ -1,0 +1,38 @@
+{
+  "name": "sf-qa-agent",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Autonomous Salesforce AI QA Engineer (multi-agent, Windows-first)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "qa": "./bin/qa.mjs"
+  },
+  "scripts": {
+    "qa": "tsx src/cli/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write \"{src,tests,examples,packages,bin}/**/*.{ts,mjs,js}\" \"*.{ts,js}\"",
+    "format:check": "prettier --check \"{src,tests,examples,packages,bin}/**/*.{ts,mjs,js}\" \"*.{ts,js}\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "cross-env QA_INTEGRATION=1 vitest run tests/integration"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.6",
+    "@vitest/coverage-v8": "^5.1.1",
+    "cross-env": "^10.1.0",
+    "eslint": "^10.15.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^5.1.1"
+  }
+}
