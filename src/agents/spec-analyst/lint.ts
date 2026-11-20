@@ -261,7 +261,10 @@ export function lintExistingTests(
     if (doc.meta['format'] === 'manual-tests') continue;
     for (const s of doc.sections) {
       const q = `${doc.docId}#${s.ref}`;
-      if (COVERABLE.includes(s.kind) && !covered.has(q)) gaps.push(refs.display(q));
+      // Only identified requirement items count (AC3, BR-04, a Gherkin scenario) — not generic prose blocks (S5),
+      // which may be a table header or an intro paragraph under a "rules" heading.
+      const identified = s.kind === 'scenario' || !/^S\d+$/.test(s.ref);
+      if (COVERABLE.includes(s.kind) && identified && !covered.has(q)) gaps.push(refs.display(q));
     }
   }
   if (gaps.length) {

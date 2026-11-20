@@ -112,6 +112,7 @@ function mechanicalDrafts(docs: readonly SourceDocument[]): RequirementDraft[] {
     if (doc.meta['format'] === 'manual-tests' || doc.docId === CLARIFICATION_DOC_ID) continue;
     for (const s of doc.sections) {
       if (!['ac', 'rule', 'nfr', 'scenario'].includes(s.kind)) continue;
+      if (s.kind !== 'scenario' && /^S\d+$/.test(s.ref)) continue; // prose under a heading, not an identified item
       const lines = s.text
         .split('\n')
         .map((l) => l.trim())

@@ -41,6 +41,7 @@ const rules = textDocument({
     'Order Rules',
     'Document ID: ORS-2 Version 1.0',
     '1. Business rules',
+    'ID Rule',
     'OR-01 Quantity must be between 1 and 999.',
     'OR-02 Region must be one of the approved regions maintained by Ops.',
     'OR-03 Total__c updates immediately when a line changes.',
@@ -72,7 +73,7 @@ describe('deterministic lint', () => {
   it('flags vague wording, unspecified messages, external lists, timing, custom fields and NFR measurement', () => {
     const f = lintSources(docs, refs);
     const by = (rule: string): string[] => f.filter((x) => x.rule === rule).flatMap((x) => x.refs);
-    expect(by('vague-wording')).toEqual(['S2']);
+    expect(by('vague-wording')).toEqual(['ORD-1#S2']); // qualified: S2 exists in two documents
     expect(by('unspecified-message')).toEqual(['AC2']);
     expect(by('external-list')).toEqual(['OR-02']);
     expect(by('timing-mechanism')).toEqual(['OR-03']);
