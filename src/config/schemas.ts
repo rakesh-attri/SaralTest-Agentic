@@ -30,7 +30,7 @@ export const ModelsConfig = z
       minutesPerRun: z.number().positive(),
     }),
     /** Optional per-provider quotas (requests per minute). Defaults are applied in the router. */
-    quotas: z.record(ChatProvider, z.object({ requestsPerMinute: z.number().int().positive() })).optional(),
+    quotas: z.partialRecord(ChatProvider, z.object({ requestsPerMinute: z.number().int().positive() })).optional(),
   })
   .superRefine((cfg, ctx) => {
     // CLAUDE.md rule 8: the judge role must use a different model than the coder role.

@@ -16,6 +16,7 @@ export const EnvSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   AZURE_OPENAI_API_KEY: z.string().optional(),
   AZURE_OPENAI_ENDPOINT: z.string().optional(),
+  AZURE_OPENAI_API_VERSION: z.string().optional(),
   OLLAMA_BASE_URL: z.string().optional(),
   JIRA_BASE_URL: z.string().optional(),
   JIRA_EMAIL: z.string().optional(),
