@@ -17,9 +17,11 @@ import {
   type ResolvedPersona,
 } from '../agents/impact-risk/index.js';
 import {
+  buildCases,
   buildCharter,
   buildRtm,
   caseEvidence,
+  mechanicalDrafts,
   planTests,
   revisePlan,
   TestCaseIdStore,
@@ -273,7 +275,20 @@ export function createPlanNode(d: DesignDeps) {
     let findings = r.findings;
     let cases = s.testCases;
     if (open.length && round >= MAX_REVIEW_ROUNDS) {
-      const settled = settleFindings(ctx, r.findings, s.testCases);
+      const restoreIds = new TestCaseIdStore(s.storyKey ?? 'REQ', d.memoryDir);
+      const settled = settleFindings(ctx, r.findings, s.testCases, (obIds) => {
+        const added = buildCases(
+          ctx,
+          mechanicalDrafts(
+            ctx,
+            ctx.obligations.filter((o) => obIds.includes(o.id)),
+          ),
+          'mechanical',
+          restoreIds,
+        );
+        restoreIds.save();
+        return added;
+      });
       findings = settled.findings;
       cases = settled.cases;
       d.say(`  QA Lead settled ${String(open.length)} open finding(s) after ${String(round)} rounds`);

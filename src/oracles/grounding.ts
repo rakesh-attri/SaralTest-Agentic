@@ -36,12 +36,13 @@ export function groundingProblems(
       .concat(action)
       .join(' \n '),
   );
+  const ui = index.uiLabels();
   const problems: GroundingProblem[] = [];
   for (const v of valuesIn(expectedText)) {
-    if (!evidence.includes(norm(v))) {
+    if (!evidence.includes(norm(v)) && !ui.has(norm(v))) {
       problems.push({
         value: v,
-        message: `"${v}" is not in the cited evidence (${cited.join(', ') || 'none'}) nor in the step action — do not invent values; cite the evidence that states it or describe the outcome without it`,
+        message: `"${v}" is not in the cited evidence (${cited.join(', ') || 'none'}) nor in the step action/preconditions or an observed UI label — do not invent values; cite the evidence that states it or describe the outcome without it`,
       });
     }
   }

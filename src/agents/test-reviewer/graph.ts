@@ -250,9 +250,31 @@ export function settleFindings(
   ctx: PlannerContext,
   findings: readonly ReviewFinding[],
   cases: readonly TestCase[],
+  /** Builds (mechanical) cases for obligations that lost all coverage; the QA Lead never settles a coverage gap. */
+  restore?: (obligationIds: string[]) => TestCase[],
 ): SettleResult {
   const outCases = cases.map((c) => ({ ...c, reviewReasons: [...c.reviewReasons] }));
   const out = findings.map((f) => ({ ...f }));
+  if (restore) {
+    const uncovered = ctx.obligations
+      .filter((o) => !outCases.some((c) => c.obligationIds.includes(o.id)))
+      .map((o) => o.id);
+    if (uncovered.length) {
+      const added = restore(uncovered);
+      outCases.push(...added.map((c) => ({ ...c, reviewReasons: [...c.reviewReasons] })));
+      for (const f of out) {
+        const ob = f.key.startsWith('uncovered:') ? f.key.slice('uncovered:'.length) : undefined;
+        const by = ob ? added.find((c) => c.obligationIds.includes(ob)) : undefined;
+        if (f.status === 'OPEN' && by) {
+          Object.assign(f, {
+            status: 'RESOLVED',
+            resolvedBy: 'qa-lead',
+            resolution: `coverage restored by mechanical case ${by.id} (verbatim evidence)`,
+          });
+        }
+      }
+    }
+  }
   for (const f of out) {
     if (f.status !== 'OPEN') continue;
     const persona = f.rule === 'persona-unused' ? ctx.personas.find((p) => f.key === `persona:${p.id}`) : undefined;

@@ -306,3 +306,39 @@ describe('revisePlan', () => {
     expect(buildRtm(ctx, r.testCases)).toHaveLength(requirements.length);
   });
 });
+
+describe('live-demo regressions (revise never loses coverage)', () => {
+  it('a revision that removes the only case of an obligation is rejected and nothing changes', async () => {
+    const res = await planTests(ctx, { ids: ids() }, 'mechanical');
+    const victim = res.testCases.find((c) => c.refs.includes('AC2'));
+    if (!victim) throw new Error('no AC2 case');
+    const finding = {
+      id: 'RF-001',
+      key: 'dup:x',
+      escalated: false,
+      round: 1,
+      severity: 'L' as const,
+      rule: 'duplicate' as const,
+      caseIds: [victim.id],
+      requirementIds: victim.requirementIds,
+      refs: [],
+      text: 'looks like a duplicate',
+      origin: 'deterministic' as const,
+      status: 'OPEN' as const,
+    };
+    const remover = () =>
+      JSON.stringify({
+        cases: [],
+        remove: res.testCases
+          .filter((c) => c.obligationIds.some((o) => victim.obligationIds.includes(o)))
+          .map((c) => c.id),
+      });
+    const router = await mockRouter({
+      reasoning: { responder: remover },
+      'reasoning:fallback': { responder: remover },
+    });
+    const r = await revisePlan(ctx, { ids: ids(), router }, res.testCases, [finding], 'llm');
+    expect(r.degraded).toBe(true);
+    expect(r.testCases.map((c) => c.id)).toEqual(res.testCases.map((c) => c.id));
+  });
+});

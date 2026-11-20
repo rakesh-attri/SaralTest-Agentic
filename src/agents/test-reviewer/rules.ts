@@ -189,7 +189,12 @@ export function deterministicFindings(ctx: PlannerContext, cases: readonly TestC
         });
       }
       if (s.expected.text.startsWith('As stated in ')) return; // mechanical: verbatim evidence, grounded by construction
-      for (const g of groundingProblems(ctx.index, s.expected.text, s.expected.evidenceIds, s.action)) {
+      for (const g of groundingProblems(
+        ctx.index,
+        s.expected.text,
+        s.expected.evidenceIds,
+        `${s.action} ${c.preconditions.join(' ')}`,
+      )) {
         add({
           key: `ground:${c.id}:${String(n)}:${g.value}`,
           severity: 'H',

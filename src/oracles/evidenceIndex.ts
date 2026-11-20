@@ -99,6 +99,15 @@ export class EvidenceIndex {
     return [...this.items.values()];
   }
 
+  /** UI labels the Application Explorer observed in the org (accessible names): grounding for quoted UI text. */
+  uiLabels(): Set<string> {
+    return new Set(
+      (this.input.locators ?? [])
+        .map((l) => (l.accessibleName ?? '').toLowerCase().replace(/\s+/g, ' ').trim())
+        .filter((x) => x.length > 0),
+    );
+  }
+
   /** Qualified section refs of a requirement (`SF-219#AC2`). */
   sectionsOf(req: Requirement): string[] {
     const out: string[] = [];

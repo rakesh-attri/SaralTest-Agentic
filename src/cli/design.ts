@@ -7,7 +7,7 @@ import { crossCheckRequirements } from '../agents/sf-intelligence/crossCheck.js'
 import { buildContext, type DesignHook } from '../graph/designNodes.js';
 import { summarizeDesign, writeDesignReport } from '../graph/designReport.js';
 import { reviewRound, settleFindings } from '../agents/test-reviewer/index.js';
-import { buildRtm } from '../agents/test-planner/index.js';
+import { buildCases, buildRtm, mechanicalDrafts, TestCaseIdStore } from '../agents/test-planner/index.js';
 import { projectPaths, requireConfig } from '../config/loader.js';
 import { QAError } from '../core/errors.js';
 import { newRunId, runPaths } from '../core/runFolder.js';
@@ -339,7 +339,20 @@ export function registerDesign(program: Command, rootOf: () => string, say: Say)
             logger: rt.deps.logger,
           },
         );
-        const settled = settleFindings(ctx, r.findings, v.testCases);
+        const restoreIds = new TestCaseIdStore(v.storyKey ?? 'REQ', join(root, '.qa-memory'));
+        const settled = settleFindings(ctx, r.findings, v.testCases, (obIds) => {
+          const added = buildCases(
+            ctx,
+            mechanicalDrafts(
+              ctx,
+              ctx.obligations.filter((x) => obIds.includes(x.id)),
+            ),
+            'mechanical',
+            restoreIds,
+          );
+          restoreIds.save();
+          return added;
+        });
         const next: QAGraphStateType = {
           ...v,
           reviewFindings: settled.findings,

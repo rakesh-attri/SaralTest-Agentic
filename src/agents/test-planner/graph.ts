@@ -260,7 +260,7 @@ export function draftProblems(
           );
         }
       }
-      for (const g of groundingProblems(ctx.index, s.expected, s.evidence, s.action))
+      for (const g of groundingProblems(ctx.index, s.expected, s.evidence, `${s.action} ${d.preconditions.join(' ')}`))
         problems.push(`${where}: ${g.message}`);
       if (/^(it\s+)?(works( correctly)?|as expected|successfully|is successful)\.?$/i.test(s.expected.trim())) {
         problems.push(
@@ -589,6 +589,15 @@ export async function revisePlan(
         for (const j of out.justifications)
           if (!openIds.has(j.findingId)) p.push(`justification for unknown finding ${j.findingId}`);
         for (const r of out.remove) if (!existing.has(r)) p.push(`remove: unknown case ${r}`);
+        // a revision may never lose coverage: every obligation covered before stays covered
+        const replaced = new Set([...out.remove, ...out.cases.map((d) => d.key)]);
+        const after = [
+          ...cases.filter((c) => !replaced.has(c.id)).flatMap((c) => c.obligationIds),
+          ...out.cases.flatMap((d) => d.obligationIds),
+        ];
+        const lost = [...new Set(cases.flatMap((c) => c.obligationIds))].filter((o) => !after.includes(o));
+        if (lost.length)
+          p.push(`this revision leaves ${lost.join(', ')} without any case — keep or replace their coverage`);
         return p;
       },
     });

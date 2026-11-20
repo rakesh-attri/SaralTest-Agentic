@@ -148,3 +148,29 @@ describe('live-demo regressions (grounding)', () => {
     expect(valuesIn('see AC#2 and 80 characters')).toEqual(['80']);
   });
 });
+
+describe('live-demo regressions (grounding sources)', () => {
+  it('observed UI labels and the step text (action + preconditions) ground quoted values', () => {
+    const loc = {
+      org: 'o',
+      page: 'account-record',
+      element: 'button:New',
+      persona: 'system-admin',
+      scope: 'main',
+      role: 'button',
+      accessibleName: 'New',
+      expression: "getByRole('button', { name: 'New', exact: true })",
+      strategy: 'role' as const,
+      strategyRank: 1,
+      lastVerifiedAt: '2026-11-20T00:00:00.000Z',
+      verifiedBy: 'explorer' as const,
+      observationId: 'obs-1',
+      status: 'ACTIVE' as const,
+      environment: 'LIVE' as const,
+    };
+    const withUi = new EvidenceIndex({ docs, requirements, orgChecks, components, locators: [loc] });
+    expect(groundingProblems(withUi, 'The "New" button is not available', ['OC-010'])).toEqual([]);
+    expect(groundingProblems(index, 'The "New" button is not available', ['OC-010'])).toHaveLength(1);
+    expect(groundingProblems(index, 'Account Name shows "Acme Test"', ['AC1'], "Open Account 'Acme Test'")).toEqual([]);
+  });
+});

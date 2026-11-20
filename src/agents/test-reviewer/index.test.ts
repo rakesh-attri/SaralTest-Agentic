@@ -3,7 +3,13 @@ import type { BaseMessage } from '@langchain/core/messages';
 import { EvidenceIndex } from '../../oracles/index.js';
 import { assessRisks, deriveObligations, resolvePersona, tierObligations } from '../impact-risk/index.js';
 import { ReviewFinding, type TestCase } from '../../core/schemas/index.js';
-import { planTests, TestCaseIdStore, type PlannerContext } from '../test-planner/index.js';
+import {
+  buildCases,
+  mechanicalDrafts,
+  planTests,
+  TestCaseIdStore,
+  type PlannerContext,
+} from '../test-planner/index.js';
 import { mockRouter } from '../../../tests/helpers/mockRouter.js';
 import {
   SNAP,
@@ -203,5 +209,30 @@ describe('settleFindings', () => {
     expect(persona).toMatchObject({ status: 'JUSTIFIED', escalated: false });
     expect(persona?.resolution).toMatch(/Sales Manager|sales-manager/i);
     expect(s.findings.find((f) => f.rule === 'vague-expectation')?.escalated).toBe(true);
+  });
+});
+
+describe('live-demo regressions (settlement)', () => {
+  it('the QA Lead restores an obligation that lost all coverage instead of settling the gap', async () => {
+    const cases = await mechanical();
+    const ac2 = obligations.find((o) => o.ref === 'AC2' && o.isAc);
+    const without = cases.filter((c) => !c.obligationIds.includes(ac2?.id ?? ''));
+    const r = await reviewRound({ ctx, cases: without, prior: [], round: 2, mode: 'mechanical' }, {});
+    const gap = r.findings.find((f) => f.key === `uncovered:${ac2?.id ?? ''}`);
+    expect(gap?.status).toBe('OPEN');
+    const restoreIds = new TestCaseIdStore('SF-219');
+    const s = settleFindings(ctx, r.findings, without, (ids) =>
+      buildCases(
+        ctx,
+        mechanicalDrafts(
+          ctx,
+          ctx.obligations.filter((o) => ids.includes(o.id)),
+        ),
+        'mechanical',
+        restoreIds,
+      ),
+    );
+    expect(s.cases.some((c) => c.obligationIds.includes(ac2?.id ?? ''))).toBe(true);
+    expect(s.findings.find((f) => f.id === gap?.id)).toMatchObject({ status: 'RESOLVED', resolvedBy: 'qa-lead' });
   });
 });
