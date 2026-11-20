@@ -4,7 +4,7 @@ Status of every capability in PLAN.md. **implemented** = working code with tests
 stated limitation · **blocked** = needs an external prerequisite (exact blocker given) · **planned** = later phase.
 Updated at the end of each phase (CLAUDE.md rule 16).
 
-_Last updated: Phase 3 — 2026-11-20 (branch `claude/phase-3-implementation-ce8175`)._
+_Last updated: pre-Phase-4 model providers — 2026-11-20 (branch `main`)._
 
 ## Phase 0 — Foundation
 
@@ -15,10 +15,13 @@ _Last updated: Phase 3 — 2026-11-20 (branch `claude/phase-3-implementation-ce8
 | Domain contracts (PLAN.md §4) as Zod schemas + `QARunState` | implemented | `src/core/schemas/`, `src/core/state.ts` | LangGraph `Annotation.Root` wrapper added in Phase 1 (`src/graph/state.ts`) |
 | Config loaders: models, policy, personas, orgs (+profiles), execution, mcp-tools, observability | implemented | `src/config/` | judge≠coder, every IssueKind has a policy entry, 18-char org IDs, `allowAssertionChanges` must be false, no screenshots in traces; `<placeholders>` reported as unconfigured |
 | `.env` loader + secret store (Windows Credential Manager → `.env`) | implemented | `src/config/env.ts`, `src/security/secretStore.ts` | Uses `@napi-rs/keyring` (keytar-compatible, maintained) instead of archived `keytar` — operator decision |
-| ModelRouter: google (default), anthropic, openai, azure-openai, ollama, mock | implemented | `src/models/` | Only google + mock exercised in tests; other providers construct but are not live-tested (no keys) |
-| Router guards: secret-in-prompt hard stop, quotas, timeouts, token accounting, fallback | implemented | `src/models/guarded.ts`, `router.ts` | Fallback never triggers on HARD_STOP/BUDGET. A timeout frees the caller, but the Google SDK does not cancel the underlying HTTP request (it finishes in the background) |
+| ModelRouter: google, anthropic, openai, azure-openai, ollama, openai-compatible (presets `nvidia-nim`, `groq`), mock | implemented | `src/models/`, `src/models/endpoints.ts` | google + mock exercised live/in tests; nvidia-nim / groq construct and list models in tests with mocked HTTP, **not live yet** (no `NVIDIA_API_KEY` / `GROQ_API_KEY`) |
+| Per-role fallback chains (primary → fallbacks…), honest labelling of the answering model | implemented | `src/models/router.ts`, `src/agents/shared/structured.ts` | Placeholder/misconfigured entries are skipped; doctor shows which model a role currently runs on |
+| Per-provider rate limits (requests + tokens per minute), fail over instead of long waits, 429 → Retry-After cooldown | implemented | `src/models/rateLimiter.ts`, `src/models/guarded.ts` | Token use is estimated before the call (chars/4 + output reserve) and corrected from provider usage. Limits are per provider, not per model (Groq limits are per model, so this is conservative) |
+| `tools: false` per model (skills inlined instead of `load_skill`) | implemented | `structured.ts` | `qa doctor --live` probes tool calling and suggests the flag |
+| Router guards: secret-in-prompt hard stop, quotas, timeouts, token accounting, fallback chain | implemented | `src/models/guarded.ts`, `router.ts` | Fallback never triggers on HARD_STOP/BUDGET. A timeout frees the caller, but the Google SDK does not cancel the underlying HTTP request (it finishes in the background) |
 | Embeddings (Google default, OpenAI, Ollama, mock) | implemented | `src/models/providers/index.ts` | `voyage` → TOOL_UNAVAILABLE (planned with RAG, Phase 2) |
-| Real model ids configured | partial | `config/models.yaml` (local, git-ignored) | reasoning/coder/fast = `gemini-3.5-flash-lite`, embeddings = `gemini-embedding-2`. Phase 3: judge = `gemini-3.1-pro-preview` (operator decision) with fallback `gemini-3.1-flash-lite`; the Pro model answers 429 on the free tier, so every judge verdict so far came from the fallback (labelled). **Note:** another session has since changed the main checkout's `models.yaml` to NVIDIA NIM / Groq (uncommitted code), which this branch cannot parse — see phase-3-notes |
+| Real model ids configured | partial | `config/models.yaml` (local, git-ignored) | Operator layout (2026-11-20): reasoning + judge on NVIDIA NIM, coder NIM → Groq, fast Groq, Gemini last for all. NIM/Groq ids are **placeholders** until picked from `qa doctor`; meanwhile every role runs on its Gemini fallback (`gemini-3.5-flash-lite`; judge `gemini-3.1-pro-preview`). Embeddings unchanged (`gemini-embedding-2`, no re-index) |
 | SkillLoader + `load_skill` tool | implemented | `src/skills/skillLoader.ts` | 16 skills (15 + vendored `langfuse`) |
 | Issue, classifyError, HardStopError, resilientNode, budgets, retry | implemented | `src/core/` | Phase 1: resilientNode passes LangGraph interrupts through; the report node also runs when BLOCKED |
 | pino logging, run folders `runs/<runId>/` | implemented | `src/core/logger.ts`, `runFolder.ts` | |
@@ -122,10 +125,10 @@ _Last updated: Phase 3 — 2026-11-20 (branch `claude/phase-3-implementation-ce8
 | Digital Experiences not enabled in qa-prod | Explorer on Experience Cloud | SF admin | Enable + create a site, or explore it in the Full Copy sandbox |
 | Atlassian Rovo MCP on deprecated `/v1/mcp` in `.mcp.json` | JIRA via MCP (REST works and carried the demo) | Rakesh | Change to `https://mcp.atlassian.com/v2/mcp`, then `pnpm qa doctor --include-oauth` |
 | Azure DevOps organisation + PAT | ADO work items as input (optional) | Rakesh | Set `ADO_ORG_URL` and `ADO_PAT` (Credential Manager preferred) |
-| Small reasoning model on the Gemini free tier | stable cross-source conflict detection | Rakesh | Enable billing, move `reasoning` + `judge` to a Pro model, re-run the Phase 1 demo |
+| Small reasoning model on the Gemini free tier | stable cross-source conflict detection | Rakesh | Enable billing, move `reasoning` + `judge` to a Pro model, re-run the Phase 1 demo — or use NVIDIA NIM (below) |
 | Gemini Pro judge returns 429 (free-tier quota 0) | a real Pro-class Test Reviewer (Phase 3), later Defect Judge | Rakesh | Enable billing; `judge: gemini-3.1-pro-preview` is already configured with a flash-lite fallback |
-| Main checkout `config/models.yaml` changed to NIM / Groq by another session (uncommitted code) | running this branch against the main checkout | Rakesh | Merge order: land the provider work and this branch, resolve the `src/agents/shared/structured.ts` conflict |
 | Q1–Q3 assumed; 4 org conflicts (Email / Phone required, duplicate rule inactive, Title list) | assertable cases for AC3–AC5, BR-03/04/06/08/10 | product owner + SF admin | Answer the questions (`qa resume` / new analyze) and fix or confirm the org config, then `qa design` again |
+| `NVIDIA_API_KEY` and `GROQ_API_KEY` not set | NIM / Groq roles; until then every role runs on its Gemini fallback | Rakesh | Add both keys (Credential Manager or `.env`), run `pnpm qa doctor`, pick ids from the printed lists into `config/models.yaml`, then `pnpm qa doctor --live` |
 
 ## Later phases
 
@@ -135,6 +138,7 @@ _Last updated: Phase 3 — 2026-11-20 (branch `claude/phase-3-implementation-ce8
 | Runner, reporting-labs + Playwright HTML, JIRA comment, Account→Contact demo | planned | 5 |
 | Visual QA | planned | 6 |
 | Investigation, healing, exploration, fault injection | planned | 7 |
-| DeepEval sidecar, golden set, learning lifecycle | planned | 8 |
+| DeepEval judge model over the judge chain (OpenAI-compatible, failover on 429) | partial (pre-Phase-4) | `src/eval/judgeEndpoint.ts`, `eval/qa_eval/judge_model.py` |
+| DeepEval sidecar runner, metrics/gates, golden set, learning lifecycle | planned | 8 |
 | CI/CD, full CLI, exit codes | planned | 9 |
 | Autonomy levels, prod-test-org, dashboards, multi-org, ADO, MCP chat server | planned | 10 |

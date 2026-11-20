@@ -419,6 +419,11 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
   `pnpm validate:design`. See `docs/phase-3-notes.md`. The Pro judge is blocked by billing (verdicts came from the
   flash-lite fallback); persona deny cases are BLOCKED-NO-PERSONA (no test users).
 
+### Pre-Phase-4 — Model providers (operator request 2026-11-20; notes: `docs/pre-phase-4-notes.md`)
+- [x] `openai-compatible` provider with NVIDIA NIM + Groq presets; per-role fallback chains; per-provider RPM/TPM limits;
+      failover on 429 (Retry-After cooldown); doctor lists models per provider; DeepEval judge over the judge chain
+- [ ] Live NIM / Groq: blocked on `NVIDIA_API_KEY` / `GROQ_API_KEY`; then pick ids from `qa doctor` and run `--live`
+
 ### Phase 4 — Generation & data
 - [ ] Test Generator, page objects, Lightning helpers, locator ESLint rule + dry-run
 - [ ] Test Reviewer pass 2 → APPROVED / REVIEW_REQUIRED / BLOCKED
