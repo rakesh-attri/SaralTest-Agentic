@@ -29,6 +29,10 @@ export const Requirement = z.object({
   type: z.enum(['functional', 'validation', 'security', 'data', 'ui', 'integration', 'non-functional']),
   /** No clear expected outcome → REVIEW_REQUIRED. */
   status: z.enum(['EXECUTABLE', 'REVIEW_REQUIRED']),
+  /** Why the requirement is REVIEW_REQUIRED (open question, unclear outcome, unconfirmed assumption …). */
+  reviewReasons: z.array(z.string()).default([]),
+  /** Short human title (optional; businessObjective stays the canonical statement). */
+  title: z.string().optional(),
 });
 export type Requirement = z.infer<typeof Requirement>;
 
