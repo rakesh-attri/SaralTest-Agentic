@@ -16,6 +16,7 @@ import { Autonomy, type InputRequest } from '../core/state.js';
 import { createReadline, createRuntime, loadAnswersFile, resumeAnalysis, startAnalysis, summary } from './analyze.js';
 import { registerAuth } from './auth.js';
 import { createDiscoverHook, registerDiscover } from './discover.js';
+import { registerLocators } from './locators.js';
 import { chatLoop } from './chat.js';
 
 /** Walk up from `start` to the folder that holds CLAUDE.md + config/ (works from any sub-folder). */
@@ -74,6 +75,7 @@ export function buildCli(): Command {
 
   registerAuth(program, rootOf, say);
   registerDiscover(program, rootOf, say);
+  registerLocators(program, rootOf, say);
 
   const mcp = program.command('mcp').description('MCP server utilities');
   mcp

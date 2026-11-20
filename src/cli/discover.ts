@@ -10,6 +10,9 @@ import { newRunId } from '../core/runFolder.js';
 import { SnapshotStore } from '../knowledge/snapshotStore.js';
 import { createSfContext } from '../sf/context.js';
 import { assetsFrom, assetsFromAnalysis, GraphStore, type TestAsset } from '../sf/graph/index.js';
+import { assetsFromRegistry } from '../agents/app-explorer/index.js';
+import { LocatorRegistry } from '../knowledge/locatorRegistry.js';
+import { DEFAULT_PAGES, exploreAndRegister, registryFile } from './locators.js';
 
 type Say = (msg: string) => void;
 
@@ -45,6 +48,7 @@ export function registerDiscover(
     )
     .option('--baseline <snapshotId>', 'compare with this snapshot instead of the previous one')
     .option('--run-id <id>', 'run id (default discover-<timestamp>)')
+    .option('--ui [pages]', `also run the Application Explorer (default pages: ${DEFAULT_PAGES.join(',')})`)
     .option('--list', 'list stored snapshots of the org and exit')
     .action(
       async (o: {
@@ -55,6 +59,7 @@ export function registerDiscover(
         baseline?: string;
         runId?: string;
         list?: boolean;
+        ui?: boolean | string;
       }) => {
         const root = rootOf();
         const runId = o.runId ?? newRunId('discover');
@@ -101,8 +106,12 @@ export function registerDiscover(
             ? readList(join(analysisDir, 'requirements.json'), 'requirements', Requirement)
             : [];
           const findings = analysisDir ? readList(join(analysisDir, 'findings.json'), 'findings', AnalysisFinding) : [];
+          const registry = new LocatorRegistry(registryFile(root));
+          const locatorAssets = assetsFromRegistry(registry, ctx.org.orgId);
+          registry.close();
           const assets = [
             ...(analysisRun ? assetsFromAnalysis(root, analysisRun) : []),
+            ...locatorAssets,
             ...(extraAssets?.(root, ctx.org.orgId) ?? []),
           ];
 
@@ -136,6 +145,10 @@ export function registerDiscover(
               '',
             ].join('\n'),
           );
+          if (o.ui) {
+            const pages = typeof o.ui === 'string' ? o.ui.split(',').map((x) => x.trim()) : DEFAULT_PAGES;
+            await exploreAndRegister(ctx, sf, pages, say);
+          }
         } finally {
           snapshots.close();
           graph.close();
