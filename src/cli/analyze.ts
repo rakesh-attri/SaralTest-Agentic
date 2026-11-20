@@ -36,6 +36,11 @@ import { Prompter } from './prompter.js';
 
 export type Say = (msg: string) => void;
 
+const offlineFetch: typeof fetch = () =>
+  Promise.reject(
+    Object.assign(new Error('offline mode: network calls are disabled (--offline)'), { code: 'ECONNREFUSED' }),
+  );
+
 export interface RuntimeOptions {
   root: string;
   /** No network: no model calls (mechanical analysis), no MCP. */
@@ -127,6 +132,8 @@ export async function createRuntime(o: RuntimeOptions): Promise<Runtime> {
       ...(mcp
         ? { mcp, callCtx: { runId: 'analysis', orgId: 'none', user: env.JIRA_EMAIL ?? 'unknown', persona: 'qa-agent' } }
         : {}),
+      // Offline means no network at all: REST adapters (JIRA, ADO) report TOOL_UNAVAILABLE instead of calling out.
+      ...(o.offline ? { fetch: offlineFetch } : {}),
     },
     memoryDir: join(o.root, '.qa-memory'),
     checkpointer,

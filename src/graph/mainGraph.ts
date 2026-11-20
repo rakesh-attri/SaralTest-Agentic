@@ -209,9 +209,11 @@ export function buildMainGraph(deps: GraphDeps) {
     if (mechanical) {
       issues.push(
         createIssue({
-          kind: 'INVALID_LLM_OUTPUT',
+          kind: deps.router ? 'INVALID_LLM_OUTPUT' : 'TOOL_UNAVAILABLE',
           node: 'understand',
-          message: 'requirements derived mechanically (model output unavailable); all REVIEW_REQUIRED',
+          message: deps.router
+            ? 'requirements derived mechanically (model output unusable after retries and fallback); all REVIEW_REQUIRED'
+            : 'requirements derived mechanically (no model: offline or not configured); all REVIEW_REQUIRED',
           resolution: 'DEGRADED',
         }),
       );
@@ -251,7 +253,6 @@ export function buildMainGraph(deps: GraphDeps) {
     const ask = s.interactive && s.autonomy !== 'L3';
     let answer: ClarifyAnswer = { answers: {}, timedOut: true };
     if (ask) {
-      say(`Waiting for answers to ${open.length} question(s) (round ${round}) …`);
       answer = interrupt<ClarifyRequest, ClarifyAnswer>({
         kind: 'clarification',
         runId: s.runId,
@@ -264,7 +265,7 @@ export function buildMainGraph(deps: GraphDeps) {
         ? 'autonomy L3: no wait'
         : 'non-interactive run (--no-input)'
       : answer.timedOut
-        ? 'no answer within the wait time'
+        ? 'no answer received (wait time over or input ended)'
         : 'question skipped by the human';
     const clarifications = s.clarifications.map((c): Clarification => {
       if (c.status !== 'OPEN') return c;

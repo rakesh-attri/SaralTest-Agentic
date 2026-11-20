@@ -60,7 +60,9 @@ Produce:
 - `questions`: at most {{maxQuestions}}, most important first (`priority` 1 = most important). Ask only questions
   whose answer changes a test. Format each like the skill: reference, the concrete ambiguity, what the sources say
   today, `testImpact`, and a `proposedAssumption` = ONE concrete interpretation (never "A or B"): the safest, most common one, used if
-  nobody answers.
+  nobody answers. A proposed assumption must not introduce values the sources do not contain (example titles,
+  picklist values, messages, numbers, names): when values are missing, assume "not asserted until the values are
+  provided".
   Prefer one question per root cause; never ask something the sources already answer.
 {{previous}}
 Never invent facts. If unsure whether something is a problem, report it as AMBIGUITY rather than as fact.
