@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{Account.Name}} | Account | Salesforce (OFFLINE FIXTURE)</title>
+    <link rel="stylesheet" href="/fixture/static/lightning-like.css" />
+  </head>
+  <body data-qa-environment="FIXTURE">
+    <!-- Static, Lightning-LIKE page for offline locator and flow work. Not Salesforce markup. -->
+    <div class="fixture-banner" role="note" aria-label="Environment">
+      OFFLINE FIXTURE — not Salesforce. Results from this page are labelled FIXTURE.
+    </div>
+
+    <header class="global-header">
+      <nav aria-label="Global">
+        <a href="/lightning/page/home">Home</a>
+        <a href="/lightning/o/Account/list" aria-current="page">Accounts</a>
+        <a href="/lightning/o/Contact/list">Contacts</a>
+      </nav>
+      <span class="user">Logged in as {{User.Name}}</span>
+    </header>
+
+    <main class="record-page" id="main-{{rand}}">
+      <section class="record-header" aria-label="Record header">
+        <p class="entity">Account</p>
+        <h1><span class="record-title">{{Account.Name}}</span></h1>
+        <ul class="actions" aria-label="Record actions">
+          <li><button type="button" name="Edit" {{writeDisabled}}>Edit</button></li>
+          <li><button type="button" name="Delete" {{writeDisabled}}>Delete</button></li>
+        </ul>
+      </section>
+
+      <div role="tablist" aria-label="Record tabs">
+        <button role="tab" aria-selected="true" aria-controls="details-{{rand}}" id="tab-details-{{rand}}">Details</button>
+        <button role="tab" aria-selected="false" aria-controls="related-{{rand}}" id="tab-related-{{rand}}">Related</button>
+      </div>
+
+      <section role="tabpanel" id="details-{{rand}}" aria-labelledby="tab-details-{{rand}}">
+        <dl class="fields">
+          <div class="field"><dt>Account Name</dt><dd>{{Account.Name}}</dd></div>
+          <div class="field"><dt>Industry</dt><dd>{{Account.Industry}}</dd></div>
+          <div class="field"><dt>Billing Country</dt><dd>{{Account.BillingCountry}}</dd></div>
+        </dl>
+
+        <article class="related-list" aria-label="Contacts">
+          <header>
+            <h2>Contacts (<span class="count">{{ContactCount}}</span>)</h2>
+            {{newContactButton}}
+          </header>
+          <table role="grid" aria-label="Contacts">
+            <thead>
+              <tr><th scope="col">Name</th><th scope="col">Email</th></tr>
+            </thead>
+            <tbody>
+              {{ContactRows}}
+            </tbody>
+          </table>
+        </article>
+      </section>
+    </main>
+
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title-{{rand}}" hidden>
+      <form novalidate data-account-id="{{Account.Id}}" data-account-name="{{Account.Name}}">
+        <h2 id="modal-title-{{rand}}">New Contact</h2>
+        <div class="page-error" role="alert" hidden>
+          <p>We hit a snag.</p>
+          <p class="page-error-detail"></p>
+        </div>
+        <div class="form-element">
+          <label for="input-{{rand}}-1">First Name</label>
+          <input id="input-{{rand}}-1" name="firstName" type="text" maxlength="40" />
+        </div>
+        <div class="form-element">
+          <label for="input-{{rand}}-2"><abbr title="required">*</abbr>Last Name</label>
+          <input id="input-{{rand}}-2" name="lastName" type="text" maxlength="80" aria-required="true" />
+          <div class="field-error" id="err-{{rand}}-2" hidden>Complete this field.</div>
+        </div>
+        <div class="form-element">
+          <label for="input-{{rand}}-3">Email</label>
+          <input id="input-{{rand}}-3" name="email" type="email" maxlength="80" />
+        </div>
+        <div class="form-element">
+          <label for="input-{{rand}}-4">Account Name</label>
+          <input id="input-{{rand}}-4" role="combobox" aria-expanded="false" aria-autocomplete="list" name="account"
+            value="{{Account.Name}}" readonly />
+        </div>
+        <footer>
+          <button type="button" name="CancelEdit">Cancel</button>
+          <button type="submit" name="SaveEdit" class="brand">Save</button>
+        </footer>
+      </form>
+    </section>
+
+    <div class="spinner" role="status" aria-label="Loading" hidden></div>
+    <div class="toast" role="status" aria-live="polite" hidden></div>
+
+    <script src="/fixture/static/record-page.js"></script>
+  </body>
+</html>

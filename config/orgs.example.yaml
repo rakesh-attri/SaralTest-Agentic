@@ -1,5 +1,12 @@
 # Orgs are selected by exact 18-char Organization ID. Any org not listed here = HARD_STOP.
 orgs:
+  - orgId: 00DFIXTURE00000001          # OFFLINE FIXTURE (examples/fixture) - fake ID, results are labelled FIXTURE
+    alias: fixture
+    profile: offline-fixture
+    environment: FIXTURE
+    instanceUrl: http://127.0.0.1:4545
+    release: fixture
+    runTagField: QA_Run_Id__c
   - orgId: 00D000000000000AAA          # your Full Copy sandbox
     alias: fc-admin
     profile: sandbox-qa                # sandbox-qa | prod-test-org | prod-readonly
@@ -21,6 +28,8 @@ orgs:
   #   emailDeliverabilityConfirmedSafe: false   # if false, runs that may send email are BLOCKED
   #   bulkLimit: 20                              # smaller bulk tests
 profiles:
+  offline-fixture:                   # local mock server only; nothing leaves the machine
+    mutations: allowed
   sandbox-qa:
     mutations: allowed
     approvals: per-policy

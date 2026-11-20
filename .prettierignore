@@ -1,0 +1,9 @@
+node_modules
+dist
+runs
+.qa-memory
+pnpm-lock.yaml
+.claude
+templates
+coverage
+*.md

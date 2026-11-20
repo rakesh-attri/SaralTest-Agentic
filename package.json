@@ -1,0 +1,65 @@
+{
+  "name": "sf-qa-agent",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Autonomous Salesforce AI QA Engineer (multi-agent, Windows-first)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "qa": "./bin/qa.mjs"
+  },
+  "scripts": {
+    "qa": "tsx src/cli/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write \"{src,tests,examples,packages,bin}/**/*.{ts,mjs,js}\" \"*.{ts,js}\"",
+    "format:check": "prettier --check \"{src,tests,examples,packages,bin}/**/*.{ts,mjs,js}\" \"*.{ts,js}\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "cross-env QA_INTEGRATION=1 vitest run tests/integration"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
+    "@types/cross-spawn": "^6.0.6",
+    "@types/node": "^26.6.6",
+    "@vitest/coverage-v8": "^5.1.1",
+    "cross-env": "^10.1.0",
+    "eslint": "^10.15.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^5.1.1"
+  },
+  "dependencies": {
+    "@arizeai/openinference-instrumentation-langchain": "^4.2.1",
+    "@langchain/anthropic": "^1.6.5",
+    "@langchain/core": "^1.4.2",
+    "@langchain/google-genai": "^2.3.6",
+    "@langchain/ollama": "^1.3.0",
+    "@langchain/openai": "^1.8.4",
+    "@langfuse/otel": "^6.1.1",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@napi-rs/keyring": "^2.1.2",
+    "@opentelemetry/api": "~1.9.1",
+    "@opentelemetry/core": "^2.12.1",
+    "@opentelemetry/exporter-trace-otlp-http": "0.223.2",
+    "@opentelemetry/exporter-trace-otlp-proto": "0.223.2",
+    "@opentelemetry/otlp-exporter-base": "0.223.2",
+    "@opentelemetry/resources": "~2.9.0",
+    "@opentelemetry/sdk-trace-base": "^2.12.0",
+    "@opentelemetry/sdk-trace-node": "~2.12.1",
+    "commander": "^15.1.0",
+    "cross-spawn": "^7.0.6",
+    "dotenv": "^18.0.10",
+    "pino": "^10.4.0",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  }
+}

@@ -1,15 +1,38 @@
-# Allow-list: only these MCP tools load. Each tool is tagged observe | mutate.
-playwright:
+# Allow-list: only these MCP tools load. Each tool is tagged observe | mutate. Anything `blocked` or not listed is
+# refused (and audit-logged). `qa mcp tools` lists the real names per server and flags unclassified / stale entries.
+# Real names captured 2026-11-20 (Phase 0) from the running servers; re-check after upgrading a server.
+
+playwright:            # @playwright/mcp (25 tools)
   observe: [browser_navigate, browser_navigate_back, browser_snapshot, browser_take_screenshot, browser_console_messages,
-            browser_network_requests, browser_tabs, browser_wait_for, browser_find, browser_resize]
+            browser_network_requests, browser_tabs, browser_wait_for, browser_find, browser_resize, browser_close,
+            browser_emulate_media]
   mutate:  [browser_click, browser_type, browser_fill_form, browser_select_option, browser_press_key, browser_hover,
             browser_file_upload, browser_handle_dialog, browser_drag, browser_drop]
-  blocked: [browser_evaluate, browser_run_code_unsafe]
-salesforce:
-  # Tool names differ by @salesforce/mcp version: Phase 0 must list the real tool names and classify each one here.
-  observe: ["<query / describe / list / retrieve tools>"]
-  mutate:  ["<record create / update / delete tools>", "<assign permission set (test users only)>"]
-  blocked: ["<deploy tools>", "<anonymous apex>", "<metadata write tools>", "<org create/delete tools>"]
-atlassian-rovo:
-  observe: ["<search / get issue tools>"]
-  mutate:  ["<add comment>", "<create issue (only with approved publication policy)>"]
+  blocked: [browser_evaluate,          # agent-written JavaScript in the page
+            browser_run_code_unsafe,   # arbitrary code in the Playwright server process
+            browser_network_request]   # returns full headers/bodies (session cookies, tokens)
+
+salesforce:            # @salesforce/mcp with --toolsets orgs,data,metadata,users,testing (13 tools)
+  # This toolset has no record create/update/delete tools: test-data writes go through jsforce behind the
+  # org-profile guard (Phase 2), never through MCP.
+  observe: [get_username, list_all_orgs, run_soql_query]
+  mutate:  [assign_permission_set,     # test users only, policy-checked (safety skill)
+            run_apex_test,             # executes Apex tests in the org (rolled back, but consumes limits / async jobs)
+            run_agent_test]
+  blocked: [deploy_metadata,           # metadata deploy = HARD_STOP category
+            retrieve_metadata,         # overwrites local project files; discovery uses the Tooling API instead
+            create_scratch_org, delete_org, create_org_snapshot,
+            open_org,                  # opens a personal browser session; Playwright uses isolated contexts only
+            resume_tool_operation]     # could resume a blocked long-running operation (e.g. a deploy)
+
+atlassian-rovo:        # Atlassian Rovo MCP — names observed on the session's connection; verify against /v2/mcp
+  observe: [atlassianUserInfo, getAccessibleAtlassianResources, getVisibleJiraProjects, getJiraIssue,
+            searchJiraIssuesUsingJql, getJiraIssueRemoteIssueLinks, getTransitionsForJiraIssue, getIssueLinkTypes,
+            getJiraProjectIssueTypesMetadata, getJiraIssueTypeMetaWithFields, lookupJiraAccountId, search, fetch,
+            getConfluencePage, getConfluenceSpaces, getPagesInConfluenceSpace, getConfluencePageDescendants,
+            getConfluencePageFooterComments, getConfluencePageInlineComments, getConfluenceCommentChildren,
+            searchConfluenceUsingCql, getContentFormatGuide]
+  mutate:  [addCommentToJiraIssue,     # run report comment
+            createJiraIssue]           # only with an approved defect-publication policy (policy.yaml defectPublication)
+  blocked: [editJiraIssue, transitionJiraIssue, createIssueLink, addWorklogToJiraIssue, createConfluencePage,
+            updateConfluencePage, createConfluenceFooterComment, createConfluenceInlineComment]
