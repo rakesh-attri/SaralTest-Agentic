@@ -146,6 +146,20 @@ export class ModelRouter {
   }
 
   /**
+   * The configured fallback model for a role (guarded like the primary), or undefined when none is configured or it
+   * failed to construct. Used by agents after reflect-retries on the primary are exhausted (PLAN.md §5).
+   */
+  getFallback(role: ModelRole): BaseChatModel | undefined {
+    return this.fallback.get(role)?.model;
+  }
+
+  /** Model id actually configured for a role (for labelling outputs). */
+  modelId(role: ModelRole, fallback = false): string {
+    const cfg = this.opts.config.roles[role];
+    return fallback && cfg.fallback ? `${cfg.fallback.provider}/${cfg.fallback.model}` : `${cfg.provider}/${cfg.model}`;
+  }
+
+  /**
    * Primary model with the configured fallback model (PLAN.md §5: INVALID_LLM_OUTPUT/TRANSIENT → fallback model).
    * `build` lets callers add structured output or tools identically to both, e.g.
    * `router.withFallback('reasoning', (m) => m.withStructuredOutput(schema))`.

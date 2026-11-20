@@ -50,10 +50,7 @@ export async function readPdf(path: string): Promise<SourceDocument> {
     }
     const meta: Record<string, unknown> = { pages: result.total, format: 'pdf' };
     const infoBag: unknown = info?.info;
-    const author: unknown =
-      infoBag && typeof infoBag === 'object' && 'Author' in infoBag
-        ? (infoBag).Author
-        : undefined;
+    const author: unknown = infoBag && typeof infoBag === 'object' && 'Author' in infoBag ? infoBag.Author : undefined;
     if (typeof author === 'string' && author) meta['author'] = author;
     // The hash covers the file bytes: a re-export with identical text is still a new version of the source.
     const doc = textDocument({ text, sourceType: 'file', ref: path, meta, warnings });
