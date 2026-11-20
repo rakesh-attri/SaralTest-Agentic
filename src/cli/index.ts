@@ -16,6 +16,7 @@ import { Autonomy, type InputRequest } from '../core/state.js';
 import { createReadline, createRuntime, loadAnswersFile, resumeAnalysis, startAnalysis, summary } from './analyze.js';
 import { registerAuth } from './auth.js';
 import { createDiscoverHook, registerDiscover } from './discover.js';
+import { registerIngest } from './ingest.js';
 import { registerLocators } from './locators.js';
 import { chatLoop } from './chat.js';
 
@@ -76,6 +77,7 @@ export function buildCli(): Command {
   registerAuth(program, rootOf, say);
   registerDiscover(program, rootOf, say);
   registerLocators(program, rootOf, say);
+  registerIngest(program, rootOf, say);
 
   const mcp = program.command('mcp').description('MCP server utilities');
   mcp
@@ -288,7 +290,6 @@ export function buildCli(): Command {
 
   // Commands from CLAUDE.md that later phases implement. They say so instead of failing obscurely.
   const later: [string, string, number][] = [
-    ['ingest', 'Documents, manual tests, defect history into RAG', 2],
     ['design', 'Test design', 3],
     ['review', 'Test Reviewer pass', 3],
     ['run', 'Full run / regression sets', 5],
