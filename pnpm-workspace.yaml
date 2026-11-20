@@ -3,3 +3,10 @@ packages:
   - "packages/*"
 allowBuilds:
   esbuild: true
+  # Pulled in by @lancedb/lancedb's optional local-embedding functions (@huggingface/transformers).
+  # We embed through ModelRouter.embeddings(), so their native install scripts are not needed.
+  core-js: false
+  core-js-pure: false
+  onnxruntime-node: false
+  protobufjs: false
+  sharp: false
