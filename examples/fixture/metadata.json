@@ -1,0 +1,495 @@
+{
+  "_comment": "OFFLINE FIXTURE setup metadata (FIXTURE only, never live evidence). Answers Tooling/REST setup queries for discovery tests.",
+  "entities": {
+    "ValidationRule": [
+      {
+        "Id": "03dFX0000000001AAA",
+        "ValidationName": "Phone_Format",
+        "Active": true,
+        "Description": "Phone must be 10 digits",
+        "ErrorDisplayField": "Phone",
+        "ErrorMessage": "Phone must contain exactly 10 digits.",
+        "EntityDefinition": {
+          "QualifiedApiName": "Contact"
+        },
+        "LastModifiedDate": "2026-11-01T10:00:00.000+0000",
+        "Metadata": {
+          "active": true,
+          "errorConditionFormula": "AND(NOT(ISBLANK(Phone)), NOT(REGEX(Phone, \"\\\\d{10}\")))",
+          "errorDisplayField": "Phone",
+          "errorMessage": "Phone must contain exactly 10 digits."
+        }
+      }
+    ],
+    "ApexTrigger": [
+      {
+        "Id": "01qFX0000000001AAA",
+        "Name": "ContactTrigger",
+        "TableEnumOrId": "Contact",
+        "NamespacePrefix": null,
+        "Status": "Active",
+        "ApiVersion": 62,
+        "UsageBeforeInsert": true,
+        "UsageAfterInsert": true,
+        "UsageBeforeUpdate": false,
+        "UsageAfterUpdate": true,
+        "UsageBeforeDelete": false,
+        "UsageAfterDelete": true,
+        "UsageAfterUndelete": false,
+        "Body": "trigger ContactTrigger on Contact (before insert, after insert, after update, after delete) { ContactService.handle(Trigger.new); }"
+      }
+    ],
+    "ApexClass": [
+      {
+        "Id": "01pFX0000000001AAA",
+        "Name": "ContactService",
+        "NamespacePrefix": null,
+        "ApiVersion": 62,
+        "Status": "Active",
+        "Body": "public with sharing class ContactService { public static void handle(List<Contact> cs) {} }"
+      }
+    ],
+    "FlowDefinitionView": [
+      {
+        "Id": "300FX0000000001AAA",
+        "ApiName": "Account_Contact_Count",
+        "Label": "Account Contact Count",
+        "ProcessType": "AutoLaunchedFlow",
+        "TriggerType": "RecordAfterSave",
+        "TriggerObjectOrEventLabel": "Contact",
+        "IsActive": true,
+        "ActiveVersionId": "301FX0000000001AAA",
+        "LatestVersionId": "301FX0000000001AAA",
+        "RecordTriggerType": "CreateAndUpdate",
+        "NamespacePrefix": null
+      }
+    ],
+    "Flow": [
+      {
+        "Id": "301FX0000000001AAA",
+        "VersionNumber": 1,
+        "Status": "Active",
+        "Metadata": {
+          "processType": "AutoLaunchedFlow",
+          "start": {
+            "object": "Contact",
+            "recordTriggerType": "CreateAndUpdate",
+            "triggerType": "RecordAfterSave",
+            "filters": [
+              {
+                "field": "AccountId",
+                "operator": "IsNull",
+                "value": {
+                  "booleanValue": false
+                }
+              }
+            ]
+          },
+          "recordUpdates": [
+            {
+              "name": "Update_Count",
+              "object": "Account",
+              "inputAssignments": [
+                {
+                  "field": "Number_of_Contacts__c"
+                }
+              ]
+            }
+          ],
+          "recordLookups": [
+            {
+              "name": "Get_Contacts",
+              "object": "Contact",
+              "filters": [
+                {
+                  "field": "AccountId"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "LightningComponentBundle": [
+      {
+        "Id": "0RbFX0000000001AAA",
+        "DeveloperName": "contactQuickCreate",
+        "NamespacePrefix": null,
+        "ApiVersion": 62,
+        "IsExposed": true,
+        "MasterLabel": "Contact Quick Create",
+        "LastModifiedDate": "2026-11-01T10:00:00.000+0000"
+      }
+    ],
+    "AuraDefinitionBundle": [],
+    "Layout": [
+      {
+        "Id": "00hFX0000000001AAA",
+        "Name": "Contact Layout",
+        "TableEnumOrId": "Contact",
+        "NamespacePrefix": null,
+        "LastModifiedDate": "2026-11-01T10:00:00.000+0000",
+        "Metadata": {
+          "layoutSections": [
+            {
+              "label": "Contact Information",
+              "layoutColumns": [
+                {
+                  "layoutItems": [
+                    {
+                      "field": "FirstName",
+                      "behavior": "Edit"
+                    },
+                    {
+                      "field": "LastName",
+                      "behavior": "Required"
+                    },
+                    {
+                      "field": "AccountId",
+                      "behavior": "Edit"
+                    }
+                  ]
+                },
+                {
+                  "layoutItems": [
+                    {
+                      "field": "Email",
+                      "behavior": "Edit"
+                    },
+                    {
+                      "field": "Phone",
+                      "behavior": "Edit"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "relatedLists": []
+        }
+      },
+      {
+        "Id": "00hFX0000000002AAA",
+        "Name": "Account Layout",
+        "TableEnumOrId": "Account",
+        "NamespacePrefix": null,
+        "LastModifiedDate": "2026-11-01T10:00:00.000+0000",
+        "Metadata": {
+          "layoutSections": [
+            {
+              "label": "Account Information",
+              "layoutColumns": [
+                {
+                  "layoutItems": [
+                    {
+                      "field": "Name",
+                      "behavior": "Required"
+                    },
+                    {
+                      "field": "Industry",
+                      "behavior": "Edit"
+                    },
+                    {
+                      "field": "Number_of_Contacts__c",
+                      "behavior": "Readonly"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "relatedLists": [
+            {
+              "relatedList": "RelatedContactList",
+              "fields": [
+                "FULL_NAME",
+                "CONTACT.EMAIL"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "FlexiPage": [
+      {
+        "Id": "0M0FX0000000001AAA",
+        "DeveloperName": "Account_Record_Page",
+        "MasterLabel": "Account Record Page",
+        "Type": "RecordPage",
+        "EntityDefinitionId": "Account",
+        "NamespacePrefix": null,
+        "LastModifiedDate": "2026-11-01T10:00:00.000+0000"
+      }
+    ],
+    "Profile": [
+      {
+        "Id": "00eFX0000000001AAA",
+        "Name": "System Administrator",
+        "UserType": "Standard",
+        "UserLicense": {
+          "Name": "Salesforce"
+        }
+      },
+      {
+        "Id": "00eFX0000000002AAA",
+        "Name": "Read Only",
+        "UserType": "Standard",
+        "UserLicense": {
+          "Name": "Salesforce"
+        }
+      }
+    ],
+    "PermissionSet": [
+      {
+        "Id": "0PSFX0000000001AAA",
+        "Name": "Contact_Editor",
+        "Label": "Contact Editor",
+        "IsOwnedByProfile": false,
+        "IsCustom": true,
+        "NamespacePrefix": null,
+        "Type": "Regular"
+      }
+    ],
+    "PermissionSetGroup": [],
+    "ObjectPermissions": [
+      {
+        "Parent": {
+          "Name": "System Administrator",
+          "IsOwnedByProfile": true,
+          "Profile": {
+            "Name": "System Administrator"
+          }
+        },
+        "SobjectType": "Account",
+        "PermissionsCreate": true,
+        "PermissionsRead": true,
+        "PermissionsEdit": true,
+        "PermissionsDelete": true,
+        "PermissionsViewAllRecords": false,
+        "PermissionsModifyAllRecords": false
+      },
+      {
+        "Parent": {
+          "Name": "System Administrator",
+          "IsOwnedByProfile": true,
+          "Profile": {
+            "Name": "System Administrator"
+          }
+        },
+        "SobjectType": "Contact",
+        "PermissionsCreate": true,
+        "PermissionsRead": true,
+        "PermissionsEdit": true,
+        "PermissionsDelete": true,
+        "PermissionsViewAllRecords": false,
+        "PermissionsModifyAllRecords": false
+      },
+      {
+        "Parent": {
+          "Name": "Read Only",
+          "IsOwnedByProfile": true,
+          "Profile": {
+            "Name": "Read Only"
+          }
+        },
+        "SobjectType": "Account",
+        "PermissionsCreate": false,
+        "PermissionsRead": true,
+        "PermissionsEdit": false,
+        "PermissionsDelete": false,
+        "PermissionsViewAllRecords": false,
+        "PermissionsModifyAllRecords": false
+      },
+      {
+        "Parent": {
+          "Name": "Read Only",
+          "IsOwnedByProfile": true,
+          "Profile": {
+            "Name": "Read Only"
+          }
+        },
+        "SobjectType": "Contact",
+        "PermissionsCreate": false,
+        "PermissionsRead": true,
+        "PermissionsEdit": false,
+        "PermissionsDelete": false,
+        "PermissionsViewAllRecords": false,
+        "PermissionsModifyAllRecords": false
+      },
+      {
+        "Parent": {
+          "Name": "Contact_Editor",
+          "IsOwnedByProfile": false,
+          "Profile": null
+        },
+        "SobjectType": "Contact",
+        "PermissionsCreate": true,
+        "PermissionsRead": true,
+        "PermissionsEdit": true,
+        "PermissionsDelete": false,
+        "PermissionsViewAllRecords": false,
+        "PermissionsModifyAllRecords": false
+      }
+    ],
+    "FieldPermissions": [
+      {
+        "Parent": {
+          "Name": "System Administrator",
+          "IsOwnedByProfile": true,
+          "Profile": {
+            "Name": "System Administrator"
+          }
+        },
+        "SobjectType": "Contact",
+        "Field": "Contact.Phone",
+        "PermissionsRead": true,
+        "PermissionsEdit": true
+      },
+      {
+        "Parent": {
+          "Name": "System Administrator",
+          "IsOwnedByProfile": true,
+          "Profile": {
+            "Name": "System Administrator"
+          }
+        },
+        "SobjectType": "Contact",
+        "Field": "Contact.Email",
+        "PermissionsRead": true,
+        "PermissionsEdit": true
+      },
+      {
+        "Parent": {
+          "Name": "System Administrator",
+          "IsOwnedByProfile": true,
+          "Profile": {
+            "Name": "System Administrator"
+          }
+        },
+        "SobjectType": "Account",
+        "Field": "Account.Number_of_Contacts__c",
+        "PermissionsRead": true,
+        "PermissionsEdit": false
+      },
+      {
+        "Parent": {
+          "Name": "Read Only",
+          "IsOwnedByProfile": true,
+          "Profile": {
+            "Name": "Read Only"
+          }
+        },
+        "SobjectType": "Contact",
+        "Field": "Contact.Phone",
+        "PermissionsRead": true,
+        "PermissionsEdit": false
+      },
+      {
+        "Parent": {
+          "Name": "Read Only",
+          "IsOwnedByProfile": true,
+          "Profile": {
+            "Name": "Read Only"
+          }
+        },
+        "SobjectType": "Contact",
+        "Field": "Contact.Email",
+        "PermissionsRead": true,
+        "PermissionsEdit": false
+      },
+      {
+        "Parent": {
+          "Name": "Read Only",
+          "IsOwnedByProfile": true,
+          "Profile": {
+            "Name": "Read Only"
+          }
+        },
+        "SobjectType": "Account",
+        "Field": "Account.Number_of_Contacts__c",
+        "PermissionsRead": true,
+        "PermissionsEdit": false
+      },
+      {
+        "Parent": {
+          "Name": "Contact_Editor",
+          "IsOwnedByProfile": false,
+          "Profile": null
+        },
+        "SobjectType": "Contact",
+        "Field": "Contact.Phone",
+        "PermissionsRead": true,
+        "PermissionsEdit": true
+      }
+    ],
+    "EntityDefinition": [
+      {
+        "QualifiedApiName": "Account",
+        "InternalSharingModel": "ReadWrite",
+        "ExternalSharingModel": "Private"
+      },
+      {
+        "QualifiedApiName": "Contact",
+        "InternalSharingModel": "ControlledByParent",
+        "ExternalSharingModel": "ControlledByParent"
+      }
+    ],
+    "DuplicateRule": [
+      {
+        "Id": "0BmFX0000000001AAA",
+        "DeveloperName": "Standard_Contact_Duplicate_Rule",
+        "MasterLabel": "Standard Contact Duplicate Rule",
+        "SobjectType": "Contact",
+        "IsActive": true,
+        "NamespacePrefix": null
+      }
+    ],
+    "CustomField": [
+      {
+        "Id": "00NFX0000000001AAA",
+        "DeveloperName": "Number_of_Contacts",
+        "TableEnumOrId": "Account"
+      },
+      {
+        "Id": "00NFX0000000002AAA",
+        "DeveloperName": "QA_Run_Id",
+        "TableEnumOrId": "Contact"
+      }
+    ],
+    "MetadataComponentDependency": [
+      {
+        "MetadataComponentId": "301FX0000000001AAA",
+        "MetadataComponentName": "Account_Contact_Count",
+        "MetadataComponentType": "Flow",
+        "RefMetadataComponentId": "00NFX0000000001AAA",
+        "RefMetadataComponentName": "Account.Number_of_Contacts__c",
+        "RefMetadataComponentType": "CustomField"
+      },
+      {
+        "MetadataComponentId": "01qFX0000000001AAA",
+        "MetadataComponentName": "ContactTrigger",
+        "MetadataComponentType": "ApexTrigger",
+        "RefMetadataComponentId": "01pFX0000000001AAA",
+        "RefMetadataComponentName": "ContactService",
+        "RefMetadataComponentType": "ApexClass"
+      }
+    ]
+  },
+  "recordTypes": {},
+  "globalExtras": [
+    {
+      "name": "QA_Setting__c",
+      "label": "QA Setting",
+      "custom": true,
+      "customSetting": true,
+      "queryable": true
+    },
+    {
+      "name": "Contact_Rule__mdt",
+      "label": "Contact Rule",
+      "custom": true,
+      "customSetting": false,
+      "queryable": true
+    }
+  ]
+}

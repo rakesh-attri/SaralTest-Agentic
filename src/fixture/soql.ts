@@ -32,7 +32,7 @@ export class SoqlError extends Error {
   readonly errorCode = 'MALFORMED_QUERY';
 }
 
-const IDENT = '[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)?';
+const IDENT = '[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*';
 const STR = "'((?:[^'\\\\]|\\\\.)*)'";
 
 function unquote(s: string): string {
@@ -46,6 +46,10 @@ function parseCondition(raw: string): Condition {
     const values = [...m[2].matchAll(new RegExp(STR, 'g'))].map((x) => unquote(x[1] ?? ''));
     if (!values.length) throw new SoqlError(`empty IN list: ${t}`);
     return { field: m[1], op: 'IN', value: values };
+  }
+  const bool = new RegExp(`^(${IDENT})\\s*(=|!=)\\s*(true|false)$`, 'i').exec(t);
+  if (bool?.[1] && bool[2] && bool[3]) {
+    return { field: bool[1], op: bool[2] as Condition['op'], value: bool[3].toLowerCase() };
   }
   m = new RegExp(`^(${IDENT})\\s*(=|!=|LIKE)\\s*(?:${STR}|(null))$`, 'i').exec(t);
   if (!m?.[1] || !m[2]) throw new SoqlError(`unsupported condition: ${t}`);

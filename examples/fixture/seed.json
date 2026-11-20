@@ -31,18 +31,60 @@
       "label": "Account",
       "keyPrefix": "001",
       "fields": [
-        { "name": "Id", "label": "Account ID", "type": "id", "createable": false },
-        { "name": "Name", "label": "Account Name", "type": "string", "required": true, "length": 255 },
+        {
+          "name": "Id",
+          "label": "Account ID",
+          "type": "id",
+          "createable": false
+        },
+        {
+          "name": "Name",
+          "label": "Account Name",
+          "type": "string",
+          "required": true,
+          "length": 255
+        },
         {
           "name": "Industry",
           "label": "Industry",
           "type": "picklist",
-          "picklistValues": ["Banking", "Education", "Healthcare", "Technology"]
+          "picklistValues": [
+            "Banking",
+            "Education",
+            "Healthcare",
+            "Technology"
+          ]
         },
-        { "name": "BillingCountry", "label": "Billing Country", "type": "string", "length": 80 },
-        { "name": "Phone", "label": "Account Phone", "type": "phone", "length": 40 },
-        { "name": "QA_Run_Id__c", "label": "QA Run Id", "type": "string", "length": 80 },
-        { "name": "CreatedDate", "label": "Created Date", "type": "datetime", "createable": false }
+        {
+          "name": "BillingCountry",
+          "label": "Billing Country",
+          "type": "string",
+          "length": 80
+        },
+        {
+          "name": "Phone",
+          "label": "Account Phone",
+          "type": "phone",
+          "length": 40
+        },
+        {
+          "name": "QA_Run_Id__c",
+          "label": "QA Run Id",
+          "type": "string",
+          "length": 80
+        },
+        {
+          "name": "Number_of_Contacts__c",
+          "label": "Number of Contacts",
+          "type": "double",
+          "createable": false
+        },
+        {
+          "name": "CreatedDate",
+          "label": "Created Date",
+          "type": "datetime",
+          "createable": false
+        }
       ]
     },
     {
@@ -50,11 +92,37 @@
       "label": "Contact",
       "keyPrefix": "003",
       "fields": [
-        { "name": "Id", "label": "Contact ID", "type": "id", "createable": false },
-        { "name": "FirstName", "label": "First Name", "type": "string", "length": 40 },
-        { "name": "LastName", "label": "Last Name", "type": "string", "required": true, "length": 80 },
-        { "name": "Email", "label": "Email", "type": "email", "length": 80 },
-        { "name": "Phone", "label": "Phone", "type": "phone", "length": 40 },
+        {
+          "name": "Id",
+          "label": "Contact ID",
+          "type": "id",
+          "createable": false
+        },
+        {
+          "name": "FirstName",
+          "label": "First Name",
+          "type": "string",
+          "length": 40
+        },
+        {
+          "name": "LastName",
+          "label": "Last Name",
+          "type": "string",
+          "required": true,
+          "length": 80
+        },
+        {
+          "name": "Email",
+          "label": "Email",
+          "type": "email",
+          "length": 80
+        },
+        {
+          "name": "Phone",
+          "label": "Phone",
+          "type": "phone",
+          "length": 40
+        },
         {
           "name": "AccountId",
           "label": "Account Name",
@@ -62,8 +130,18 @@
           "referenceTo": "Account",
           "relationshipName": "Account"
         },
-        { "name": "QA_Run_Id__c", "label": "QA Run Id", "type": "string", "length": 80 },
-        { "name": "CreatedDate", "label": "Created Date", "type": "datetime", "createable": false }
+        {
+          "name": "QA_Run_Id__c",
+          "label": "QA Run Id",
+          "type": "string",
+          "length": 80
+        },
+        {
+          "name": "CreatedDate",
+          "label": "Created Date",
+          "type": "datetime",
+          "createable": false
+        }
       ]
     }
   ],

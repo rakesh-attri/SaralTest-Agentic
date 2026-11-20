@@ -4,6 +4,14 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
 import { parseSoql, scalar, SoqlError } from './soql.js';
+import {
+  describeGlobalSf,
+  describeSf,
+  hasEntity,
+  loadFixtureMetadata,
+  queryMetadata,
+  type FixtureMetadata,
+} from './metadata.js';
 import { FixtureError, FixtureStore, loadSeed, type SObject } from './store.js';
 
 /**
@@ -18,11 +26,16 @@ export interface FixtureServerOptions {
   fixtureDir: string;
   port?: number;
   host?: string;
+  /** Setup metadata for discovery (default `<fixtureDir>/metadata.json`). */
+  metadataFile?: string;
 }
 
 export interface FixtureServer {
   url: string;
   store: FixtureStore;
+  /** Current setup metadata (discovery tests replace it to simulate an org change between snapshots). */
+  metadata: FixtureMetadata;
+  setMetadata(meta: FixtureMetadata): void;
   close(): Promise<void>;
 }
 
@@ -83,6 +96,7 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
   const fixtureDir = resolve(opts.fixtureDir);
   const seed = loadSeed(join(fixtureDir, 'seed.json'));
   const store = new FixtureStore(seed);
+  let metadata = loadFixtureMetadata(opts.metadataFile ?? join(fixtureDir, 'metadata.json'));
   const template = await readFile(join(fixtureDir, 'pages', 'account-record.html'), 'utf8');
   const staticDir = join(fixtureDir, 'static');
 
@@ -208,10 +222,27 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
       return;
     }
 
+    if (api === '/tooling/query' || api === '/tooling/query/') {
+      const q = url.searchParams.get('q');
+      if (!q) throw new SoqlError('missing q');
+      const parsed = parseSoql(q);
+      if (!hasEntity(metadata, parsed.object)) {
+        throw new FixtureError(400, 'INVALID_TYPE', `sObject type '${parsed.object}' is not supported.`);
+      }
+      const r = queryMetadata(metadata, parsed);
+      send(res, 200, { totalSize: r.totalSize, done: true, records: r.records });
+      return;
+    }
+    if (api === '/sobjects' || api === '/sobjects/') {
+      send(res, 200, describeGlobalSf(store, metadata));
+      return;
+    }
+
     if (api === '/query' || api === '/query/') {
       const q = url.searchParams.get('q');
       if (!q) throw new SoqlError('missing q');
-      const r = store.query(parseSoql(q));
+      const parsed = parseSoql(q);
+      const r = hasEntity(metadata, parsed.object) ? queryMetadata(metadata, parsed) : store.query(parsed);
       send(res, 200, { totalSize: r.totalSize, done: true, records: r.records });
       return;
     }
@@ -227,7 +258,7 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
       throw new FixtureError(403, 'INSUFFICIENT_ACCESS_OR_READONLY', 'insufficient access rights on object id');
     }
     if (idOrDescribe === 'describe') {
-      send(res, 200, store.describe(object));
+      send(res, 200, describeSf(store, metadata, store.describe(object)));
       return;
     }
     if (!idOrDescribe) {
@@ -288,6 +319,12 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
   return {
     url: `http://${opts.host ?? '127.0.0.1'}:${port}`,
     store,
+    get metadata() {
+      return metadata;
+    },
+    setMetadata(meta: FixtureMetadata) {
+      metadata = meta;
+    },
     close: () =>
       new Promise<void>((ok) => {
         server.closeAllConnections();

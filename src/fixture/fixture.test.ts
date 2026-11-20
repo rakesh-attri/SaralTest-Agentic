@@ -151,11 +151,30 @@ describe('fixture server', () => {
     expect(((await r.json()) as { errorCode: string }[])[0]?.errorCode).toBe('MALFORMED_QUERY');
   });
 
-  it('describe returns the fixture object model', async () => {
+  it('describe returns a Salesforce-shaped view of the fixture object model', async () => {
     const d = (await (await fetch(api('/sobjects/Contact/describe'), { headers: ADMIN })).json()) as {
-      fields: { name: string; required?: boolean }[];
+      fields: { name: string; nillable: boolean; referenceTo: string[] }[];
+      recordTypeInfos: unknown[];
     };
-    expect(d.fields.find((f) => f.name === 'LastName')?.required).toBe(true);
+    expect(d.fields.find((f) => f.name === 'LastName')?.nillable).toBe(false);
+    expect(d.fields.find((f) => f.name === 'AccountId')?.referenceTo).toEqual(['Account']);
+    expect(d.recordTypeInfos.length).toBeGreaterThan(0);
+  });
+
+  it('answers Tooling queries from examples/fixture/metadata.json (projection + WHERE)', async () => {
+    const q = encodeURIComponent(
+      "SELECT Id, ValidationName, EntityDefinition.QualifiedApiName FROM ValidationRule WHERE EntityDefinition.QualifiedApiName IN ('Contact') AND Active = true",
+    );
+    const r = (await (await fetch(api(`/tooling/query?q=${q}`), { headers: ADMIN })).json()) as {
+      records: { ValidationName: string; EntityDefinition: { QualifiedApiName: string }; Metadata?: unknown }[];
+    };
+    expect(r.records.length).toBeGreaterThan(0);
+    expect(r.records[0]?.EntityDefinition.QualifiedApiName).toBe('Contact');
+    expect(r.records[0]?.Metadata).toBeUndefined(); // not selected → not returned
+    const bad = await fetch(api(`/tooling/query?q=${encodeURIComponent('SELECT Id FROM Network')}`), {
+      headers: ADMIN,
+    });
+    expect(bad.status).toBe(400);
   });
 
   it('frontdoor sets a session cookie; the record page is accessible, labelled FIXTURE, and role-based', async () => {

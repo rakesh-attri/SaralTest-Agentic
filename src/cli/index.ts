@@ -119,10 +119,16 @@ export function buildCli(): Command {
     .command('serve')
     .description('Serve the offline fixture (mock REST/SOQL + Lightning-like pages)')
     .option('--port <n>', 'port', '4545')
-    .action(async (o: { port: string }) => {
+    .option('--metadata <file>', 'setup metadata file (e.g. examples/fixture/metadata.changed-vr.json)')
+    .action(async (o: { port: string; metadata?: string }) => {
       const root = rootOf();
-      const fx = await startFixtureServer({ fixtureDir: join(root, 'examples', 'fixture'), port: Number(o.port) });
+      const fx = await startFixtureServer({
+        fixtureDir: join(root, 'examples', 'fixture'),
+        port: Number(o.port),
+        ...(o.metadata ? { metadataFile: resolve(root, o.metadata) } : {}),
+      });
       say(`OFFLINE FIXTURE serving at ${fx.url} (not Salesforce; everything is labelled FIXTURE)`);
+      if (o.metadata) say(`  setup metadata: ${o.metadata}`);
       say(
         `  record page: ${fx.url}/secur/frontdoor.jsp?sid=fixture-admin-token&retURL=/lightning/r/Account/001FX0000000001AAA/view`,
       );

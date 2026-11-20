@@ -6,7 +6,7 @@ import { matches, scalar, type SoqlQuery } from './soql.js';
 export interface FieldDef {
   name: string;
   label: string;
-  type: 'id' | 'string' | 'email' | 'phone' | 'picklist' | 'reference' | 'datetime' | 'boolean';
+  type: 'id' | 'string' | 'email' | 'phone' | 'picklist' | 'reference' | 'datetime' | 'boolean' | 'double';
   required?: boolean;
   createable?: boolean;
   referenceTo?: string;
