@@ -170,11 +170,16 @@ ${schemaText(opts.schema)}`;
   }
   if (lastError !== undefined && !lastProblems.length) {
     const c = classifyError(lastError);
-    throw new QAError(c.kind, `${opts.agent}: every model failed (${c.message})`, { attempts });
+    throw new QAError(c.kind, `${opts.agent}: every model failed (${c.message})`, {
+      attempts: attempts.length,
+      handled: models.length > 1 ? ['fallback'] : [],
+    });
   }
   throw new QAError('INVALID_LLM_OUTPUT', `${opts.agent}: output still invalid after reflect-retries and fallback`, {
     problems: lastProblems.slice(0, 10),
     attempts: attempts.length,
+    // Reflect-retries and the fallback model already ran here: QA Lead triage moves on to the next response.
+    handled: models.length > 1 ? ['retry', 'fallback'] : ['retry'],
   });
 }
 
