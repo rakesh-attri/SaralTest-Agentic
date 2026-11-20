@@ -201,6 +201,8 @@ describe('revisePlan', () => {
     if (!target) throw new Error('no approved case');
     const finding = {
       id: 'RF-001',
+      key: 'vague:x',
+      escalated: false,
       round: 1,
       severity: 'M' as const,
       rule: 'vague-expectation' as const,

@@ -137,6 +137,8 @@ export type ReviewRule = z.infer<typeof ReviewRule>;
 /** Test Reviewer pass-1 finding. Nothing may stay OPEN when the design is reported. */
 export const ReviewFinding = z.object({
   id: z.string().regex(/^RF-\d{3,}$/),
+  /** Identifies "the same finding" across review rounds (rule + subject). */
+  key: z.string().default(''),
   round: z.number().int().min(1),
   severity: FindingSeverity,
   rule: ReviewRule,
@@ -148,6 +150,8 @@ export const ReviewFinding = z.object({
   status: z.enum(['OPEN', 'RESOLVED', 'JUSTIFIED']),
   /** How it was resolved (case changed) or why it is justified. */
   resolution: z.string().optional(),
-  resolvedBy: z.enum(['planner', 'qa-lead', 'recheck']).optional(),
+  resolvedBy: z.enum(['planner', 'qa-lead', 'recheck', 'judge']).optional(),
+  /** Settled by the QA Lead without a fix: the affected cases were set to REVIEW_REQUIRED for a human. */
+  escalated: z.boolean().default(false),
 });
 export type ReviewFinding = z.infer<typeof ReviewFinding>;
