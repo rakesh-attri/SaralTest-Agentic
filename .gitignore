@@ -16,3 +16,6 @@ config/*.yaml
 eval/.venv/
 dist/
 coverage/
+
+# scratch scripts
+.tmp/

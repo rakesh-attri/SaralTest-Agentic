@@ -93,7 +93,7 @@ export interface RedactorOptions {
 export const REDACTED = '[REDACTED]';
 
 export class Redactor {
-  private readonly secrets: string[];
+  private secrets: string[];
   private readonly tokens = new Map<string, string>(); // original → token
   private readonly reverse = new Map<string, string>(); // token → original
   private readonly counters = new Map<PiiCategory, number>();
@@ -106,6 +106,15 @@ export class Redactor {
       ...PII_FIELDS,
       ...Object.fromEntries(Object.entries(opts.extraPiiFields ?? {}).map(([k, v]) => [k.toLowerCase(), v])),
     };
+  }
+
+  /**
+   * Register a secret discovered at runtime (e.g. a Salesforce access token obtained in memory). From now on it is
+   * masked everywhere this redactor is used.
+   */
+  addSecret(value: string): void {
+    if (value.length < 6 || this.secrets.includes(value)) return;
+    this.secrets = [...this.secrets, value].sort((a, b) => b.length - a.length);
   }
 
   private token(category: PiiCategory, original: string): string {
