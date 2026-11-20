@@ -92,7 +92,7 @@ export async function createRuntime(o: RuntimeOptions): Promise<Runtime> {
       });
       const r = router.status().find((s) => s.role === 'reasoning');
       o.say(
-        `Models: reasoning = ${r?.provider ?? '?'}/${r?.model ?? '?'}${r?.fallback ? ` (fallback ${r.fallback.provider}/${r.fallback.model})` : ''}${r?.ok ? '' : ` — NOT USABLE: ${r?.error ?? ''}`}`,
+        `Models: reasoning = ${r?.provider ?? '?'}/${r?.model ?? '?'}${r?.fallbacks.length ? ` (fallback ${r.fallbacks.map((f) => `${f.provider}/${f.model}`).join(' → ')})` : ''}${r?.ok ? '' : ` — NOT USABLE: ${r?.error ?? ''}`}`,
       );
     }
   }

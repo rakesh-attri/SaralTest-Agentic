@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { QAError } from '../core/errors.js';
-import type { ChatProvider } from '../config/schemas.js';
+import type { ChatProvider, ModelsConfig } from '../config/schemas.js';
+import { resolveEndpoint } from './endpoints.js';
 import type { ProviderSecrets } from './providers/index.js';
 
 export interface AvailableModel {
@@ -8,6 +9,11 @@ export interface AvailableModel {
   displayName?: string;
   /** e.g. generateContent, embedContent (Google) */
   methods: string[];
+  /** OpenAI-compatible listings: owner / namespace (e.g. meta, qwen, deepseek-ai). */
+  ownedBy?: string;
+  /** Groq: context window and whether the model is active. */
+  contextWindow?: number;
+  active?: boolean;
 }
 
 const GoogleModels = z.object({
@@ -23,6 +29,18 @@ const GoogleModels = z.object({
   nextPageToken: z.string().optional(),
 });
 const IdList = z.object({ data: z.array(z.looseObject({ id: z.string() })).default([]) });
+const OpenAICompatibleList = z.object({
+  data: z
+    .array(
+      z.looseObject({
+        id: z.string(),
+        owned_by: z.string().optional(),
+        context_window: z.number().optional(),
+        active: z.boolean().optional(),
+      }),
+    )
+    .default([]),
+});
 const OllamaTags = z.object({ models: z.array(z.looseObject({ name: z.string() })).default([]) });
 
 async function getJson(
@@ -45,8 +63,26 @@ export async function listAvailableModels(
   secrets: ProviderSecrets,
   timeoutMs = 15_000,
   fetchImpl: typeof fetch = fetch,
+  endpoints?: ModelsConfig['endpoints'],
 ): Promise<AvailableModel[]> {
   switch (provider) {
+    case 'openai-compatible':
+    case 'nvidia-nim':
+    case 'groq': {
+      const ep = resolveEndpoint(provider, endpoints, (k) => secrets.setting(k));
+      const key = await secrets.get(ep.apiKeyEnv);
+      if (!key) throw new QAError('TOOL_UNAVAILABLE', `${ep.apiKeyEnv} is not set`, { missingKey: ep.apiKeyEnv });
+      const body = OpenAICompatibleList.parse(
+        await getJson(`${ep.baseURL}/models`, { authorization: `Bearer ${key}` }, timeoutMs, fetchImpl),
+      );
+      return body.data.map((m) => ({
+        id: m.id,
+        methods: ['chat.completions'],
+        ...(m.owned_by ? { ownedBy: m.owned_by } : {}),
+        ...(m.context_window !== undefined ? { contextWindow: m.context_window } : {}),
+        ...(m.active !== undefined ? { active: m.active } : {}),
+      }));
+    }
     case 'google': {
       const key = await secrets.get('GOOGLE_API_KEY');
       if (!key) throw new QAError('TOOL_UNAVAILABLE', 'GOOGLE_API_KEY is not set');
@@ -160,5 +196,36 @@ export function suggestGeminiModels(models: readonly AvailableModel[]): ModelSug
     ...(lite ? { fast: lite } : flash ? { fast: flash } : {}),
     ...(embed ? { embeddings: embed } : {}),
     ...(Object.keys(previews).length ? { newerPreview: previews } : {}),
+  };
+}
+
+/** Ids that are not chat models (embeddings, rerankers, speech, safety classifiers, image/video). */
+const NON_CHAT =
+  /embed|rerank|whisper|tts|speech|asr|audio|guard|safety|shield|moderation|clip|vision-only|image|video|parakeet|canary|nv-ingest|ocr|detector|-reward|retriever|paddle|nemoretriever/i;
+
+export function isLikelyChatModel(m: AvailableModel): boolean {
+  return m.active !== false && !NON_CHAT.test(m.id);
+}
+
+/**
+ * Model ids grouped by owner/namespace for display (doctor). Non-chat ids are counted, not listed.
+ * Namespace = `owned_by` when given, else the part before "/" in the id, else "other".
+ */
+export function groupModels(models: readonly AvailableModel[]): { groups: [string, string[]][]; hidden: number } {
+  const groups = new Map<string, string[]>();
+  let hidden = 0;
+  for (const m of models) {
+    if (!isLikelyChatModel(m)) {
+      hidden++;
+      continue;
+    }
+    const ns = m.id.includes('/') ? (m.id.split('/')[0] ?? 'other') : (m.ownedBy ?? 'other');
+    const list = groups.get(ns) ?? [];
+    list.push(m.id);
+    groups.set(ns, list);
+  }
+  return {
+    groups: [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, v.sort()]),
+    hidden,
   };
 }

@@ -16,6 +16,8 @@ import { exitCodeFor, formatReport, runDoctor, type DoctorReport } from './runDo
 import type { DoctorDeps, DoctorOptions } from './types.js';
 
 const GOOGLE_KEY = 'fake-google-key-1234567890';
+const NVIDIA_KEY = 'nvapi-fake-key-1234567890';
+const GROQ_KEY = 'gsk_fake_key_1234567890';
 const ONLINE: DoctorOptions = { live: false, offline: false, includeOAuth: false, ci: false };
 
 const okRun: Runner = (cmd, args) => {
@@ -44,6 +46,26 @@ function fakeFetch(models: string[]): typeof fetch {
           name: `models/${id}`,
           supportedGenerationMethods: id.includes('embedding') ? ['embedContent'] : ['generateContent'],
         })),
+      });
+    }
+    if (url.hostname === 'integrate.api.nvidia.com' || url.hostname === 'api.groq.com') {
+      const nim = url.hostname === 'integrate.api.nvidia.com';
+      const headers = new Headers(init?.headers);
+      if (headers.get('authorization') !== `Bearer ${nim ? NVIDIA_KEY : GROQ_KEY}`) {
+        return new Response('{}', { status: 401 });
+      }
+      expect(url.pathname).toBe(nim ? '/v1/models' : '/openai/v1/models');
+      return Response.json({
+        data: nim
+          ? [
+              { id: 'meta/llama-3.3-70b-instruct', owned_by: 'meta' },
+              { id: 'qwen/qwen3-coder-480b-a35b-instruct', owned_by: 'qwen' },
+              { id: 'nvidia/nv-embedqa-e5-v5', owned_by: 'nvidia' },
+            ]
+          : [
+              { id: 'llama-3.1-8b-instant', owned_by: 'Meta', active: true },
+              { id: 'whisper-large-v3', owned_by: 'OpenAI', active: true },
+            ],
       });
     }
     if (url.hostname.endsWith('langfuse.com')) return new Response('{}', { status: 200 });
@@ -103,11 +125,14 @@ describe('qa doctor', () => {
     const root = project();
     const file = join(root, 'config', 'models.yaml');
     const doc = parse(readFileSync(file, 'utf8')) as {
-      roles: Record<string, { model: string; fallback?: unknown }>;
+      roles: Record<string, { provider: string; model: string; fallback?: unknown }>;
       embeddings: { model: string };
     };
+    for (const r of Object.values(doc.roles)) {
+      r.provider = 'google';
+      delete r.fallback;
+    }
     doc.roles['reasoning']!.model = 'gemini-2.5-pro';
-    delete doc.roles['reasoning']!.fallback;
     doc.roles['coder']!.model = 'gemini-3.8-flash';
     doc.roles['fast']!.model = 'gemini-does-not-exist';
     doc.roles['judge']!.model = 'gemini-2.5-pro';
@@ -125,6 +150,41 @@ describe('qa doctor', () => {
       /fast: google\/gemini-does-not-exist → model id not available/,
     );
     expect(exitCodeFor(report)).toBe(1);
+  });
+
+  it('lists NVIDIA NIM and Groq models grouped by namespace; a missing key is a WARN', async () => {
+    const withKeys = makeTempProject({
+      env: { GOOGLE_API_KEY: GOOGLE_KEY, NVIDIA_API_KEY: NVIDIA_KEY, GROQ_API_KEY: GROQ_KEY },
+    });
+    roots.push(withKeys);
+    const report = await runDoctor({
+      paths: projectPaths(withKeys),
+      options: ONLINE,
+      logger: nullLogger(),
+      deps: deps(),
+      only: ['models'],
+    });
+    const text = byId(report, 'models')?.details?.join('\n') ?? '';
+    expect(text).toContain('nvidia-nim at integrate.api.nvidia.com: key accepted, 3 models');
+    expect(text).toContain('  meta: meta/llama-3.3-70b-instruct');
+    expect(text).toContain('  qwen: qwen/qwen3-coder-480b-a35b-instruct');
+    expect(text).toContain('1 non-chat ids hidden');
+    expect(text).toContain('groq at api.groq.com: key accepted, 2 models');
+    expect(text).toContain('  Meta: llama-3.1-8b-instant');
+    expect(text).toMatch(/quotas: .*groq 30 req\/min, 6000 tokens\/min/);
+    expect(text).not.toContain(NVIDIA_KEY);
+    expect(byId(report, 'models')?.status).toBe('yellow'); // placeholders, nothing red
+
+    const noKeys = project(); // only GOOGLE_API_KEY
+    const r2 = await runDoctor({
+      paths: projectPaths(noKeys),
+      options: ONLINE,
+      logger: nullLogger(),
+      deps: deps(),
+      only: ['models'],
+    });
+    expect(r2.results[0]?.details?.join('\n')).toContain('nvidia-nim: NVIDIA_API_KEY is not set');
+    expect(r2.results[0]?.status).toBe('yellow');
   });
 
   it('browsers: fallback works → WARN; nothing works → FAIL', async () => {

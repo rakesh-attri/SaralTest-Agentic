@@ -1,7 +1,12 @@
 import { HumanMessage } from '@langchain/core/messages';
+import { tool } from '@langchain/core/tools';
+import { z } from 'zod';
 import { secretValues } from '../../config/env.js';
-import { MODEL_ROLES } from '../../config/schemas.js';
-import { listAvailableModels, suggestGeminiModels, type AvailableModel } from '../../models/listModels.js';
+import { modelFamily } from '../../config/modelFamily.js';
+import { MODEL_ROLES, isOpenAICompatible, type ChatProvider } from '../../config/schemas.js';
+import { classifyError } from '../../core/classifyError.js';
+import { resolveEndpoint } from '../../models/endpoints.js';
+import { groupModels, listAvailableModels, suggestGeminiModels, type AvailableModel } from '../../models/listModels.js';
 import { ModelRouter } from '../../models/router.js';
 import type { ProviderSecrets } from '../../models/providers/index.js';
 import type { Check, CheckResult, DoctorContext } from '../types.js';
@@ -14,6 +19,12 @@ function providerSecrets(ctx: DoctorContext): ProviderSecrets {
 }
 
 const isPlaceholder = (s: string): boolean => /<[^<>]+>/.test(s);
+/** Providers whose model list doctor can fetch with a key (read-only metadata endpoints). */
+const LISTABLE: readonly ChatProvider[] = ['google', 'nvidia-nim', 'groq', 'openai-compatible', 'openai', 'anthropic'];
+const oneLine = (err: unknown, max = 300): string => {
+  const msg = (err instanceof Error ? err.message : String(err)).replace(/\s+/g, ' ');
+  return msg.length > max ? `${msg.slice(0, max)}…` : msg;
+};
 
 export const modelsCheck: Check = async (ctx) => {
   const base = { id: 'models', title: 'Model providers (ModelRouter)' };
@@ -34,49 +45,104 @@ export const modelsCheck: Check = async (ctx) => {
     if (s === 'red' || (s === 'yellow' && status === 'green')) status = s;
   };
 
-  // Real model ids the Google key can use (read-only list call).
-  let google: AvailableModel[] | undefined;
-  const usesGoogle =
-    Object.values(cfg.roles).some((r) => r.provider === 'google' || r.fallback?.provider === 'google') ||
-    cfg.embeddings.provider === 'google';
-  if (usesGoogle && !ctx.options.offline) {
-    try {
-      google = await listAvailableModels('google', secrets, 15_000, ctx.deps.fetch);
-      details.push(`Google: key accepted, ${google.length} models available to it`);
-    } catch (err) {
-      details.push(`Google list-models failed: ${err instanceof Error ? err.message : String(err)}`);
-      bump('red');
-    }
-  }
-  const available = new Set(google?.map((m) => m.id));
+  const roleStatus = router.status();
+  const used = new Set<ChatProvider>(roleStatus.flatMap((s) => [s.provider, ...s.fallbacks.map((f) => f.provider)]));
+  if (cfg.embeddings.provider === 'google') used.add('google');
 
-  for (const s of router.status()) {
-    const label = `${s.role}: ${s.provider}/${s.model}`;
-    if (!s.ok) {
-      const unconfigured = isPlaceholder(s.model);
-      details.push(`${label} → ${unconfigured ? 'placeholder (not configured)' : (s.error ?? 'error')}`);
-      bump(unconfigured ? 'yellow' : 'red');
-    } else if (s.provider === 'google' && google && !available.has(s.model)) {
-      details.push(`${label} → model id not available to this key`);
-      bump('red');
-    } else {
-      details.push(`${label} → ready`);
-    }
-    if (s.fallback) {
-      const fb = `  fallback ${s.fallback.provider}/${s.fallback.model}`;
-      details.push(
-        s.fallback.ok
-          ? `${fb} → ready`
-          : `${fb} → ${isPlaceholder(s.fallback.model) ? 'placeholder' : (s.fallback.error ?? 'error')}`,
-      );
-      if (!s.fallback.ok) bump(isPlaceholder(s.fallback.model) ? 'yellow' : 'red');
+  // Model ids each key can use (read-only list calls), printed so the operator can pick ids.
+  const listed = new Map<ChatProvider, AvailableModel[]>();
+  if (!ctx.options.offline) {
+    for (const provider of LISTABLE.filter((p) => used.has(p))) {
+      let where = '';
+      try {
+        if (isOpenAICompatible(provider)) {
+          where = ` at ${new URL(resolveEndpoint(provider, cfg.endpoints, (k) => ctx.env[k]).baseURL).host}`;
+        }
+        const models = await listAvailableModels(provider, secrets, 15_000, ctx.deps.fetch, cfg.endpoints);
+        listed.set(provider, models);
+        details.push(`${provider}${where}: key accepted, ${models.length} models available to it`);
+        if (isOpenAICompatible(provider)) {
+          const { groups, hidden } = groupModels(models);
+          for (const [ns, ids] of groups) details.push(`  ${ns}: ${ids.join(', ')}`);
+          if (hidden) details.push(`  (${hidden} non-chat ids hidden: embedding/rerank/speech/guard/vision)`);
+        }
+      } catch (err) {
+        const missingKey = classifyError(err).detail['missingKey'];
+        if (typeof missingKey === 'string') {
+          details.push(`${provider}: ${missingKey} is not set, so its models cannot be listed`);
+          bump('yellow');
+        } else {
+          details.push(`${provider}${where} list-models failed: ${oneLine(err)}`);
+          bump('red');
+        }
+      }
     }
   }
+
+  const describe = (provider: ChatProvider, model: string, ok: boolean, error: string | undefined): string => {
+    if (!ok) {
+      const unconfigured = isPlaceholder(model);
+      bump(unconfigured ? 'yellow' : 'red');
+      return unconfigured ? 'placeholder (not configured)' : (error ?? 'error');
+    }
+    const list = listed.get(provider);
+    if (list && !list.some((m) => m.id === model)) {
+      bump('red');
+      return 'model id not available to this key';
+    }
+    return 'ready';
+  };
+  let degraded = 0;
+  for (const s of roleStatus) {
+    details.push(`${s.role}: ${s.provider}/${s.model} → ${describe(s.provider, s.model, s.ok, s.error)}`);
+    s.fallbacks.forEach((f, i) => {
+      details.push(`  fallback ${i + 1} ${f.provider}/${f.model} → ${describe(f.provider, f.model, f.ok, f.error)}`);
+    });
+    if (!s.ok && router.chain(s.role).length) {
+      degraded++;
+      details.push(`  ${s.role} currently runs on ${router.chain(s.role)[0]?.id ?? '?'} (primary not usable)`);
+    }
+  }
+
+  // Judge independence (rule 8 + operator decision 2026-11-20: judge and coder from different model families).
+  // The schema already rejects an identical model; a shared family is a warning (Gemini-only setups stay valid).
+  const judge = cfg.roles.judge.model;
+  const coder = cfg.roles.coder.model;
+  if (!isPlaceholder(judge) && !isPlaceholder(coder)) {
+    const jf = modelFamily(judge);
+    const cf = modelFamily(coder);
+    if (!jf || !cf) {
+      details.push(`judge/coder families: could not tell the family of ${!jf ? judge : coder}; confirm they differ`);
+      bump('yellow');
+    } else if (jf === cf) {
+      details.push(
+        `judge/coder families: both ${jf} — pick a judge from a different family than the coder (judge independence)`,
+      );
+      bump('yellow');
+    } else {
+      details.push(`judge/coder families: ${jf} vs ${cf} (different)`);
+    }
+  }
+
+  const quotaLine = [...used]
+    .filter((p) => p !== 'mock')
+    .map((p) => {
+      const q = router.quota(p);
+      const parts = [
+        q.requestsPerMinute !== undefined ? `${q.requestsPerMinute} req/min` : 'no req limit',
+        ...(q.tokensPerMinute !== undefined ? [`${q.tokensPerMinute} tokens/min`] : []),
+        `fails over after ${Math.round(q.maxWaitMs / 1000)} s wait`,
+      ];
+      return `${p} ${parts.join(', ')}`;
+    });
+  if (quotaLine.length) details.push(`quotas: ${quotaLine.join('; ')}`);
+
   const emb = cfg.embeddings;
+  const googleList = listed.get('google');
   if (isPlaceholder(emb.model)) {
     details.push(`embeddings: ${emb.provider}/${emb.model} → placeholder (not configured)`);
     bump('yellow');
-  } else if (emb.provider === 'google' && google && !available.has(emb.model)) {
+  } else if (emb.provider === 'google' && googleList && !googleList.some((m) => m.id === emb.model)) {
     details.push(`embeddings: ${emb.provider}/${emb.model} → model id not available to this key`);
     bump('red');
   } else {
@@ -84,11 +150,11 @@ export const modelsCheck: Check = async (ctx) => {
   }
 
   let fix: string | undefined;
-  if (google) {
-    const sug = suggestGeminiModels(google);
+  if (googleList) {
+    const sug = suggestGeminiModels(googleList);
     const line = [...MODEL_ROLES, 'embeddings' as const].map((r) => `${r}=${sug[r] ?? '?'}`).join(', ');
     details.push(
-      `Suggested from models listed for your key (listed is not proof a model can be called; confirm, then run qa doctor --live): ${line}`,
+      `Suggested from models listed for your key (Gemini; listed is not proof a model can be called; confirm, then run qa doctor --live): ${line}`,
     );
     if (sug.newerPreview) {
       const p = Object.entries(sug.newerPreview)
@@ -96,43 +162,57 @@ export const modelsCheck: Check = async (ctx) => {
         .join(', ');
       details.push(`Newer preview models also available (not GA): ${p}`);
     }
-    if (status !== 'green') fix = 'set the model ids in config/models.yaml (suggestions above), then re-run qa doctor';
-  } else if (status !== 'green') {
-    fix = 'fill model ids in config/models.yaml';
+  }
+  if (status !== 'green') {
+    fix =
+      'pick model ids from the lists above, set them in config/models.yaml (and any missing keys in .env), then re-run qa doctor';
   }
 
   let liveFailures = 0;
   if (ctx.options.live && !ctx.options.offline) {
+    const probe = tool(() => 'pong', { name: 'ping', description: 'Returns pong.', schema: z.object({}) });
     for (const role of MODEL_ROLES) {
-      const s = router.status().find((x) => x.role === role);
-      if (!s?.ok) continue;
-      try {
-        const out = await router.get(role).invoke([new HumanMessage('Reply with the single word OK.')]);
-        const text = typeof out.content === 'string' ? out.content : JSON.stringify(out.content);
-        details.push(`live ${role}: answered "${text.trim().slice(0, 20)}"`);
-      } catch (err) {
-        const msg = (err instanceof Error ? err.message : String(err)).replace(/\s+/g, ' ');
-        details.push(`live ${role}: FAILED ${msg.length > 400 ? `${msg.slice(0, 400)}…` : msg}`);
-        liveFailures++;
-        bump('red');
+      for (const c of router.chain(role)) {
+        const label = `live ${role}${c.index ? ` fallback ${c.index}` : ''} ${c.id}`;
+        try {
+          const out = await c.model.invoke([new HumanMessage('Reply with the single word OK.')]);
+          const text = typeof out.content === 'string' ? out.content : JSON.stringify(out.content);
+          details.push(`${label}: answered "${text.trim().slice(0, 20)}"`);
+        } catch (err) {
+          details.push(`${label}: FAILED ${oneLine(err, 400)}`);
+          liveFailures++;
+          bump('red');
+          continue;
+        }
+        if (c.model.supportsTools) {
+          try {
+            await c.model.bindTools([probe]).invoke([new HumanMessage('Call the ping tool.')]);
+            details.push(`${label}: tool calling accepted`);
+          } catch (err) {
+            details.push(
+              `${label}: tool calling rejected (${oneLine(err, 160)}) → set tools: false for it in models.yaml`,
+            );
+            bump('yellow');
+          }
+        }
       }
     }
     details.push(`live calls used ${router.totalTokens()} tokens`);
   }
 
-  const notReady = router.status().filter((s) => !s.ok).length;
+  const notReady = roleStatus.filter((s) => !s.ok).length;
   return {
     ...base,
     status,
     summary:
       status === 'green'
         ? ctx.options.live && !ctx.options.offline
-          ? `all ${MODEL_ROLES.length} roles answered a live call`
-          : `all ${MODEL_ROLES.length} roles configured and listed for the key (not called; run qa doctor --live to verify)`
+          ? `every model in all ${MODEL_ROLES.length} role chains answered a live call`
+          : `all ${MODEL_ROLES.length} roles configured and listed for their keys (not called; run qa doctor --live to verify)`
         : liveFailures
-          ? `${liveFailures} role(s) failed a live call`
+          ? `${liveFailures} model(s) failed a live call`
           : notReady
-            ? `${notReady} of ${MODEL_ROLES.length} roles not configured`
+            ? `${notReady} of ${MODEL_ROLES.length} role primaries not configured${degraded ? ` (${degraded} running on a fallback)` : ''}`
             : 'configuration problem (see details)',
     details,
     ...(fix ? { fix } : {}),

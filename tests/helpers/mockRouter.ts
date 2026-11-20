@@ -1,12 +1,12 @@
-import { ModelsConfig, type ModelRole } from '../../src/config/schemas.js';
+import { ModelsConfig } from '../../src/config/schemas.js';
 import type { MockOptions } from '../../src/models/mock.js';
-import { ModelRouter } from '../../src/models/router.js';
+import { ModelRouter, type MockKey } from '../../src/models/router.js';
 
 export const TEST_SECRET = 'AIzaSy-test-secret-value-123';
 
 /** Router where every role is the mock provider; `reasoning` has a mock fallback. */
 export async function mockRouter(
-  mock: Partial<Record<ModelRole | `${ModelRole}:fallback`, MockOptions>> = {},
+  mock: Partial<Record<MockKey, MockOptions>> = {},
   secretValues: readonly string[] = [TEST_SECRET],
 ): Promise<ModelRouter> {
   return ModelRouter.create({

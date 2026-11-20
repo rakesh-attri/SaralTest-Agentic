@@ -5,8 +5,9 @@
 import type { Embeddings } from '@langchain/core/embeddings';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { QAError } from '../../core/errors.js';
-import type { ChatProvider, EmbeddingProvider } from '../../config/schemas.js';
+import type { ChatProvider, EmbeddingProvider, ModelsConfig } from '../../config/schemas.js';
 import type { EnvKey } from '../../config/env.js';
+import { resolveEndpoint } from '../endpoints.js';
 import { MockChatModel, MockEmbeddings, type MockOptions } from '../mock.js';
 
 export interface ProviderSecrets {
@@ -21,6 +22,8 @@ export interface ChatModelSpec {
   temperature: number;
   maxOutputTokens?: number | undefined;
   mock?: MockOptions;
+  /** models.yaml `endpoints:` overrides for OpenAI-compatible providers. */
+  endpoints?: ModelsConfig['endpoints'];
 }
 
 /** Which secret each provider needs (doctor uses this too). */
@@ -29,6 +32,9 @@ export const PROVIDER_KEY: Record<ChatProvider, EnvKey | undefined> = {
   anthropic: 'ANTHROPIC_API_KEY',
   openai: 'OPENAI_API_KEY',
   'azure-openai': 'AZURE_OPENAI_API_KEY',
+  'nvidia-nim': 'NVIDIA_API_KEY',
+  groq: 'GROQ_API_KEY',
+  'openai-compatible': 'OPENAI_COMPATIBLE_API_KEY', // default; endpoints.openai-compatible.apiKeyEnv may override
   ollama: undefined,
   mock: undefined,
 };
@@ -91,6 +97,20 @@ export async function createChatModel(spec: ChatModelSpec, secrets: ProviderSecr
         model: spec.model,
         temperature: spec.temperature,
         baseUrl: secrets.setting('OLLAMA_BASE_URL') ?? 'http://localhost:11434',
+      });
+    }
+    case 'openai-compatible':
+    case 'nvidia-nim':
+    case 'groq': {
+      // Chat Completions only (never the Responses API): that is the protocol these endpoints implement.
+      const ep = resolveEndpoint(spec.provider, spec.endpoints, (k) => secrets.setting(k));
+      const { ChatOpenAICompletions } = await import('@langchain/openai');
+      return new ChatOpenAICompletions({
+        ...common,
+        model: spec.model,
+        apiKey: await requireKey(secrets, ep.apiKeyEnv, spec.provider),
+        configuration: { baseURL: ep.baseURL },
+        ...(spec.maxOutputTokens ? { maxTokens: spec.maxOutputTokens } : {}),
       });
     }
     case 'mock':

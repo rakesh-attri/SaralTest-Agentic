@@ -5,6 +5,7 @@ import type { ModelRole } from '../../config/schemas.js';
 import { classifyError } from '../../core/classifyError.js';
 import { QAError } from '../../core/errors.js';
 import type { Logger } from '../../core/logger.js';
+import { isRateLimited } from '../../models/rateLimiter.js';
 import type { ModelRouter } from '../../models/router.js';
 import { messageText } from '../../models/secretGuard.js';
 import type { Redactor } from '../../security/redact.js';
@@ -90,7 +91,9 @@ function parseLenient(text: string): unknown {
   }
 }
 
-export function extractJson(text: string): unknown {
+export function extractJson(raw: string): unknown {
+  // Reasoning models (e.g. some NVIDIA NIM / Groq models) may emit <think>…</think> before the answer.
+  const text = raw.replace(/<think>[\s\S]*?<\/think>/gi, '');
   const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text)?.[1];
   const candidate = (fenced ?? text).trim();
   try {
@@ -148,33 +151,64 @@ ${schemaText(opts.schema)}`;
   const skillsLoaded: string[] = [];
   const attempts: AttemptRecord[] = [];
 
-  const primary = (() => {
-    try {
-      return opts.router.get(opts.role);
-    } catch (err) {
-      attempts.push({ model: opts.router.modelId(opts.role), attempt: 0, outcome: 'ERROR', problems: [String(err)] });
-      return undefined;
-    }
-  })();
-  const models: { model: BaseChatModel; id: string; fallback: boolean }[] = [];
-  if (primary) models.push({ model: primary, id: opts.router.modelId(opts.role), fallback: false });
-  const fb = opts.router.getFallback(opts.role);
-  if (fb) models.push({ model: fb, id: opts.router.modelId(opts.role, true), fallback: true });
+  try {
+    opts.router.get(opts.role);
+  } catch (err) {
+    // Primary unusable (placeholder, missing key): recorded, then the chain continues with the fallbacks.
+    attempts.push({ model: opts.router.modelId(opts.role), attempt: 0, outcome: 'ERROR', problems: [String(err)] });
+  }
+  // The role's whole chain, primary first (e.g. NVIDIA NIM → Groq → Gemini).
+  const models = opts.router.chain(opts.role).map((c) => ({
+    model: c.model,
+    id: c.id,
+    fallback: c.index > 0,
+    tools: c.model.supportsTools,
+  }));
   if (!models.length) throw new QAError('TOOL_UNAVAILABLE', `no usable model for role ${opts.role}`);
+  // Models that reject tool calls get the full skill bodies inline instead of the load_skill tool.
+  let inlineSkills: string | undefined;
+  const systemFor = async (tools: boolean): Promise<string> => {
+    if (tools || !opts.skills) return system;
+    if (inlineSkills === undefined) {
+      const bodies = await Promise.all(
+        opts.skills.names.map(async (n) => {
+          try {
+            const body = await opts.skills?.loader.load(n);
+            if (body !== undefined && !skillsLoaded.includes(n)) skillsLoaded.push(n);
+            return `### Skill: ${n}\n${body ?? ''}`;
+          } catch (err) {
+            return `### Skill: ${n}\n(could not load: ${err instanceof Error ? err.message : String(err)})`;
+          }
+        }),
+      );
+      inlineSkills = `\n\n## Skills (full text; this model has no load_skill tool)\n${bodies.join('\n\n')}`;
+    }
+    return `${system}${inlineSkills}`;
+  };
 
   let lastError: unknown;
   let lastProblems: string[] = [];
-  for (const m of models) {
-    const messages: BaseMessage[] = [new SystemMessage(system), new HumanMessage(user)];
+  for (const [mi, m] of models.entries()) {
+    const messages: BaseMessage[] = [new SystemMessage(await systemFor(m.tools)), new HumanMessage(user)];
     for (let attempt = 1; attempt <= reflectRetries + 1; attempt++) {
       let text: string;
       try {
-        text = await converse(m.model, messages, skillTool, opts.maxToolRounds ?? 3, skillsLoaded);
+        text = await converse(
+          m.model,
+          messages,
+          m.tools ? skillTool : undefined,
+          opts.maxToolRounds ?? 3,
+          skillsLoaded,
+        );
       } catch (err) {
         const c = classifyError(err);
         if (c.kind === 'HARD_STOP' || c.kind === 'BUDGET') throw err;
         attempts.push({ model: m.id, attempt, outcome: 'ERROR', problems: [`${c.kind}: ${c.message}`] });
-        opts.logger?.warn({ agent: opts.agent, model: m.id, kind: c.kind }, 'model call failed');
+        const next = models[mi + 1];
+        opts.logger?.warn(
+          { agent: opts.agent, model: m.id, kind: c.kind, rateLimited: isRateLimited(err), next: next?.id },
+          next ? `model call failed; failing over to ${next.id}` : 'model call failed; no model left in the chain',
+        );
         lastError = err;
         break; // next model
       }

@@ -1,25 +1,83 @@
 import { z } from 'zod';
 import { ISSUE_KINDS } from '../core/schemas/issue.js';
 import { OrgId18 } from '../core/schemas/common.js';
+import { SECRET_ENV_KEYS } from './env.js';
 
 // ---------------------------------------------------------------- models.yaml
 export const MODEL_ROLES = ['reasoning', 'coder', 'fast', 'judge'] as const;
 export const ModelRole = z.enum(MODEL_ROLES);
 export type ModelRole = z.infer<typeof ModelRole>;
 
-export const ChatProvider = z.enum(['google', 'anthropic', 'openai', 'azure-openai', 'ollama', 'mock']);
+/** Providers that speak the OpenAI chat-completions protocol at a configurable base URL. */
+export const OPENAI_COMPATIBLE_PROVIDERS = ['openai-compatible', 'nvidia-nim', 'groq'] as const;
+export type OpenAICompatibleProvider = (typeof OPENAI_COMPATIBLE_PROVIDERS)[number];
+
+export const ChatProvider = z.enum([
+  'google',
+  'anthropic',
+  'openai',
+  'azure-openai',
+  'ollama',
+  ...OPENAI_COMPATIBLE_PROVIDERS,
+  'mock',
+]);
 export type ChatProvider = z.infer<typeof ChatProvider>;
 export const EmbeddingProvider = z.enum(['google', 'openai', 'voyage', 'ollama', 'mock']);
 export type EmbeddingProvider = z.infer<typeof EmbeddingProvider>;
 
-const ModelRef = z.object({ provider: ChatProvider, model: z.string().min(1) });
+export const isOpenAICompatible = (p: ChatProvider): p is OpenAICompatibleProvider =>
+  (OPENAI_COMPATIBLE_PROVIDERS as readonly string[]).includes(p);
+
+/**
+ * An API key may only travel over TLS, except to this machine (rule 14: a secret leaving the machine in clear text is
+ * never acceptable). Returns a problem description, or undefined when the URL is acceptable.
+ */
+export function baseUrlProblem(url: string): string | undefined {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return `not a valid URL: ${url}`;
+  }
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname) || u.hostname.endsWith('.localhost');
+  if (u.protocol === 'https:' || (u.protocol === 'http:' && local)) return undefined;
+  return `${u.host} must use https:// (plain http is only allowed for localhost)`;
+}
+
+export const ModelRef = z.object({
+  provider: ChatProvider,
+  model: z.string().min(1),
+  /** Set false for models that reject tool calls; skills are then inlined into the prompt instead of `load_skill`. */
+  tools: z.boolean().optional(),
+});
+export type ModelRef = z.infer<typeof ModelRef>;
+
 export const RoleConfig = ModelRef.extend({
   temperature: z.number().min(0).max(2).default(0),
   timeoutMs: z.number().int().positive().default(120_000),
   maxOutputTokens: z.number().int().positive().optional(),
-  fallback: ModelRef.optional(),
-});
+  /** One fallback or an ordered chain; tried in order after the primary (rate limit / error / invalid output). */
+  fallback: z.union([ModelRef, z.array(ModelRef).min(1)]).optional(),
+}).transform(({ fallback, ...rest }) => ({
+  ...rest,
+  fallbacks: fallback === undefined ? [] : Array.isArray(fallback) ? fallback : [fallback],
+}));
 export type RoleConfig = z.infer<typeof RoleConfig>;
+
+export const EndpointConfig = z.object({
+  baseURL: z.string().min(1).optional(),
+  /** Env / Credential Manager key holding the API key (must be a known secret key). */
+  apiKeyEnv: z.string().min(1).optional(),
+});
+export type EndpointConfig = z.infer<typeof EndpointConfig>;
+
+export const ProviderQuota = z.object({
+  requestsPerMinute: z.number().int().positive().optional(),
+  tokensPerMinute: z.number().int().positive().optional(),
+  /** Longest a call waits for quota before failing over to the next model in the chain (default 20 s). */
+  maxWaitMs: z.number().int().min(0).optional(),
+});
+export type ProviderQuota = z.infer<typeof ProviderQuota>;
 
 export const ModelsConfig = z
   .object({
@@ -29,21 +87,39 @@ export const ModelsConfig = z
       tokensPerRun: z.number().int().positive(),
       minutesPerRun: z.number().positive(),
     }),
-    /** Optional per-provider quotas (requests per minute). Defaults are applied in the router. */
-    quotas: z.partialRecord(ChatProvider, z.object({ requestsPerMinute: z.number().int().positive() })).optional(),
+    /** Overrides for OpenAI-compatible endpoints (presets: nvidia-nim, groq; openai-compatible has no default). */
+    endpoints: z.partialRecord(z.enum(OPENAI_COMPATIBLE_PROVIDERS), EndpointConfig).optional(),
+    /** Optional per-provider quotas. Defaults are applied in the router. */
+    quotas: z.partialRecord(ChatProvider, ProviderQuota).optional(),
   })
   .superRefine((cfg, ctx) => {
-    // CLAUDE.md rule 8: the judge role must use a different model than the coder role.
+    // CLAUDE.md rule 8: the judge must never be the coder's model — not even through a fallback.
     const { judge, coder } = cfg.roles;
-    if (judge.provider === coder.provider && judge.model === coder.model) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['roles', 'judge', 'model'],
-        message: `judge must use a different model than coder (both are ${coder.provider}/${coder.model})`,
-      });
+    const chain = (r: RoleConfig): ModelRef[] => [r, ...r.fallbacks];
+    for (const j of chain(judge)) {
+      const clash = chain(coder).find((c) => c.provider === j.provider && c.model === j.model);
+      if (clash) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['roles', 'judge', 'model'],
+          message: `judge must use a different model than coder (both chains contain ${clash.provider}/${clash.model})`,
+        });
+      }
+    }
+    for (const [name, ep] of Object.entries(cfg.endpoints ?? {})) {
+      const problem = ep.baseURL ? baseUrlProblem(ep.baseURL) : undefined;
+      if (problem) ctx.addIssue({ code: 'custom', path: ['endpoints', name, 'baseURL'], message: problem });
+      if (ep.apiKeyEnv && !(SECRET_ENV_KEYS as readonly string[]).includes(ep.apiKeyEnv)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['endpoints', name, 'apiKeyEnv'],
+          message: `${ep.apiKeyEnv} is not a known secret key (use one of: ${SECRET_ENV_KEYS.filter((k) => k.endsWith('_API_KEY')).join(', ')})`,
+        });
+      }
     }
   });
 export type ModelsConfig = z.infer<typeof ModelsConfig>;
+export type ModelsConfigInput = z.input<typeof ModelsConfig>;
 
 // ---------------------------------------------------------------- policy.yaml
 export const PolicyResponse = z.enum([

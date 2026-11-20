@@ -1,33 +1,52 @@
 # Provider-agnostic model routing. Agents ask for a ROLE, never a provider.
-# Default: Google Gemini everywhere. Change any role (or embeddings) to another provider here; no code changes.
-# Supported providers: google | anthropic | openai | azure-openai | ollama
-# Fill in model IDs you have access to (check Google AI Studio / Vertex AI for current names).
-# Rule: judge must use a different model than coder (e.g. a larger Gemini tier).
+# Each role has a chain: primary, then `fallback` (one model or an ordered list). A provider that is rate limited
+# (quota below, or an HTTP 429 from the provider) fails over to the next model in the chain; results are labelled with
+# the model that actually answered.
+#
+# Providers: google | anthropic | openai | azure-openai | ollama | openai-compatible | nvidia-nim | groq
+#   nvidia-nim  = openai-compatible preset  https://integrate.api.nvidia.com/v1   key NVIDIA_API_KEY
+#   groq        = openai-compatible preset  https://api.groq.com/openai/v1        key GROQ_API_KEY
+#   openai-compatible = any other endpoint: set endpoints.openai-compatible.baseURL (+ apiKeyEnv) below.
+# Pick model ids from the lists `qa doctor` prints for each provider (no ids are guessed here).
+# Rules: judge must never share a model with coder (any chain position); the judge and coder primaries should be
+# from different model families (qa doctor warns otherwise). `tools: false` on a model that rejects tool calls.
 roles:
   reasoning:   # QA Lead, Spec Analyst, Impact & Risk, Test Planner, Failure Investigator, Autonomous Explorer
-    provider: google
-    model: <gemini-pro-model-id>
+    provider: nvidia-nim
+    model: <nim-reasoning-model-id>
     temperature: 0.2
     fallback: { provider: google, model: <gemini-flash-model-id> }
   coder:       # Test Generator, Application Explorer, Self-Healer
-    provider: google
-    model: <gemini-flash-model-id>
+    provider: nvidia-nim
+    model: <nim-coder-model-id>
     temperature: 0
+    fallback:
+      - { provider: groq, model: <groq-coder-model-id> }
+      - { provider: google, model: <gemini-flash-lite-model-id> }
   fast:        # Salesforce Intelligence summaries, Test Data, Reporter
-    provider: google
-    model: <gemini-flash-lite-model-id>
+    provider: groq
+    model: <groq-fast-model-id>
     temperature: 0
-  judge:       # Test Reviewer, Defect Judge, Eval Guardian, DeepEval judge
-    provider: google
-    model: <gemini-pro-model-id>   # different from coder (e.g. gemini-3.1-pro-preview; gemini-2.5-pro is closed to new keys)
-    # Pro models need a billed Google project (free-tier Pro quota is 0 → HTTP 429). The fallback answers meanwhile;
-    # every Reviewer verdict records the model that actually answered.
+    fallback: { provider: google, model: <gemini-flash-lite-model-id> }
+  judge:       # Test Reviewer, Defect Judge, Eval Guardian, DeepEval judge (same endpoints, see src/eval/judgeEndpoint.ts)
+    provider: nvidia-nim
+    model: <nim-judge-model-id>     # different family from coder
+    temperature: 0
+    # A Gemini Pro fallback needs a billed Google project (free-tier Pro quota is 0 → HTTP 429); use a small model
+    # that is not in the coder chain. Every Reviewer verdict records the model that actually answered.
     fallback: { provider: google, model: <small-gemini-model-id> }
-    temperature: 0
 embeddings:
   provider: google                 # google | openai | voyage | ollama
   model: <gemini-embedding-model-id>
   # Changing provider/model triggers `pnpm memory:reindex` (vectors from different models never mix).
+# endpoints:                       # optional overrides (https, or http only for localhost)
+#   nvidia-nim: { baseURL: http://localhost:8000/v1 }          # self-hosted NIM
+#   openai-compatible: { baseURL: https://example.internal/v1, apiKeyEnv: OPENAI_COMPATIBLE_API_KEY }
+quotas:                            # per provider, shared by all roles; check your account's real limits
+  nvidia-nim: { requestsPerMinute: 40 }
+  groq: { requestsPerMinute: 30, tokensPerMinute: 6000 }
+  google: { requestsPerMinute: 15 }
+  # maxWaitMs (default 20000): longest wait for quota before failing over to the next model in the chain
 budgets:
   tokensPerRun: 2000000
   minutesPerRun: 90
