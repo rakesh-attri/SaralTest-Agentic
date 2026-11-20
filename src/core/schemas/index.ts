@@ -2,6 +2,7 @@ export * from './common.js';
 export * from './issue.js';
 export * from './requirement.js';
 export * from './testCase.js';
+export * from './design.js';
 export * from './result.js';
 export * from './knowledge.js';
 export * from './investigation.js';

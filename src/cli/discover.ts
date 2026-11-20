@@ -211,6 +211,11 @@ export function createDiscoverHook(o: {
           dependencies: outcome.impacted.map((i) => i.node.id),
           regressionCandidates: [...new Set(outcome.reverify.map((m) => `${m.assetType}:${m.assetId}`))],
           riskScores: {},
+          changed: (outcome.diff?.entries ?? [])
+            .filter((e) => e.change !== 'unknown')
+            .map((e) => `${e.type}:${e.apiName}`),
+          impacted: outcome.impacted.map((i) => ({ node: i.node.id, depth: i.depth, path: i.path })),
+          reverify: [...new Set(outcome.reverify.map((m) => `${m.assetType}:${m.assetId}`))],
         },
         findings: cc ? crossCheckFindings(cc) : [],
         evidence: cc ? crossCheckEvidence(cc) : [],

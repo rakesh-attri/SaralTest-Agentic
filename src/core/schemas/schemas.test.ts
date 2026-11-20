@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { Issue, Requirement, TestCase, TestResult, isAssertable, OrgId18 } from './index.js';
+import {
+  CoverageObligation,
+  Issue,
+  Requirement,
+  ReviewFinding,
+  RiskItem,
+  RtmRow,
+  TestCase,
+  TestResult,
+  isAssertable,
+  OrgId18,
+} from './index.js';
 import { QARunState, initialRunState } from '../state.js';
 
 const expected = (level: 'APPROVED_REQUIREMENT' | 'UNKNOWN_OR_CONTRADICTORY') => ({
@@ -113,5 +124,86 @@ describe('Phase 1 input schemas', () => {
     const c = Clarification.parse({ id: 'Q1', question: 'Is Email required?', status: 'OPEN' });
     expect(c.refs).toEqual([]);
     expect(c.round).toBe(1);
+  });
+});
+
+describe('Phase 3 design contracts', () => {
+  const step = (evidenceLevel: string, evidenceIds: string[] = ['SF-219#AC2']) => ({
+    action: 'save without Last Name',
+    expected: { text: 'save is blocked', evidenceLevel, evidenceIds },
+  });
+
+  it('an APPROVED case cannot carry an OBSERVED_ONLY expectation', () => {
+    const r = TestCase.safeParse({ ...baseCase, reviewStatus: 'APPROVED', steps: [step('OBSERVED_ONLY')] });
+    expect(r.success).toBe(false);
+    expect(
+      TestCase.safeParse({ ...baseCase, reviewStatus: 'REVIEW_REQUIRED', steps: [step('OBSERVED_ONLY')] }).success,
+    ).toBe(true);
+  });
+
+  it('every non-UNKNOWN expectation cites evidence', () => {
+    expect(
+      TestCase.safeParse({ ...baseCase, reviewStatus: 'REVIEW_REQUIRED', steps: [step('DECLARED_CONFIG', [])] })
+        .success,
+    ).toBe(false);
+    expect(
+      TestCase.safeParse({
+        ...baseCase,
+        reviewStatus: 'REVIEW_REQUIRED',
+        steps: [step('UNKNOWN_OR_CONTRADICTORY', [])],
+      }).success,
+    ).toBe(true);
+  });
+
+  it('new TestCase / RtmRow fields default so Phase 2 data still parses', () => {
+    const tc = TestCase.parse({ ...baseCase, reviewStatus: 'APPROVED', steps: [step('APPROVED_REQUIREMENT')] });
+    expect(tc.origin).toBe('planned');
+    expect(tc.regressionTier).toBe('optional');
+    expect(tc.reviewReasons).toEqual([]);
+    const row = RtmRow.parse({ requirementId: 'SF-219-R01', testCaseIds: [] });
+    expect(row.status).toBe('designed');
+  });
+
+  it('risk, obligation and review finding ids are shaped', () => {
+    expect(
+      RiskItem.safeParse({
+        id: 'RISK-01',
+        desc: 'Email rule conflicts with the org',
+        likelihood: 0.7,
+        impact: 'H',
+        score: 0.7,
+        tier: 'mandatory',
+        drivers: [{ kind: 'org-conflict', text: 'OC-003', weight: 0.4 }],
+        requirementIds: ['SF-219-R03'],
+      }).success,
+    ).toBe(true);
+    expect(
+      CoverageObligation.safeParse({ id: 'OB-1', requirementId: 'R', ref: 'AC1', kind: 'positive', detail: 'x' })
+        .success,
+    ).toBe(false);
+    expect(
+      ReviewFinding.safeParse({
+        id: 'RF-001',
+        round: 1,
+        severity: 'H',
+        rule: 'ac-positive',
+        text: 'AC2 has no positive case',
+        origin: 'deterministic',
+        status: 'OPEN',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('initial run state has empty design channels', () => {
+    const s = initialRunState({
+      runId: 'r',
+      org: 'o',
+      autonomy: 'L2',
+      source: { type: 'chat', ref: 'x' },
+      tokenLimit: 10,
+      timeLimitMin: 1,
+    });
+    expect(s.risks).toEqual([]);
+    expect(s.reviewRound).toBe(0);
   });
 });

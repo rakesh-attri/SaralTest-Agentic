@@ -1,0 +1,132 @@
+import { z } from 'zod';
+import { RegressionTier, TestType } from './testCase.js';
+
+/**
+ * Phase 3 test-design contracts (PLAN.md §11 P3, test-design skill). Everything here except free-text wording is
+ * computed by code: obligations, risk scores, tiers and finding status are deterministic.
+ */
+
+export const ImpactLevel = z.enum(['H', 'M', 'L']);
+export type ImpactLevel = z.infer<typeof ImpactLevel>;
+
+/** One reason a risk is more likely, kept as evidence (e.g. `org CONFLICT OC-003`, `MTC-006 failed last run`). */
+export const RiskDriver = z.object({
+  kind: z.enum([
+    'org-conflict',
+    'org-not-found',
+    'org-unknown',
+    're-verify',
+    'changed-component',
+    'manual-test-failed',
+    'past-defect',
+    'review-required',
+    'requirement-risk',
+  ]),
+  text: z.string(),
+  /** Evidence ids / asset ids backing the driver. */
+  refs: z.array(z.string()).default([]),
+  weight: z.number().min(0).max(1),
+});
+export type RiskDriver = z.infer<typeof RiskDriver>;
+
+export const RiskItem = z.object({
+  id: z.string().regex(/^RISK-\d{2,}$/),
+  desc: z.string(),
+  likelihood: z.number().min(0).max(1),
+  impact: ImpactLevel,
+  /** likelihood × impact weight (H=1, M=0.6, L=0.3), rounded to 2 decimals. */
+  score: z.number().min(0).max(1),
+  tier: RegressionTier,
+  drivers: z.array(RiskDriver),
+  requirementIds: z.array(z.string()),
+  refs: z.array(z.string()).default([]),
+  /** Graph node ids (`Field:Contact.Phone`) the risk touches. */
+  components: z.array(z.string()).default([]),
+});
+export type RiskItem = z.infer<typeof RiskItem>;
+
+/** Test charter (test-design skill "Charter first"). */
+export const TestCharter = z.object({
+  storyKey: z.string().optional(),
+  mission: z.string(),
+  scope: z.array(z.string()),
+  outOfScope: z.array(z.string()),
+  personas: z.array(z.object({ id: z.string(), available: z.boolean(), note: z.string().optional() })),
+  risks: z.array(z.string()),
+  testTypes: z.array(TestType),
+  exitCriteria: z.array(z.string()),
+  snapshotId: z.string().optional(),
+  environment: z.enum(['LIVE', 'FIXTURE', 'MOCK', 'NONE']).default('NONE'),
+});
+export type TestCharter = z.infer<typeof TestCharter>;
+
+export const ImpactItemOut = z.object({ node: z.string(), depth: z.number().int(), path: z.array(z.string()) });
+
+/** Impact report (Impact & Risk Analyst). Old Phase 2 fields kept; new ones default to empty. */
+export const ImpactReport = z.object({
+  dependencies: z.array(z.string()),
+  regressionCandidates: z.array(z.string()),
+  riskScores: z.record(z.string(), z.number()),
+  /** Components changed in the last diff (`ValidationRule:Contact.X`). */
+  changed: z.array(z.string()).default([]),
+  impacted: z.array(ImpactItemOut).default([]),
+  /** Open RE_VERIFY marks (`manual-test:MTC-001`). */
+  reverify: z.array(z.string()).default([]),
+});
+export type ImpactReport = z.infer<typeof ImpactReport>;
+
+export const ObligationKind = z.enum(['positive', 'negative', 'boundary', 'allow', 'deny', 'bulk', 'ui', 'nfr']);
+export type ObligationKind = z.infer<typeof ObligationKind>;
+
+/** Something the design MUST cover, derived by code from requirements + snapshot. */
+export const CoverageObligation = z.object({
+  id: z.string().regex(/^OB-\d{3,}$/),
+  requirementId: z.string(),
+  /** Section ref (AC2, BR-04, NFR-01) or `*` when the requirement cites none. */
+  ref: z.string(),
+  kind: ObligationKind,
+  detail: z.string(),
+  /** Boundary values / persona id / object, depending on kind. */
+  values: z.array(z.string()).default([]),
+  persona: z.string().optional(),
+  /** Story AC (always mandatory) vs. other requirement item. */
+  isAc: z.boolean().default(false),
+});
+export type CoverageObligation = z.infer<typeof CoverageObligation>;
+
+export const FindingSeverity = z.enum(['H', 'M', 'L']);
+
+export const ReviewRule = z.enum([
+  'ac-positive',
+  'ac-negative',
+  'obligation-uncovered',
+  'high-risk-uncovered',
+  'persona-unused',
+  'deny-missing',
+  'boundary-values',
+  'bulk-missing',
+  'vague-expectation',
+  'scope-creep',
+  'duplicate',
+  'ungrounded-expectation',
+  'judge',
+]);
+export type ReviewRule = z.infer<typeof ReviewRule>;
+
+/** Test Reviewer pass-1 finding. Nothing may stay OPEN when the design is reported. */
+export const ReviewFinding = z.object({
+  id: z.string().regex(/^RF-\d{3,}$/),
+  round: z.number().int().min(1),
+  severity: FindingSeverity,
+  rule: ReviewRule,
+  caseIds: z.array(z.string()).default([]),
+  requirementIds: z.array(z.string()).default([]),
+  refs: z.array(z.string()).default([]),
+  text: z.string(),
+  origin: z.enum(['deterministic', 'judge']),
+  status: z.enum(['OPEN', 'RESOLVED', 'JUSTIFIED']),
+  /** How it was resolved (case changed) or why it is justified. */
+  resolution: z.string().optional(),
+  resolvedBy: z.enum(['planner', 'qa-lead', 'recheck']).optional(),
+});
+export type ReviewFinding = z.infer<typeof ReviewFinding>;

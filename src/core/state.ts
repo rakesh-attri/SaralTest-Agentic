@@ -4,6 +4,11 @@ import {
   ChangedComponent,
   Clarification,
   CreatedRecord,
+  CoverageObligation,
+  ImpactReport,
+  ReviewFinding,
+  RiskItem,
+  TestCharter,
   DefectDraft,
   DefectRecord,
   EvalScore,
@@ -47,19 +52,9 @@ export const StorySnapshot = z.looseObject({
   acceptanceCriteria: z.array(z.string()),
   links: z.array(z.string()).default([]),
 });
-export const TestCharter = z.looseObject({
-  mission: z.string(),
-  risks: z.array(z.string()),
-  personas: z.array(z.string()),
-  scope: z.array(z.string()),
-  exitCriteria: z.array(z.string()),
-});
 export const OrgContext = z.looseObject({ snapshotId: z.string(), components: z.array(z.string()) });
-export const ImpactReport = z.looseObject({
-  dependencies: z.array(z.string()),
-  regressionCandidates: z.array(z.string()),
-  riskScores: z.record(z.string(), z.number()),
-});
+/** Charter + impact contracts were tightened in Phase 3 (src/core/schemas/design.ts). */
+export { TestCharter, ImpactReport } from './schemas/index.js';
 export const GeneratedArtifact = z.object({
   kind: z.enum(['spec', 'page-object', 'api-test', 'fixture']),
   path: z.string(),
@@ -107,6 +102,11 @@ export const QARunState = z.object({
   charter: TestCharter.optional(),
   orgContext: OrgContext.optional(),
   impact: ImpactReport.optional(),
+  /** Phase 3: deterministic risk model + coverage obligations + Reviewer pass-1 findings. */
+  risks: z.array(RiskItem),
+  obligations: z.array(CoverageObligation),
+  reviewFindings: z.array(ReviewFinding),
+  reviewRound: z.number().int().nonnegative(),
   testCases: z.array(TestCase),
   rtm: z.array(RtmRow),
   generated: z.array(GeneratedArtifact),
@@ -152,6 +152,10 @@ export function initialRunState(input: {
     findings: [],
     clarifications: [],
     clarifyRound: 0,
+    risks: [],
+    obligations: [],
+    reviewFindings: [],
+    reviewRound: 0,
     testCases: [],
     rtm: [],
     generated: [],

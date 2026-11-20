@@ -329,7 +329,7 @@ describe('main graph — discover node (Phase 2)', () => {
       Promise.resolve({
         org: 'fixture',
         orgContext: { snapshotId: 'snap-x', components: ['Field:Order.Status'] },
-        impact: { dependencies: [], regressionCandidates: [], riskScores: {} },
+        impact: { dependencies: [], regressionCandidates: [], riskScores: {}, changed: [], impacted: [], reverify: [] },
         findings: [orgFinding],
         evidence: [],
         notes: ['discovered (FIXTURE)'],
