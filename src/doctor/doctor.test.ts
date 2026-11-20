@@ -94,7 +94,7 @@ describe('qa doctor', () => {
     );
     expect(byId(report, 'fixture')?.status).toBe('green');
     expect(byId(report, 'skills')?.status).toBe('green');
-    expect(byId(report, 'salesforce')?.summary).toMatch(/expected until Phase 2/);
+    expect(byId(report, 'salesforce')?.summary).toMatch(/not ready yet/);
     expect(report.savedTo && existsSync(report.savedTo)).toBe(true);
     expect(report.savedTo?.startsWith(join(root, 'runs'))).toBe(true);
   });

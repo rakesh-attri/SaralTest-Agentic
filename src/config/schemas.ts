@@ -196,7 +196,16 @@ export type OrgEntry = z.infer<typeof OrgEntry>;
 
 export const OrgProfile = z.looseObject({
   mutations: z.enum(['allowed', 'all-record-data', 'run-tagged-records-only', 'none']),
+  /** Mutation categories refused outright (metadata, permission-changes, payments, real-callouts, …). */
   blocked: z.array(z.string()).optional(),
+  /** prod-test-org: every run needs one recorded approval before its first mutation. */
+  approvalPerRun: z.boolean().optional(),
+  /** dedicated-qa-prod: deleting more than N existing (non-run) records asks once. */
+  confirmBulkDeleteOver: z.number().int().positive().optional(),
+  authorization: z.string().optional(),
+  bulk: z.string().optional(),
+  cleanupDefault: z.enum(['run-owned', 'all']).optional(),
+  approvals: z.string().optional(),
 });
 export type OrgProfile = z.infer<typeof OrgProfile>;
 

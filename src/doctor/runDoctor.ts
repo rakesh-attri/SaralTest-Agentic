@@ -11,6 +11,7 @@ import { Redactor } from '../security/redact.js';
 import { SecretStore } from '../security/secretStore.js';
 import { run } from '../util/exec.js';
 import { configCheck, secretsCheck } from './checks/config.js';
+import { identityCheck } from './checks/identity.js';
 import { mcpCheck } from './checks/mcp.js';
 import { modelsCheck } from './checks/models.js';
 import { browsersCheck, fixtureCheck, jiraCheck, skillsCheck, tracingCheck } from './checks/services.js';
@@ -38,6 +39,7 @@ const CHECKS: { name: string; check: Check; timeoutMs: number }[] = [
   { name: 'mcp', check: mcpCheck, timeoutMs: 240_000 },
   { name: 'jira', check: jiraCheck, timeoutMs: 20_000 },
   { name: 'salesforce', check: salesforceCheck, timeoutMs: 90_000 },
+  { name: 'salesforce-identity', check: identityCheck, timeoutMs: 120_000 },
   { name: 'python', check: pythonCheck, timeoutMs: 40_000 },
   { name: 'tracing', check: tracingCheck, timeoutMs: 30_000 },
   { name: 'fixture', check: fixtureCheck, timeoutMs: 20_000 },

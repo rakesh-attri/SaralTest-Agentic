@@ -147,8 +147,14 @@ export const salesforceCheck: Check = async (ctx) => {
     }
   }
   if (!ctx.env.SF_ECA_CLIENT_ID || !ctx.env.SF_JWT_KEY_PATH) {
-    details.push('JWT via External Client App not configured (SF_ECA_CLIENT_ID / SF_JWT_KEY_PATH empty) — Phase 2');
+    details.push('JWT via External Client App not configured (SF_ECA_CLIENT_ID / SF_JWT_KEY_PATH empty)');
+    fixes.push('Create the External Client App and key: see docs/setup/salesforce-auth.md');
     status = status === 'red' ? 'red' : 'yellow';
+  } else if (!existsSync(ctx.env.SF_JWT_KEY_PATH)) {
+    details.push('SF_JWT_KEY_PATH is set but the key file does not exist (put .env comments on their own line)');
+    status = status === 'red' ? 'red' : 'yellow';
+  } else {
+    details.push('JWT via External Client App configured (client id set, key file present)');
   }
   const fixture = orgsCfg.value.orgs.find((o) => o.environment === 'FIXTURE');
   if (fixture) details.push(`${fixture.alias}: offline fixture org (FIXTURE, never live evidence)`);
@@ -161,13 +167,13 @@ export const salesforceCheck: Check = async (ctx) => {
         ? 'all live orgs authorized and matching'
         : status === 'red'
           ? 'identity mismatch — runs on that org would hard-stop'
-          : 'live orgs not ready yet (expected until Phase 2)',
+          : 'live orgs not ready yet (see details)',
     details,
     ...(fixes.length || status !== 'green'
       ? {
           fix:
             fixes[0] ??
-            'Phase 2: create the External Client App (JWT), fill orgs.yaml with real 18-char org IDs, authorize aliases',
+            'Fill orgs.yaml with real 18-char org IDs and authorize each alias with sf org login jwt (docs/setup/salesforce-auth.md)',
         }
       : {}),
   };

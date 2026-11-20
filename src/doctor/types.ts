@@ -5,7 +5,8 @@ import type { SecretStore } from '../security/secretStore.js';
 import type { Runner } from '../util/exec.js';
 import type { McpHub } from '../mcp/client.js';
 import type { ServerConfig } from '../mcp/boundary/schemas.js';
-import type { BrowserName } from '../config/schemas.js';
+import type { BrowserName, OrgEntry, Persona } from '../config/schemas.js';
+import type { VerifiedIdentity } from '../sf/identity.js';
 
 export type CheckStatus = 'green' | 'yellow' | 'red';
 
@@ -36,6 +37,8 @@ export interface DoctorDeps {
   mcpHub: (servers: Record<string, ServerConfig>) => McpHub;
   /** Returns undefined when the browser launched, else the error text. */
   probeBrowser: (name: BrowserName) => Promise<string | undefined>;
+  /** Live identity check for one org + persona (default: sf CLI session + Organization/userinfo). */
+  verifyIdentity?: (org: OrgEntry, persona: Persona) => Promise<VerifiedIdentity>;
 }
 
 export interface DoctorContext {

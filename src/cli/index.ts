@@ -3,6 +3,8 @@ import { dirname, join, resolve } from 'node:path';
 import { Command } from 'commander';
 import { loadEnv, secretValues } from '../config/env.js';
 import { projectPaths, requireConfig } from '../config/loader.js';
+import { classifyError } from '../core/classifyError.js';
+import { HardStopError } from '../core/errors.js';
 import { createLogger } from '../core/logger.js';
 import { exitCodeFor, formatReport, runDoctor } from '../doctor/runDoctor.js';
 import { startFixtureServer } from '../fixture/server.js';
@@ -12,6 +14,7 @@ import { needsOAuth } from '../doctor/checks/mcp.js';
 import { Redactor } from '../security/redact.js';
 import { Autonomy, type InputRequest } from '../core/state.js';
 import { createReadline, createRuntime, loadAnswersFile, resumeAnalysis, startAnalysis, summary } from './analyze.js';
+import { registerAuth } from './auth.js';
 import { chatLoop } from './chat.js';
 
 /** Walk up from `start` to the folder that holds CLAUDE.md + config/ (works from any sub-folder). */
@@ -33,7 +36,7 @@ export function buildCli(): Command {
   const program = new Command();
   program
     .name('qa')
-    .description('sf-qa-agent — autonomous Salesforce QA engineer (Phase 1: inputs & clarification)')
+    .description('sf-qa-agent — autonomous Salesforce QA engineer (Phase 2: Salesforce intelligence)')
     .option('--root <path>', 'project root (default: nearest folder with config/policy.yaml)')
     .showHelpAfterError();
 
@@ -67,6 +70,8 @@ export function buildCli(): Command {
       process.stdout.write(`${o.json ? JSON.stringify(report, null, 2) : formatReport(report)}\n`);
       process.exitCode = exitCodeFor(report);
     });
+
+  registerAuth(program, rootOf, say);
 
   const mcp = program.command('mcp').description('MCP server utilities');
   mcp
@@ -286,4 +291,24 @@ export function buildCli(): Command {
   return program;
 }
 
-await buildCli().parseAsync(process.argv);
+await buildCli()
+  .parseAsync(process.argv)
+  .catch((err: unknown) => {
+    // Every command explains why it stopped (CLAUDE.md §Commands) — no raw stack traces for expected failures.
+    if (err instanceof HardStopError) {
+      say(`BLOCKED — ${err.message}`);
+      process.exitCode = 3;
+      return;
+    }
+    const c = classifyError(err);
+    const fix = typeof c.detail['fix'] === 'string' ? c.detail['fix'] : undefined;
+    say(
+      `Stopped: [${c.kind}] ${c.message}${
+        fix
+          ? `
+  fix: ${fix}`
+          : ''
+      }`,
+    );
+    process.exitCode = 1;
+  });

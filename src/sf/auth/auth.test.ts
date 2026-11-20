@@ -1,3 +1,4 @@
+import { createVerify, generateKeyPairSync } from 'node:crypto';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,7 +12,7 @@ import type { ExecResult, Runner } from '../../util/exec.js';
 import { REPO_ROOT } from '../../../tests/helpers/tempProject.js';
 import { ensureStorageState, hostBelongsToOrg, myDomainOf } from './browserState.js';
 import { FixtureSessionProvider } from './fixture.js';
-import { parseSfJson, SfCliSessionProvider } from './sfCli.js';
+import { jwtAudience, parseSfJson, SfCliSessionProvider } from './sfCli.js';
 import type { SessionProvider } from './types.js';
 
 const TOKEN = '00DdN00000uQ5dK!AQEAQFakeTokenValueForTests1234567890';
@@ -42,16 +43,6 @@ const json = (status: number, result?: unknown, message?: string): ExecResult =>
   stderr: '',
 });
 
-const display = (connectedStatus = 'Connected'): ExecResult =>
-  json(0, {
-    id: liveOrg.orgId,
-    accessToken: TOKEN,
-    instanceUrl: 'https://acme.my.salesforce.com/',
-    username: persona.username,
-    apiVersion: '68.0',
-    connectedStatus,
-  });
-
 function fakeRunner(script: (args: readonly string[]) => ExecResult): Runner & { calls: string[][] } {
   const calls: string[][] = [];
   const r = ((_cmd: string, args: readonly string[]) => {
@@ -62,73 +53,123 @@ function fakeRunner(script: (args: readonly string[]) => ExecResult): Runner & {
   return r;
 }
 
-describe('parseSfJson', () => {
+const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+const keyDir = mkdtempSync(join(tmpdir(), 'jwt key '));
+const keyFile = join(keyDir, 'server.key');
+writeFileSync(keyFile, privateKey.export({ type: 'pkcs8', format: 'pem' }));
+const jwtEnv = { SF_ECA_CLIENT_ID: '3MVGclientid', SF_JWT_KEY_PATH: keyFile };
+
+type FakeFetch = typeof fetch & { assertions: Record<string, unknown>[] };
+
+/** Fake Salesforce OAuth endpoint: verifies the RS256 assertion like Salesforce does. */
+function fakeOAuth(opts: { status?: number; body?: unknown } = {}): FakeFetch {
+  const assertions: Record<string, unknown>[] = [];
+  const f = ((input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url.endsWith('/services/data')) {
+      return Promise.resolve(new Response(JSON.stringify([{ version: '67.0' }, { version: '68.0' }])));
+    }
+    const params = new URLSearchParams(typeof init?.body === 'string' ? init.body : '');
+    expect(params.get('grant_type')).toBe('urn:ietf:params:oauth:grant-type:jwt-bearer');
+    const [h = '', c = '', sig = ''] = (params.get('assertion') ?? '').split('.');
+    const v = createVerify('RSA-SHA256');
+    v.update(`${h}.${c}`);
+    expect(v.verify(publicKey, Buffer.from(sig, 'base64url'))).toBe(true);
+    assertions.push(JSON.parse(Buffer.from(c, 'base64url').toString('utf8')) as Record<string, unknown>);
+    const body = opts.body ?? {
+      access_token: TOKEN,
+      instance_url: 'https://acme.my.salesforce.com',
+      id: `https://login.salesforce.com/id/${liveOrg.orgId}/005dN000001AbCdQAK`,
+    };
+    return Promise.resolve(new Response(JSON.stringify(body), { status: opts.status ?? 200 }));
+  }) as FakeFetch;
+  f.assertions = assertions;
+  return f;
+}
+
+describe('parseSfJson / helpers', () => {
   it('skips update notices printed before the JSON', () => {
     expect(parseSfJson('Warning: update available\n{"status":0,"result":{"a":1}}')?.result).toEqual({ a: 1 });
     expect(parseSfJson('no json')).toBeUndefined();
   });
+  it('JWT audience: sandbox → test.salesforce.com, production → login.salesforce.com', () => {
+    expect(jwtAudience('https://acme.my.salesforce.com')).toBe('https://login.salesforce.com');
+    expect(jwtAudience('https://acme--fullcopy.sandbox.my.salesforce.com')).toBe('https://test.salesforce.com');
+  });
 });
 
-describe('SfCliSessionProvider', () => {
-  it('reads the session from sf org display, registers the token and caches within the TTL', async () => {
-    const runner = fakeRunner(() => display());
+describe('SfCliSessionProvider — API session via JWT Bearer grant', () => {
+  it('signs a valid assertion, registers token + key as secrets and caches within the TTL', async () => {
+    const oauth = fakeOAuth();
     const secrets: string[] = [];
-    let now = 1_000;
+    let now = 1_700_000_000_000;
     const p = new SfCliSessionProvider({
-      runner,
-      secrets: noKeyring(),
+      runner: fakeRunner(() => json(0)),
+      secrets: noKeyring(jwtEnv),
       ttlMinutes: 60,
+      fetch: oauth,
       onSecret: (v) => secrets.push(v),
       now: () => now,
     });
     const s = await p.session({ persona, org: liveOrg });
-    expect(s).toMatchObject({ orgId: liveOrg.orgId, instanceUrl: 'https://acme.my.salesforce.com', source: 'sf-cli' });
+    expect(s).toMatchObject({ orgId: liveOrg.orgId, apiVersion: '68.0', source: 'jwt', username: persona.username });
+    expect(oauth.assertions[0]).toEqual({
+      iss: '3MVGclientid',
+      sub: persona.username,
+      aud: 'https://login.salesforce.com',
+      exp: Math.floor(now / 1000) + 180,
+    });
     expect(secrets).toContain(TOKEN);
+    expect(secrets.some((x) => x.includes('PRIVATE KEY'))).toBe(true);
     await p.session({ persona, org: liveOrg });
-    expect(runner.calls).toHaveLength(1);
+    expect(oauth.assertions).toHaveLength(1);
     now += 61 * 60_000;
     await p.session({ persona, org: liveOrg });
-    expect(runner.calls).toHaveLength(2);
-    expect(runner.calls[0]).toEqual(['org', 'display', '--target-org', 'qa-prod', '--json']);
+    expect(oauth.assertions).toHaveLength(2);
   });
 
-  it('without a usable session and no ECA config → AUTH issue, token-free message', async () => {
-    const runner = fakeRunner(() => json(1, undefined, `expired access/refresh token sid=${TOKEN}`));
-    const p = new SfCliSessionProvider({ runner, secrets: noKeyring(), ttlMinutes: 60 });
+  it('without ECA config → AUTH issue with the setup fix', async () => {
+    const p = new SfCliSessionProvider({ runner: fakeRunner(() => json(0)), secrets: noKeyring(), ttlMinutes: 60 });
     const err = await p.session({ persona, org: liveOrg }).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(QAError);
     expect((err as QAError).kind).toBe('AUTH');
-    expect((err as QAError).message).not.toContain(TOKEN);
+    expect(JSON.stringify((err as QAError).detail)).toMatch(/salesforce-auth/);
   });
 
-  it('re-runs JWT login non-interactively when the alias is expired and the ECA is configured', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'jwt key '));
-    const keyFile = join(dir, 'server.key');
-    writeFileSync(keyFile, 'not-a-real-key');
-    let loggedIn = false;
-    const runner = fakeRunner((args) => {
-      if (args[1] === 'login') {
-        loggedIn = true;
-        return json(0, { orgId: liveOrg.orgId });
-      }
-      return loggedIn ? display() : display('Unable to refresh session: expired');
-    });
+  it('a JWT key path that does not exist is reported, not silently ignored', async () => {
     const p = new SfCliSessionProvider({
-      runner,
-      secrets: noKeyring({ SF_ECA_CLIENT_ID: '3MVGclientid', SF_JWT_KEY_PATH: keyFile }),
+      runner: fakeRunner(() => json(0)),
+      secrets: noKeyring({ SF_ECA_CLIENT_ID: '3MVGclientid', SF_JWT_KEY_PATH: 'C:\\nope\\server.key' }),
       ttlMinutes: 60,
     });
-    const s = await p.session({ persona, org: liveOrg });
-    expect(s.source).toBe('jwt');
-    const login = runner.calls.find((c) => c[1] === 'login');
-    expect(login).toEqual([
+    await expect(p.session({ persona, org: liveOrg })).rejects.toThrow(/does not exist/);
+  });
+
+  it('invalid_grant (user not pre-approved) → AUTH', async () => {
+    const p = new SfCliSessionProvider({
+      runner: fakeRunner(() => json(0)),
+      secrets: noKeyring(jwtEnv),
+      ttlMinutes: 60,
+      fetch: fakeOAuth({ status: 400, body: { error: 'invalid_grant', error_description: 'user not approved' } }),
+    });
+    const err = await p.session({ persona, org: liveOrg }).catch((e: unknown) => e);
+    expect((err as QAError).kind).toBe('AUTH');
+    expect((err as QAError).message).toMatch(/invalid_grant/);
+  });
+});
+
+describe('SfCliSessionProvider — sf CLI alias (frontdoor, MCP)', () => {
+  it('sf org login jwt passes a key path with spaces as one argument (no shell)', async () => {
+    const runner = fakeRunner(() => json(0, { orgId: liveOrg.orgId }));
+    const p = new SfCliSessionProvider({ runner, secrets: noKeyring(jwtEnv), ttlMinutes: 60 });
+    await p.jwtLogin({ persona, org: liveOrg });
+    expect(runner.calls[0]).toEqual([
       'org',
       'login',
       'jwt',
       '--client-id',
       '3MVGclientid',
       '--jwt-key-file',
-      keyFile, // path with spaces passed as ONE argument (no shell)
+      keyFile,
       '--username',
       persona.username,
       '--alias',
@@ -139,45 +180,33 @@ describe('SfCliSessionProvider', () => {
     ]);
   });
 
-  it('a JWT key path that does not exist is reported, not silently ignored', async () => {
-    const runner = fakeRunner(() => display('expired'));
-    const p = new SfCliSessionProvider({
-      runner,
-      secrets: noKeyring({ SF_ECA_CLIENT_ID: '3MVGclientid', SF_JWT_KEY_PATH: 'C:\\nope\\server.key' }),
-      ttlMinutes: 60,
-    });
-    await expect(p.session({ persona, org: liveOrg })).rejects.toThrow(/does not exist/);
-  });
-
-  it('sf missing → TOOL_UNAVAILABLE', async () => {
-    const runner: Runner = () => Promise.resolve({ code: null, stdout: '', stderr: '', error: 'spawn sf ENOENT' });
-    const p = new SfCliSessionProvider({ runner, secrets: noKeyring(), ttlMinutes: 60 });
-    const err = await p.session({ persona, org: liveOrg }).catch((e: unknown) => e);
-    expect((err as QAError).kind).toBe('TOOL_UNAVAILABLE');
-  });
-
-  it('frontdoor URL comes from sf org open and is registered as a secret', async () => {
+  it('frontdoor: expired alias → JWT re-login → URL, registered as a secret', async () => {
     const url = 'https://acme.my.salesforce.com/secur/frontdoor.jsp?otp=abc123456789&startURL=%2Flightning';
-    const runner = fakeRunner((args) => (args[1] === 'open' ? json(0, { url, orgId: liveOrg.orgId }) : display()));
+    let loggedIn = false;
+    const runner = fakeRunner((args) => {
+      if (args[1] === 'login') {
+        loggedIn = true;
+        return json(0, {});
+      }
+      return loggedIn ? json(0, { url, orgId: liveOrg.orgId }) : json(1, undefined, `expired sid=${TOKEN}`);
+    });
     const secrets: string[] = [];
     const p = new SfCliSessionProvider({
       runner,
-      secrets: noKeyring(),
+      secrets: noKeyring(jwtEnv),
       ttlMinutes: 60,
       onSecret: (v) => secrets.push(v),
     });
     expect(await p.frontdoorUrl({ persona, org: liveOrg }, '/lightning/o/Account/home')).toBe(url);
     expect(secrets).toContain(url);
-    expect(runner.calls.at(-1)).toEqual([
-      'org',
-      'open',
-      '--url-only',
-      '--target-org',
-      'qa-prod',
-      '--path',
-      '/lightning/o/Account/home',
-      '--json',
-    ]);
+    expect(runner.calls.map((c) => c[1])).toEqual(['open', 'login', 'open']);
+  });
+
+  it('sf missing → TOOL_UNAVAILABLE', async () => {
+    const runner: Runner = () => Promise.resolve({ code: null, stdout: '', stderr: '', error: 'spawn sf ENOENT' });
+    const p = new SfCliSessionProvider({ runner, secrets: noKeyring(), ttlMinutes: 60 });
+    const err = await p.frontdoorUrl({ persona, org: liveOrg }).catch((e: unknown) => e);
+    expect((err as QAError).kind).toBe('TOOL_UNAVAILABLE');
   });
 });
 
