@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RegressionTier, TestType } from './testCase.js';
+import { EvidenceLevel, RegressionTier, TestType } from './testCase.js';
 
 /**
  * Phase 3 test-design contracts (PLAN.md §11 P3, test-design skill). Everything here except free-text wording is
@@ -75,7 +75,17 @@ export const ImpactReport = z.object({
 });
 export type ImpactReport = z.infer<typeof ImpactReport>;
 
-export const ObligationKind = z.enum(['positive', 'negative', 'boundary', 'allow', 'deny', 'bulk', 'ui', 'nfr']);
+export const ObligationKind = z.enum([
+  'positive',
+  'negative',
+  'boundary',
+  'allow',
+  'deny',
+  'bulk',
+  'ui',
+  'nfr',
+  'regression',
+]);
 export type ObligationKind = z.infer<typeof ObligationKind>;
 
 /** Something the design MUST cover, derived by code from requirements + snapshot. */
@@ -91,6 +101,17 @@ export const CoverageObligation = z.object({
   persona: z.string().optional(),
   /** Story AC (always mandatory) vs. other requirement item. */
   isAc: z.boolean().default(false),
+  /** Evidence a step covering this obligation may cite (code-selected; contested sections excluded). */
+  evidenceIds: z.array(z.string()).default([]),
+  /** Best level reachable with that evidence (assignLevel); UNKNOWN means the case will be REVIEW_REQUIRED. */
+  level: EvidenceLevel,
+  /** Why the level is not assertable, when it is not. */
+  levelReason: z.string().optional(),
+  /** Outcome text taken verbatim from evidence (used by the mechanical path and as a hint to the Planner). */
+  expectedHint: z.string().optional(),
+  /** Imported manual test that already covers this obligation (reuse candidate) or that must be re-run. */
+  manualTestIds: z.array(z.string()).default([]),
+  tier: RegressionTier.default('mandatory'),
 });
 export type CoverageObligation = z.infer<typeof CoverageObligation>;
 

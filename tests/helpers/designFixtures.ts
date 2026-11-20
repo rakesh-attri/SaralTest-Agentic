@@ -87,6 +87,7 @@ export const requirements: Requirement[] = [
   req('SF-219-R36', 'functional', [src('S', 'S3'), src('S', 'AC1')], {
     risk: 'HIGH',
     status: 'REVIEW_REQUIRED',
+    businessObjective: 'Every Contact created from the Account page is linked to that Account',
     expectedOutcomes: ['The Contact is linked to the Account'],
   }),
   req('SF-219-R10', 'validation', [src('S', 'AC2'), src('B', 'BR-02')], {
@@ -95,7 +96,9 @@ export const requirements: Requirement[] = [
   req('SF-219-R41', 'validation', [src('S', 'AC3'), src('B', 'BR-03')]),
   req('SF-219-R14', 'validation', [src('S', 'AC5'), src('B', 'BR-04')], { status: 'REVIEW_REQUIRED' }),
   req('SF-219-R16', 'security', [src('S', 'AC6')], { risk: 'HIGH', personas: ['Read Only User'] }),
-  req('SF-219-R23', 'data', [src('B', 'BR-09')]),
+  req('SF-219-R23', 'data', [src('B', 'BR-09')], {
+    businessObjective: 'Account Number_of_Contacts__c updates immediately when a Contact is added',
+  }),
 ];
 
 export const findings: AnalysisFinding[] = [
@@ -203,6 +206,7 @@ export const orgChecks: OrgCheck[] = [
     'Profile "Read Only" exists',
     ['AC6'],
     ['SF-219-R16'],
+    [{ componentType: 'Profile', apiName: 'Read Only', detail: 'Profile' }],
   ),
   check(
     'OC-010',
