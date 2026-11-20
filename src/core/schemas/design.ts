@@ -103,6 +103,12 @@ export const CoverageObligation = z.object({
   isAc: z.boolean().default(false),
   /** Evidence a step covering this obligation may cite (code-selected; contested sections excluded). */
   evidenceIds: z.array(z.string()).default([]),
+  /**
+   * Evidence every step of this obligation carries, whatever the model cites (code appends it): the org check a
+   * negative is about, and whole-requirement org contests (component NOT_FOUND, no mechanism). Stops a draft from
+   * citing only the favourable subset of the evidence.
+   */
+  mustCite: z.array(z.string()).default([]),
   /** Best level reachable with that evidence (assignLevel); UNKNOWN means the case will be REVIEW_REQUIRED. */
   level: EvidenceLevel,
   /** Why the level is not assertable, when it is not. */

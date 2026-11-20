@@ -236,3 +236,25 @@ describe('live-demo regressions (settlement)', () => {
     expect(s.findings.find((f) => f.id === gap?.id)).toMatchObject({ status: 'RESOLVED', resolvedBy: 'qa-lead' });
   });
 });
+
+describe('live-demo regressions (restated rules are vague)', () => {
+  it('"the system enforces the requirement as per business rule" is flagged', async () => {
+    const cases = await mechanical();
+    const c0 = cases[0]!;
+    const changed = [
+      {
+        ...c0,
+        steps: [
+          {
+            ...c0.steps[0]!,
+            expected: { ...c0.steps[0]!.expected, text: 'The system enforces the requirement as per business rule' },
+          },
+        ],
+      },
+      ...cases.slice(1),
+    ];
+    expect(
+      deterministicFindings(ctx, changed).some((f) => f.rule === 'vague-expectation' && f.caseIds[0] === c0.id),
+    ).toBe(true);
+  });
+});

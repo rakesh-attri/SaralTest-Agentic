@@ -22,7 +22,9 @@ Rules:
    evidence or in your own `action`. When the exact message is unknown, describe the outcome without quoting one
    (e.g. "the save is rejected and an error is shown on Last Name").
 6. Expected results must be specific and observable (field value, record saved or not, message shown, button
-   absent). Never write "works correctly", "as expected" or "successfully" alone.
+   absent). Never write "works correctly", "as expected" or "successfully" alone, and never restate the rule
+   ("the system enforces the requirement", "validates the format"). For a successful save say what shows it, e.g.
+   "the Contact record page opens and shows the entered Last Name".
 7. Persona: use the obligation's persona when it has one (deny cases); otherwise `{{defaultPersona}}`. Only persona ids
    from the list are allowed.
 8. Reuse an imported manual test by setting `manualTestId` when it is listed on the obligation and its steps fit; keep

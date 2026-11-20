@@ -19,6 +19,7 @@ import {
 } from '../../../tests/helpers/designFixtures.js';
 import { TestCaseIdStore } from './ids.js';
 import {
+  buildCases,
   buildRtm,
   draftProblems,
   mechanicalDrafts,
@@ -340,5 +341,68 @@ describe('live-demo regressions (revise never loses coverage)', () => {
     const r = await revisePlan(ctx, { ids: ids(), router }, res.testCases, [finding], 'llm');
     expect(r.degraded).toBe(true);
     expect(r.testCases.map((c) => c.id)).toEqual(res.testCases.map((c) => c.id));
+  });
+});
+
+describe('live-demo regressions (must-cite + persona)', () => {
+  it('a step citing only the favourable section still carries the contesting org check', () => {
+    const neg = obligations.find((o) => o.kind === 'negative' && o.mustCite.includes('OC-003'));
+    if (!neg) throw new Error('no OC-003 obligation');
+    const [c] = buildCases(
+      ctx,
+      [
+        {
+          key: 'k',
+          title: 'Email is required',
+          obligationIds: [neg.id],
+          persona: 'system-admin',
+          type: 'negative',
+          technique: 'equivalence partitioning',
+          preconditions: [],
+          steps: [
+            {
+              action: 'Leave Email empty and Save',
+              expected: 'The save is rejected',
+              obligationId: neg.id,
+              evidence: ['SF-219#AC3'],
+            },
+          ],
+        },
+      ],
+      'planned',
+      ids(),
+    );
+    expect(c?.steps[0]?.expected.evidenceIds).toContain('OC-003');
+    expect(c?.steps[0]?.expected.evidenceLevel).toBe('UNKNOWN_OR_CONTRADICTORY');
+    expect(c?.reviewStatus).toBe('REVIEW_REQUIRED');
+  });
+
+  it('an unavailable persona is rejected when the obligation does not require it', () => {
+    const pos = obligations.find((o) => o.kind === 'positive' && o.ref === 'AC2');
+    if (!pos) throw new Error('no AC2 obligation');
+    const p = draftProblems(
+      ctx,
+      [
+        {
+          key: 'k',
+          title: 'Last Name required',
+          obligationIds: [pos.id],
+          persona: 'read-only',
+          type: 'functional',
+          technique: 'use case',
+          preconditions: [],
+          steps: [
+            {
+              action: 'Save without Last Name',
+              expected: 'The save is rejected',
+              obligationId: pos.id,
+              evidence: [pos.evidenceIds[0] ?? ''],
+            },
+          ],
+        },
+      ],
+      [pos],
+    );
+    expect(p.some((m) => m.includes('has no test user') && m.includes('use "system-admin"'))).toBe(true);
   });
 });

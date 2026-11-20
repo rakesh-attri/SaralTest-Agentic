@@ -201,3 +201,17 @@ describe('live-demo regressions (obligations)', () => {
     expect(pos?.level).toBe('UNKNOWN_OR_CONTRADICTORY');
   });
 });
+
+describe('live-demo regressions (must-cite evidence)', () => {
+  const obs = deriveObligations(base);
+  it('a NOT_FOUND component contests every obligation of its requirement', () => {
+    for (const o of obs.filter((x) => x.requirementId === 'SF-219-R23')) {
+      expect(o.mustCite).toContain('OC-013');
+      expect(o.level).toBe('UNKNOWN_OR_CONTRADICTORY');
+    }
+  });
+  it('a check-derived negative must cite its own org check', () => {
+    const neg = obs.find((o) => o.kind === 'negative' && o.evidenceIds[0] === 'OC-003');
+    expect(neg?.mustCite).toEqual(['OC-003']);
+  });
+});

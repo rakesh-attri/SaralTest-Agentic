@@ -156,7 +156,8 @@ export function buildCases(
     const priority = priorityFor(reqs, obs);
     const stepReasons: string[] = [];
     const steps = d.steps.map((s) => {
-      const { expected, decision } = expectedFrom(ctx.index, s.expected, s.evidence);
+      const must = obById.get(s.obligationId)?.mustCite ?? [];
+      const { expected, decision } = expectedFrom(ctx.index, s.expected, [...new Set([...s.evidence, ...must])]);
       stepReasons.push(decision.reason);
       return { action: s.action, expected };
     });
@@ -235,6 +236,12 @@ export function draftProblems(
       else {
         covered.add(id);
         if (o.persona && o.persona !== d.persona) problems.push(`${d.key}: ${id} must run as persona "${o.persona}"`);
+        const chosen = ctx.personas.find((p) => p.id === d.persona);
+        if (!o.persona && chosen && !chosen.available && d.persona !== ctx.defaultPersona) {
+          problems.push(
+            `${d.key}: persona "${d.persona}" has no test user and ${id} does not require it — use "${ctx.defaultPersona}" (the missing persona is already recorded in the charter)`,
+          );
+        }
         if (!d.steps.some((s) => s.obligationId === id)) problems.push(`${d.key}: no step verifies ${id}`);
       }
     }
@@ -254,7 +261,7 @@ export function draftProblems(
       for (const e of s.evidence) {
         const id = ctx.index.resolve(e);
         if (!id) problems.push(`${where}: evidence "${e}" does not exist`);
-        else if (!o.evidenceIds.includes(id)) {
+        else if (!o.evidenceIds.includes(id) && !o.mustCite.includes(id)) {
           problems.push(
             `${where}: evidence "${e}" is not allowed for ${o.id} (allowed: ${o.evidenceIds.join(', ') || 'none'})`,
           );

@@ -38,13 +38,25 @@ const NEGATIVE_CHECKS = new Set<OrgCheck['check']>(['required', 'format', 'dupli
 
 export function deriveObligations(i: ObligationInput): CoverageObligation[] {
   const out: CoverageObligation[] = [];
+  /** Whole-requirement org contests: the component does not exist / nothing maintains it / could not be decided. */
+  const contests = new Map<string, string[]>();
+  for (const c of i.orgChecks) {
+    if ((c.check === 'existence' || c.check === 'mechanism') && c.result !== 'EXISTS' && c.result !== 'CONSISTENT') {
+      for (const r of c.requirementIds) contests.set(r, [...(contests.get(r) ?? []), c.id]);
+    }
+  }
   const add = (
-    o: Omit<CoverageObligation, 'id' | 'level' | 'levelReason' | 'values' | 'manualTestIds' | 'tier' | 'isAc'> &
-      Partial<Pick<CoverageObligation, 'values' | 'manualTestIds' | 'isAc'>>,
+    o: Omit<
+      CoverageObligation,
+      'id' | 'level' | 'levelReason' | 'values' | 'manualTestIds' | 'tier' | 'isAc' | 'mustCite'
+    > &
+      Partial<Pick<CoverageObligation, 'values' | 'manualTestIds' | 'isAc' | 'mustCite'>>,
   ): void => {
-    const d = assignLevel(i.index, o.evidenceIds);
+    const must = [...new Set([...(o.mustCite ?? []), ...(contests.get(o.requirementId) ?? [])])];
+    const d = assignLevel(i.index, [...new Set([...o.evidenceIds, ...must])]);
     out.push({
       ...o,
+      mustCite: must,
       id: `OB-${String(out.length + 1).padStart(3, '0')}`,
       values: o.values ?? [],
       manualTestIds: o.manualTestIds ?? [],
@@ -117,6 +129,7 @@ export function deriveObligations(i: ObligationInput): CoverageObligation[] {
             kind: 'negative',
             detail: `negative: ${c.subject} (${c.id} ${c.result})`,
             evidenceIds: [c.id, ...componentsOf([c]), ...okSections],
+            mustCite: [c.id],
             expectedHint:
               c.result === 'CONSISTENT' || c.result === 'EXISTS' ? c.orgFact : `${c.subject} — ${c.orgFact}`,
             manualTestIds: manualFor(sections),

@@ -16,6 +16,9 @@ export interface FindingDraft {
 
 const VAGUE =
   /\b(works?( correctly| fine| properly)?|as expected|is correct|properly|appropriately|successfully)\s*\.?\s*$/i;
+/** Restates the rule instead of naming what is observed ("the system enforces the requirement"). */
+const RESTATES =
+  /\b(as per|according to)\b.*\b(rule|requirement)|\b(system )?(enforces|validates|handles|applies|checks)\b/i;
 const words = (t: string): Set<string> =>
   new Set(
     t
@@ -177,7 +180,8 @@ export function deterministicFindings(ctx: PlannerContext, cases: readonly TestC
     }
     c.steps.forEach((s, n) => {
       const where = `${c.id} step ${String(n + 1)}`;
-      if (VAGUE.test(s.expected.text.trim()) && s.expected.text.trim().split(/\s+/).length < 8) {
+      const t = s.expected.text.trim();
+      if ((VAGUE.test(t) && t.split(/\s+/).length < 8) || (RESTATES.test(t) && t.split(/\s+/).length < 12)) {
         add({
           key: `vague:${c.id}:${String(n)}`,
           severity: 'M',
