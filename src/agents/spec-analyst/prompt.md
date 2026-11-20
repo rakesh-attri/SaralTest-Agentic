@@ -33,6 +33,8 @@ Rules:
    behaviour; LOW for cosmetic or informational items.
 9. Out-of-scope items are not requirements. Version history, document metadata and existing test cases are not
    requirements.
+10. Completeness: every acceptance criterion, numbered rule and non-functional requirement must be cited by at least
+    one requirement, or listed in `excluded` with the reason (e.g. out of scope).
 {{clarifications}}
 Story key / prefix: {{key}}
 

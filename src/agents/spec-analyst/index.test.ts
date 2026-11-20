@@ -117,6 +117,15 @@ const draft = (key: string, sources: string[], over: Record<string, unknown> = {
   sources,
   ...over,
 });
+/** Mark every identified item not cited by the drafts as excluded (the completeness check needs one or the other). */
+const ITEMS = ['ORD-1#AC1', 'ORD-1#AC2', 'ORS-2#OR-01', 'ORS-2#OR-02', 'ORS-2#OR-03', 'ORS-2#NFR-01'];
+const withExcluded = (requirements: { sources: string[] }[]) => ({
+  requirements,
+  excluded: ITEMS.filter((i) => !requirements.some((r) => r.sources.includes(i))).map((ref) => ({
+    ref,
+    reason: 'not part of this test',
+  })),
+});
 const extractOk = JSON.stringify({
   requirements: [
     draft('r1', ['ORD-1#AC1']),
@@ -129,6 +138,7 @@ const extractOk = JSON.stringify({
       reviewReason: 'no baseline',
     }),
   ],
+  excluded: [{ ref: 'ORS-2#OR-03', reason: 'not part of this test' }],
 });
 const question = (n: number, refs: string[], ids: string[] = []) => ({
   question: `Question number ${n} about the order rules?`,
@@ -202,7 +212,7 @@ describe('analyzeSpec', () => {
           if (msgs.length === 2)
             return JSON.stringify({ requirements: [draft('r1', ['ORD-1#AC9'], { personas: ['Wizard'] })] });
           reflection = messageText(msgs.at(-1) as BaseMessage);
-          return JSON.stringify({ requirements: [draft('r1', ['ORD-1#AC1'])] });
+          return JSON.stringify(withExcluded([draft('r1', ['ORD-1#AC1'])]));
         },
       },
     });
@@ -214,6 +224,23 @@ describe('analyzeSpec', () => {
     expect(reflection).toContain('cited section "ORD-1#AC9" does not exist');
     expect(reflection).toContain('persona "Wizard" is not named in any source');
     expect(res.requirements[0]?.sources[0]?.section).toBe('AC1');
+  });
+
+  it('an identified rule that is neither cited nor excluded is reflected back (completeness)', async () => {
+    let reflection = '';
+    const router = await mockRouter({
+      reasoning: {
+        responder: analystResponder({
+          extract: (i) => {
+            if (i === 0) return JSON.stringify({ requirements: [draft('r1', ['ORD-1#AC1'])] });
+            reflection = 'seen';
+            return JSON.stringify(withExcluded([draft('r1', ['ORD-1#AC1'])]));
+          },
+        }),
+      },
+    });
+    await analyzeSpec(input({ existingTests: [] }), { router, ids: new RequirementIdStore('ORD-1'), maxQuestions: 5 });
+    expect(reflection).toBe('seen');
   });
 
   it('a CONFLICT citing a single section is reflected back as needing two sides', async () => {
@@ -319,8 +346,8 @@ describe('analyzeSpec', () => {
         assumption: 'Timed from click to form visible',
       }),
     ];
-    const extract = JSON.stringify({
-      requirements: [
+    const extract = JSON.stringify(
+      withExcluded([
         draft('a', ['ORS-2#OR-02', 'CLARIFICATIONS#Q1'], {
           expectedOutcomes: ['North and South are accepted; other regions rejected'],
         }),
@@ -328,8 +355,8 @@ describe('analyzeSpec', () => {
           type: 'non-functional',
           expectedOutcomes: ['form visible within 2 s'],
         }),
-      ],
-    });
+      ]),
+    );
     const router = await mockRouter({ reasoning: { responder: analystResponder({ extract: () => extract }) } });
     const res = await analyzeSpec(input({ clarifications, round: 2, existingTests: [] }), {
       router,

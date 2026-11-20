@@ -39,7 +39,11 @@ export const RequirementDraft = z.object({
 });
 export type RequirementDraft = z.infer<typeof RequirementDraft>;
 
-export const ExtractOutput = z.object({ requirements: z.array(RequirementDraft).min(1) });
+export const ExtractOutput = z.object({
+  requirements: z.array(RequirementDraft).min(1),
+  /** Identified sections deliberately not turned into requirements (out of scope, duplicate wording …). */
+  excluded: z.array(z.object({ ref: SectionCite, reason: str.min(5) })).default([]),
+});
 export type ExtractOutput = z.infer<typeof ExtractOutput>;
 
 export const FindingDraft = z.object({

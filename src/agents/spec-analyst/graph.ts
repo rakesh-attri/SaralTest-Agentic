@@ -160,6 +160,20 @@ function mechanicalDrafts(docs: readonly SourceDocument[]): RequirementDraft[] {
   return drafts;
 }
 
+/** Identified requirement items (AC n, XX-nn rules/NFRs, Gherkin scenarios) of the spec documents, qualified. */
+export function identifiedItems(docs: readonly SourceDocument[]): string[] {
+  return docs
+    .filter((d) => d.meta['format'] !== 'manual-tests' && d.docId !== CLARIFICATION_DOC_ID)
+    .flatMap((d) =>
+      d.sections
+        .filter(
+          (s) =>
+            ['ac', 'rule', 'nfr', 'scenario'].includes(s.kind) && (s.kind === 'scenario' || !/^S[0-9]+$/.test(s.ref)),
+        )
+        .map((s) => `${d.docId}#${s.ref}`),
+    );
+}
+
 // ------------------------------------------------------------------ main
 export async function analyzeSpec(input: SpecAnalystInput, deps: SpecAnalystDeps): Promise<SpecAnalystResult> {
   const prompts = loadPrompts();
@@ -211,6 +225,15 @@ export async function analyzeSpec(input: SpecAnalystInput, deps: SpecAnalystDeps
           }
           if (!r.expectedOutcomeClear && !r.reviewReason)
             problems.push(`${r.key}: reviewReason is required when expectedOutcomeClear is false`);
+        }
+        // Completeness: every identified requirement item is cited or explicitly excluded with a reason.
+        const cited = new Set(out.requirements.flatMap((r) => r.sources.map((s) => refs.resolve(s) ?? s)));
+        for (const e of out.excluded) cited.add(refs.resolve(e.ref) ?? e.ref);
+        const missing = identifiedItems(docs).filter((q) => !cited.has(q));
+        if (missing.length) {
+          problems.push(
+            `not covered: ${missing.join(', ')} — add a requirement citing each, or list it in "excluded" with a reason`,
+          );
         }
         return problems;
       },
