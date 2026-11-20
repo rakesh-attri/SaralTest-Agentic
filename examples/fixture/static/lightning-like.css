@@ -1,0 +1,29 @@
+/* Lightning-LIKE look for the offline fixture. Not SLDS. */
+body { font-family: system-ui, sans-serif; margin: 0; background: #f3f3f3; color: #181818; }
+.fixture-banner { background: #fe9339; color: #000; font-weight: 600; padding: 6px 12px; text-align: center; }
+.global-header { display: flex; justify-content: space-between; background: #fff; padding: 8px 16px; border-bottom: 1px solid #ddd; }
+.global-header nav a { margin-right: 16px; color: #0176d3; text-decoration: none; }
+.record-page { padding: 16px; }
+.record-header { background: #fff; padding: 12px 16px; border-radius: 4px; display: flex; align-items: center; gap: 16px; }
+.record-header .entity { margin: 0; font-size: 12px; color: #444; }
+.record-header h1 { margin: 0; font-size: 18px; flex: 1; }
+.actions { list-style: none; display: flex; gap: 4px; margin: 0; padding: 0; }
+button { border: 1px solid #c9c9c9; background: #fff; border-radius: 4px; padding: 4px 12px; color: #0176d3; cursor: pointer; }
+button.brand { background: #0176d3; color: #fff; border-color: #0176d3; }
+button[disabled] { color: #aaa; cursor: not-allowed; }
+[role='tablist'] { margin-top: 12px; }
+[role='tabpanel'] { background: #fff; padding: 16px; border-radius: 4px; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fields dt { font-size: 12px; color: #444; }
+.fields dd { margin: 0; }
+.related-list { margin-top: 16px; border: 1px solid #ddd; border-radius: 4px; padding: 8px; }
+.related-list header { display: flex; justify-content: space-between; align-items: center; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid #eee; }
+.modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; }
+.modal[hidden] { display: none; }
+.modal form { background: #fff; padding: 16px; border-radius: 4px; width: 480px; }
+.form-element { display: flex; flex-direction: column; margin-bottom: 8px; }
+.field-error, .page-error { color: #ba0517; }
+.toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); background: #2e844a; color: #fff; padding: 12px 24px; border-radius: 4px; }
+.spinner { position: fixed; inset: 0; background: rgba(255, 255, 255, 0.6); }

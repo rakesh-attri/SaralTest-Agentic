@@ -1,0 +1,90 @@
+{
+  "_comment": "OFFLINE FIXTURE data. Fake IDs, fake people, example.invalid mailboxes. Everything served from here is labelled FIXTURE and never counts as Salesforce evidence (CLAUDE.md rule 13).",
+  "organization": {
+    "Id": "00DFIXTURE00000001",
+    "Name": "Offline Fixture Org",
+    "IsSandbox": true,
+    "InstanceName": "FIXTURE",
+    "OrganizationType": "Fixture"
+  },
+  "users": [
+    {
+      "Id": "005FX0000000001AAA",
+      "Username": "qa.admin@fixture.example.invalid",
+      "Name": "QA Admin (fixture)",
+      "persona": "system-admin",
+      "token": "fixture-admin-token",
+      "canWrite": true
+    },
+    {
+      "Id": "005FX0000000002AAA",
+      "Username": "qa.readonly@fixture.example.invalid",
+      "Name": "QA Read Only (fixture)",
+      "persona": "read-only",
+      "token": "fixture-readonly-token",
+      "canWrite": false
+    }
+  ],
+  "objects": [
+    {
+      "name": "Account",
+      "label": "Account",
+      "keyPrefix": "001",
+      "fields": [
+        { "name": "Id", "label": "Account ID", "type": "id", "createable": false },
+        { "name": "Name", "label": "Account Name", "type": "string", "required": true, "length": 255 },
+        {
+          "name": "Industry",
+          "label": "Industry",
+          "type": "picklist",
+          "picklistValues": ["Banking", "Education", "Healthcare", "Technology"]
+        },
+        { "name": "BillingCountry", "label": "Billing Country", "type": "string", "length": 80 },
+        { "name": "Phone", "label": "Account Phone", "type": "phone", "length": 40 },
+        { "name": "QA_Run_Id__c", "label": "QA Run Id", "type": "string", "length": 80 },
+        { "name": "CreatedDate", "label": "Created Date", "type": "datetime", "createable": false }
+      ]
+    },
+    {
+      "name": "Contact",
+      "label": "Contact",
+      "keyPrefix": "003",
+      "fields": [
+        { "name": "Id", "label": "Contact ID", "type": "id", "createable": false },
+        { "name": "FirstName", "label": "First Name", "type": "string", "length": 40 },
+        { "name": "LastName", "label": "Last Name", "type": "string", "required": true, "length": 80 },
+        { "name": "Email", "label": "Email", "type": "email", "length": 80 },
+        { "name": "Phone", "label": "Phone", "type": "phone", "length": 40 },
+        {
+          "name": "AccountId",
+          "label": "Account Name",
+          "type": "reference",
+          "referenceTo": "Account",
+          "relationshipName": "Account"
+        },
+        { "name": "QA_Run_Id__c", "label": "QA Run Id", "type": "string", "length": 80 },
+        { "name": "CreatedDate", "label": "Created Date", "type": "datetime", "createable": false }
+      ]
+    }
+  ],
+  "records": {
+    "Account": [
+      {
+        "Id": "001FX0000000001AAA",
+        "Name": "Fixture Seed Account",
+        "Industry": "Technology",
+        "BillingCountry": "India",
+        "Phone": "+91 00000 00000"
+      }
+    ],
+    "Contact": [
+      {
+        "Id": "003FX0000000001AAA",
+        "FirstName": "Seed",
+        "LastName": "Contact",
+        "Email": "seed.contact@fixture.example.invalid",
+        "AccountId": "001FX0000000001AAA"
+      }
+    ]
+  }
+}

@@ -69,6 +69,11 @@ export default tseslint.config(
     ...tseslint.configs.disableTypeChecked,
   },
   {
+    // Browser scripts of the offline fixture pages.
+    files: ['examples/fixture/static/**/*.js'],
+    languageOptions: { globals: { ...globals.browser } },
+  },
+  {
     files: ['**/*.test.ts'],
     rules: { '@typescript-eslint/no-non-null-assertion': 'off', '@typescript-eslint/require-await': 'off' },
   },
