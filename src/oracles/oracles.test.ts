@@ -141,3 +141,10 @@ describe('caseStatus', () => {
     expect(r.reviewReasons[0]).toMatch(/^BLOCKED-NO-PERSONA/);
   });
 });
+
+describe('live-demo regressions (grounding)', () => {
+  it('numbers inside ids (BR-06, AC#2) are not values', () => {
+    expect(valuesIn('No evidence available for positive case for BR-06: Title list')).toEqual([]);
+    expect(valuesIn('see AC#2 and 80 characters')).toEqual(['80']);
+  });
+});

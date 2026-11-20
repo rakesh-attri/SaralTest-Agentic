@@ -20,7 +20,7 @@ export function valuesIn(text: string): string[] {
   }
   // Numbers outside quotes (a quoted message is checked as a whole).
   const unquoted = text.replace(/"[^"]{1,200}"|“[^”]{1,200}”|'[^']{3,200}'/g, ' ');
-  for (const m of unquoted.matchAll(/(?<![\w.])\d+(?:\.\d+)?(?![\w.])/g)) out.add(m[0]);
+  for (const m of unquoted.matchAll(/(?<![\w.#-])\d+(?:\.\d+)?(?![\w.])/g)) out.add(m[0]);
   return [...out];
 }
 

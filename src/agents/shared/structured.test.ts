@@ -7,7 +7,7 @@ import { HardStopError, QAError } from '../../core/errors.js';
 import { messageText } from '../../models/secretGuard.js';
 import { Redactor } from '../../security/redact.js';
 import { SkillLoader } from '../../skills/skillLoader.js';
-import { extractJson, runStructured } from './structured.js';
+import { escapeControlCharsInStrings, extractJson, runStructured } from './structured.js';
 
 const Out = z.object({ items: z.array(z.object({ id: z.string(), n: z.number().int() })).min(1) });
 const base = {
@@ -151,5 +151,19 @@ describe('runStructured', () => {
     expect(system).not.toContain('Ambiguity & gap checklist'); // body is not in the system prompt…
     expect(toolResult).toContain('Ambiguity & gap checklist'); // …it is pulled on demand
     expect(r.skillsLoaded).toEqual(['requirement-analysis']);
+  });
+});
+
+describe('extractJson leniency (live demo)', () => {
+  it('accepts raw newlines and tabs inside string literals', () => {
+    const nl = String.fromCharCode(10);
+    const tab = String.fromCharCode(9);
+    const raw = `{"cases":[{"title":"line one${nl}line two${tab}end"}]}`;
+    expect(extractJson(raw)).toEqual({ cases: [{ title: `line one${nl}line two${tab}end` }] });
+    const escaped = escapeControlCharsInStrings(`{"a":"x${nl}y"}`);
+    expect(escaped.includes(nl)).toBe(false);
+    expect(JSON.parse(escaped)).toEqual({ a: `x${nl}y` });
+    // newlines between tokens (outside strings) are left alone
+    expect(escapeControlCharsInStrings(`{${nl}"a": 1}`)).toBe(`{${nl}"a": 1}`);
   });
 });

@@ -138,7 +138,7 @@ export async function reviewRound(i: ReviewInput, deps: ReviewerDeps): Promise<R
           },
         });
         environment = res.environment;
-        models.push(res.model);
+        models.push(`judge=${res.model}${res.usedFallback ? ' (fallback)' : ''}`);
         for (const f of res.value.findings) {
           const reqs = f.requirementIds.length
             ? f.requirementIds
@@ -176,7 +176,7 @@ export async function reviewRound(i: ReviewInput, deps: ReviewerDeps): Promise<R
             },
           });
           environment = res.environment;
-          models.push(res.model);
+          models.push(`judge=${res.model}${res.usedFallback ? ' (fallback)' : ''}`);
           for (const v of res.value.verdicts) {
             const f = findings.find((x) => x.id === v.findingId);
             if (f && v.resolved) Object.assign(f, { status: 'RESOLVED', resolvedBy: 'judge', resolution: v.reason });

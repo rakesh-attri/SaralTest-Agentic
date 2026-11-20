@@ -55,7 +55,17 @@ export function deriveObligations(i: ObligationInput): CoverageObligation[] {
       tier: 'mandatory',
     });
   };
-  const usable = (ids: string[]): string[] => ids.filter((id) => i.index.get(id)?.level !== 'UNKNOWN_OR_CONTRADICTORY');
+  /** Uncontested items only (added next to stronger evidence such as an org check). */
+  const uncontested = (ids: string[]): string[] =>
+    ids.filter((id) => i.index.get(id)?.level !== 'UNKNOWN_OR_CONTRADICTORY');
+  /**
+   * Evidence a step may cite: the uncontested items when there are any, otherwise the contested ones — so the case
+   * still cites its source and is labelled UNKNOWN_OR_CONTRADICTORY (REVIEW_REQUIRED) instead of having nothing to cite.
+   */
+  const usable = (ids: string[]): string[] => {
+    const ok = uncontested(ids);
+    return ok.length ? ok : ids;
+  };
   const shortRef = (q: string): string => q.split('#')[1] ?? q;
   const manualFor = (refs: string[]): string[] =>
     i.manualTests
@@ -70,7 +80,7 @@ export function deriveObligations(i: ObligationInput): CoverageObligation[] {
       return kind !== undefined && SECTION_KINDS.has(kind);
     });
     const checks = i.orgChecks.filter((c) => c.requirementIds.includes(r.id));
-    const okSections = usable(sections);
+    const okSections = uncontested(sections);
     const outcome = r.expectedOutcomes[0];
     const acs = sections.filter((q) => /^AC\d+$/i.test(shortRef(q)));
     const primary = acs.length ? acs : sections.slice(0, 1);
@@ -118,7 +128,7 @@ export function deriveObligations(i: ObligationInput): CoverageObligation[] {
           ref: shortRef(primary[0] ?? '*'),
           kind: 'negative',
           detail: `negative: invalid input for ${r.title ?? r.id} is rejected`,
-          evidenceIds: okSections,
+          evidenceIds: usable(sections),
           ...(outcome ? { expectedHint: outcome } : {}),
           manualTestIds: manualFor(sections),
         });
@@ -134,7 +144,11 @@ export function deriveObligations(i: ObligationInput): CoverageObligation[] {
         const unit = (m[2] ?? '').toLowerCase().startsWith('dig') ? 'digits' : 'characters';
         if (limits.has(`${String(n)} ${unit}`)) continue;
         limits.add(`${String(n)} ${unit}`);
-        const field = fieldFor(text, i.components);
+        const field = fieldFor(
+          text,
+          i.components,
+          objectsIn(`${r.businessObjective} ${r.title ?? ''} ${text}`, i.components),
+        );
         const fieldEv = field ? [`Field:${field.apiName}`] : [];
         const vr = checks.filter((c) => c.check === 'format' && c.result === 'CONSISTENT');
         add({
@@ -191,7 +205,7 @@ export function deriveObligations(i: ObligationInput): CoverageObligation[] {
           kind: 'bulk',
           detail: `bulk: 200 records through ${fresh.map((a) => a.apiName).join(', ')} (automation on ${[...new Set(fresh.map((a) => a.parent))].join(', ')})`,
           values: fresh.map((a) => `${a.type}:${a.apiName}`),
-          evidenceIds: [...okSections, ...fresh.map((a) => `${a.type}:${a.apiName}`)],
+          evidenceIds: [...usable(sections), ...fresh.map((a) => `${a.type}:${a.apiName}`)],
         });
       }
     }
@@ -233,20 +247,31 @@ function denyPersona(r: Requirement, i: ObligationInput, checks: readonly OrgChe
   return name ? resolvePersona(name, i.personas, checks) : undefined;
 }
 
-/** Field components whose label or name appears in the text (word-bounded). */
-function fieldFor(text: string, components: readonly ComponentVersion[]): ComponentVersion | undefined {
+/**
+ * The field a limit is about: its label (preferred) or api name appears word-bounded in the text, within the objects
+ * the requirement names; the longest (most specific) match wins ("Last Name" over "Name").
+ */
+function fieldFor(
+  text: string,
+  components: readonly ComponentVersion[],
+  objects: readonly string[] = [],
+): ComponentVersion | undefined {
   const lc = text.toLowerCase();
+  const score = (c: ComponentVersion): number => {
+    const bodyLabel = c.body?.label;
+    const label = (c.label ?? (typeof bodyLabel === 'string' ? bodyLabel : '')).toLowerCase();
+    const name = c.apiName.split('.')[1]?.toLowerCase() ?? '';
+    if (label.length > 2 && new RegExp(`\\b${escape(label)}\\b`).test(lc)) return 100 + label.length;
+    if (name.length > 3 && new RegExp(`\\b${escape(name)}\\b`).test(lc)) return name.length;
+    return 0;
+  };
   return components
-    .filter((c) => c.type === 'Field')
-    .find((c) => {
-      const bodyLabel = c.body?.label;
-      const label = (c.label ?? (typeof bodyLabel === 'string' ? bodyLabel : '')).toLowerCase();
-      const name = c.apiName.split('.')[1]?.toLowerCase() ?? '';
-      return (
-        (label.length > 2 && new RegExp(`\\b${escape(label)}\\b`).test(lc)) ||
-        (name.length > 3 && new RegExp(`\\b${escape(name)}\\b`).test(lc))
-      );
-    });
+    .filter(
+      (c) => c.type === 'Field' && (!objects.length || objects.includes(c.parent ?? c.apiName.split('.')[0] ?? '')),
+    )
+    .map((c) => ({ c, s: score(c) }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s)[0]?.c;
 }
 
 function objectsIn(text: string, components: readonly ComponentVersion[]): string[] {

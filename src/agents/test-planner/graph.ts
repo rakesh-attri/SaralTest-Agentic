@@ -19,6 +19,7 @@ import type { SkillLoader } from '../../skills/skillLoader.js';
 import type { Redactor } from '../../security/redact.js';
 import { caseStatus, expectedFrom, groundingProblems, type EvidenceIndex } from '../../oracles/index.js';
 import type { ResolvedPersona } from '../impact-risk/personas.js';
+import { findRefs } from '../../inputs/sections.js';
 import { runStructured } from '../shared/structured.js';
 import type { TestCaseIdStore } from './ids.js';
 import { PlanOutput, ReviseOutput, type CaseDraft } from './schema.js';
@@ -63,7 +64,7 @@ export interface PlannerDeps {
   redactor?: Redactor;
   logger?: Logger;
   ids: TestCaseIdStore;
-  /** Obligations per model call (default 12). */
+  /** Obligations per model call (default 6: keeps replies small enough for the timeout). */
   batchSize?: number;
 }
 
@@ -105,13 +106,34 @@ export function priorityFor(reqs: readonly Requirement[], obligations: readonly 
  * interpretation, or no stated outcome. Other reasons are section-scoped and handled by the evidence index (an
  * ambiguity in one cited section does not block a case that only cites another, uncontested section).
  */
-const CASE_BLOCKING_REASON = /generated mechanically|no expected outcome stated/i;
-
-export function requirementReasons(reqs: readonly Requirement[]): string[] {
+export function requirementReasons(
+  index: EvidenceIndex,
+  reqs: readonly Requirement[],
+  citedSections: ReadonlySet<string>,
+): string[] {
+  const { findings = [], clarifications = [] } = index.input;
+  const refsOf = (reason: string): string[] => {
+    const raw: string[] = [];
+    for (const m of reason.matchAll(/\b(F-[A-Z0-9-]+|Q\d+)\b/g)) {
+      const id = m[1] ?? '';
+      raw.push(
+        ...(findings.find((f) => f.id === id)?.refs ?? []),
+        ...(clarifications.find((c) => c.id === id)?.refs ?? []),
+      );
+    }
+    if (!raw.length) raw.push(...findRefs(reason));
+    return [...new Set(raw.map((x) => index.refs.resolve(x)).filter((x): x is string => x !== undefined))];
+  };
   return reqs.flatMap((r) =>
-    r.status === 'REVIEW_REQUIRED'
-      ? r.reviewReasons.filter((x) => CASE_BLOCKING_REASON.test(x)).map((x) => `requirement ${r.id}: ${x}`)
-      : [],
+    r.status !== 'REVIEW_REQUIRED'
+      ? []
+      : r.reviewReasons
+          .filter((reason) => {
+            const refs = refsOf(reason);
+            // no refs → about the whole requirement (mechanical, no stated outcome) → blocks every case
+            return !refs.length || refs.some((q) => citedSections.has(q));
+          })
+          .map((x) => `requirement ${r.id}: ${x}`),
   );
 }
 
@@ -144,7 +166,14 @@ export function buildCases(
       stepReasons,
       personaAvailable: persona?.available ?? false,
       persona: d.persona,
-      extraReasons: requirementReasons(reqs),
+      extraReasons: requirementReasons(
+        ctx.index,
+        reqs,
+        new Set([
+          ...steps.flatMap((s) => s.expected.evidenceIds),
+          ...obs.flatMap((o) => (o.ref === '*' ? [] : [ctx.index.resolve(o.ref) ?? o.ref])),
+        ]),
+      ),
     });
     const tier = obs.map((o) => o.tier).sort((a, b) => TIER_ORDER[a] - TIER_ORDER[b])[0] ?? 'optional';
     const fp = `${obs.map(obligationFp).sort().join('||')}::${d.persona}`;
@@ -218,6 +247,9 @@ export function draftProblems(
       if (!o || !d.obligationIds.includes(s.obligationId)) {
         problems.push(`${where}: obligationId ${s.obligationId} is not one of the case's obligations`);
         return;
+      }
+      if (o.evidenceIds.length && !s.evidence.length) {
+        problems.push(`${where}: cite at least one of ${o.id}'s allowed evidence ids (${o.evidenceIds.join(', ')})`);
       }
       for (const e of s.evidence) {
         const id = ctx.index.resolve(e);
@@ -301,7 +333,7 @@ export function mechanicalDrafts(ctx: PlannerContext, obligations: readonly Cove
           action: action || o.detail,
           expected: ev ? `As stated in ${ev}: ${evText}` : `No evidence available for ${o.detail}`,
           obligationId: o.id,
-          evidence: ev ? [ev] : ['NO-EVIDENCE'],
+          evidence: ev ? [ev] : [],
         },
       ],
     };
@@ -422,7 +454,7 @@ export async function planTests(
   const degraded: PlanResult['degraded'] = [];
   const cases: TestCase[] = [];
 
-  for (const batch of batches(ctx.obligations, deps.batchSize ?? 12)) {
+  for (const batch of batches(ctx.obligations, deps.batchSize ?? 6)) {
     if (mode === 'mechanical' || !deps.router) {
       cases.push(...buildCases(ctx, mechanicalDrafts(ctx, batch), 'mechanical', deps.ids));
       continue;
@@ -445,7 +477,7 @@ export async function planTests(
         ...(deps.logger ? { logger: deps.logger } : {}),
         check: (out) => draftProblems(ctx, out.cases, batch),
       });
-      models.push(res.model);
+      models.push(`planner=${res.model}${res.usedFallback ? ' (fallback)' : ''}`);
       envs.push(res.environment);
       cases.push(...buildCases(ctx, res.value.cases, 'planned', deps.ids));
     } catch (e) {
@@ -584,7 +616,7 @@ export async function revisePlan(
       justifications: res.value.justifications,
       changedFor,
       environment: res.environment,
-      models: [res.model],
+      models: [`planner=${res.model}${res.usedFallback ? ' (fallback)' : ''}`],
       degraded: false,
     };
   } catch (e) {

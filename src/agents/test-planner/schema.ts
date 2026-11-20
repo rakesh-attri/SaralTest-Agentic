@@ -12,8 +12,8 @@ export const StepDraft = z.object({
   /** The observable outcome to check. Values (messages, numbers) only as stated in the cited evidence. */
   expected: z.string().min(3),
   obligationId: z.string(),
-  /** Evidence ids from the obligation's allowed list. */
-  evidence: z.array(z.string()).min(1),
+  /** Evidence ids from the obligation's allowed list (empty only when the obligation has none). */
+  evidence: z.array(z.string()).default([]),
 });
 export type StepDraft = z.infer<typeof StepDraft>;
 

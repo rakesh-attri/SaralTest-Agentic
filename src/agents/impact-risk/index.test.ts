@@ -154,3 +154,50 @@ describe('assessRisks', () => {
     expect(withRiskScores(undefined, risks).riskScores['SF-219-R16']).toBe(byReq('SF-219-R16')?.score);
   });
 });
+
+describe('live-demo regressions (obligations)', () => {
+  it('a boundary picks the most specific field of the requirement\'s object ("Last Name", not Account "Name")', () => {
+    const accountName = {
+      ...components[1]!,
+      type: 'Field',
+      apiName: 'Account.Name',
+      label: 'Account Name',
+      parent: 'Account',
+      body: { type: 'string', length: 255 },
+    };
+    const accountPhone = { ...components[2]!, apiName: 'Account.Phone', label: 'Account Phone', parent: 'Account' };
+    const reqs = requirements.map((r) =>
+      r.id === 'SF-219-R10' ? { ...r, businessObjective: 'Last Name is required on the Contact' } : r,
+    );
+    const obs = deriveObligations({
+      ...base,
+      requirements: reqs,
+      components: [accountName, accountPhone, ...components],
+    });
+    const b = obs.find((o) => o.requirementId === 'SF-219-R10' && o.kind === 'boundary');
+    expect(b?.evidenceIds).toContain('Field:Contact.LastName');
+    expect(b?.evidenceIds).not.toContain('Field:Account.Name');
+  });
+
+  it('an obligation whose only sections are contested still cites them (UNKNOWN) instead of nothing', () => {
+    const r = {
+      ...requirements[3]!,
+      id: 'SF-219-R99',
+      sources: [requirements[3]!.sources[1]!],
+      type: 'functional' as const,
+    };
+    const idx = new EvidenceIndex({
+      docs,
+      requirements: [r],
+      findings,
+      clarifications,
+      orgChecks: [],
+      components,
+      manualTests,
+    });
+    const obs = deriveObligations({ ...base, requirements: [r], index: idx, orgChecks: [] });
+    const pos = obs.find((o) => o.kind === 'positive');
+    expect(pos?.evidenceIds).toEqual(['BRD-CON-012#BR-04']);
+    expect(pos?.level).toBe('UNKNOWN_OR_CONTRADICTORY');
+  });
+});

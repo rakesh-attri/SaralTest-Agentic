@@ -173,6 +173,29 @@ describe('requirement-level review reasons', () => {
   });
 });
 
+describe('live-demo regressions (requirement reasons)', () => {
+  it('a requirement reason blocks only cases citing its refs; reasons without refs block every case', async () => {
+    const reqs = requirements.map((r) =>
+      r.id === 'SF-219-R14'
+        ? { ...r, status: 'REVIEW_REQUIRED' as const, reviewReasons: ['relies on unconfirmed assumption Q1'] }
+        : r.id === 'SF-219-R23'
+          ? { ...r, status: 'REVIEW_REQUIRED' as const, reviewReasons: ['no expected outcome stated in the sources'] }
+          : r,
+    );
+    const res = await planTests({ ...ctx, requirements: reqs }, { ids: ids() }, 'mechanical');
+    // Q1 refs BR-04; the OC-007 format case cites AC5 + OC-007 only → not blocked
+    const fmt = res.testCases.find(
+      (c) =>
+        c.steps.some((s) => s.expected.evidenceIds.includes('OC-007')) && c.technique !== 'boundary value analysis',
+    );
+    expect(fmt?.reviewReasons.some((x) => x.includes('Q1'))).toBe(false);
+    for (const c of res.testCases.filter((x) => x.requirementIds.includes('SF-219-R23'))) {
+      expect(c.reviewStatus).toBe('REVIEW_REQUIRED');
+      expect(c.reviewReasons.join(' ')).toMatch(/no expected outcome stated/);
+    }
+  });
+});
+
 describe('model planning', () => {
   it('uses model drafts, labels MOCK, code assigns levels and status', async () => {
     const router = await mockRouter({ reasoning: { responder: plannerResponder() } });
