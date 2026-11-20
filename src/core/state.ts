@@ -1,14 +1,20 @@
 import { z } from 'zod';
 import {
+  AnalysisFinding,
+  ChangedComponent,
   Clarification,
   CreatedRecord,
   DefectDraft,
+  DefectRecord,
   EvalScore,
   EvidenceEntry,
+  ExploratoryObjective,
   Investigation,
   Issue,
   LearningCandidate,
+  ManualTestCase,
   Requirement,
+  SourceDocument,
   RtmRow,
   TestCase,
   TestResult,
@@ -25,6 +31,13 @@ export const SpecSource = z.object({
   type: z.enum(['jira', 'ado', 'chat', 'file']),
   ref: z.string(),
 });
+/** One requested input of a run (CLI flags / chat), resolved by the intake node through the adapter registry. */
+export const InputRequest = z.object({
+  kind: z.enum(['jira', 'ado', 'chat', 'file', 'manual-tests', 'defects', 'git-diff', 'objective']),
+  /** Issue key, file path, JQL, git ref or the chat text itself. */
+  value: z.string().min(1),
+});
+export type InputRequest = z.infer<typeof InputRequest>;
 export type SpecSource = z.infer<typeof SpecSource>;
 
 export const StorySnapshot = z.looseObject({
@@ -76,8 +89,21 @@ export const QARunState = z.object({
   autonomy: Autonomy,
   source: SpecSource,
   story: StorySnapshot.optional(),
+  /** Inputs to resolve at intake (Phase 1). */
+  inputs: z.array(InputRequest),
+  /** Normalized source documents (adapters, deterministic). */
+  sources: z.array(SourceDocument),
+  /** Imported existing/manual test cases. */
+  existingTests: z.array(ManualTestCase),
+  defectHistory: z.array(DefectRecord),
+  changedComponents: z.array(ChangedComponent),
+  objectives: z.array(ExploratoryObjective),
   requirements: z.array(Requirement),
+  /** Spec Analyst findings: conflicts, ambiguities, gaps, test-sheet problems. */
+  findings: z.array(AnalysisFinding),
   clarifications: z.array(Clarification),
+  /** Completed clarification rounds (understand ⇄ clarify loop is bounded). */
+  clarifyRound: z.number().int().nonnegative(),
   charter: TestCharter.optional(),
   orgContext: OrgContext.optional(),
   impact: ImpactReport.optional(),
@@ -105,6 +131,7 @@ export function initialRunState(input: {
   autonomy: Autonomy;
   source: SpecSource;
   storyKey?: string;
+  inputs?: InputRequest[];
   tokenLimit: number;
   timeLimitMin: number;
   now?: Date;
@@ -115,8 +142,16 @@ export function initialRunState(input: {
     org: input.org,
     autonomy: input.autonomy,
     source: input.source,
+    inputs: input.inputs ?? [],
+    sources: [],
+    existingTests: [],
+    defectHistory: [],
+    changedComponents: [],
+    objectives: [],
     requirements: [],
+    findings: [],
     clarifications: [],
+    clarifyRound: 0,
     testCases: [],
     rtm: [],
     generated: [],

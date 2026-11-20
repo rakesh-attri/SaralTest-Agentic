@@ -6,6 +6,8 @@ export const SourceRef = z.object({
   ref: z.string(),
   version: z.string().optional(),
   hash: z.string(),
+  /** Section inside the source, e.g. `AC2`, `BR-03`, `NFR-01`, `MTC-004` (must exist in the parsed source). */
+  section: z.string().optional(),
 });
 export type SourceRef = z.infer<typeof SourceRef>;
 
@@ -30,12 +32,56 @@ export const Requirement = z.object({
 });
 export type Requirement = z.infer<typeof Requirement>;
 
+export const ClarificationStatus = z.enum(['OPEN', 'ANSWERED', 'ASSUMED', 'WITHDRAWN']);
+export type ClarificationStatus = z.infer<typeof ClarificationStatus>;
+
+/**
+ * A question to the human (requirement-analysis skill: AC/BR reference, the concrete ambiguity, what is known today,
+ * test impact). Unanswered questions become ASSUMED with `proposedAssumption` — always flagged, never silent.
+ */
 export const Clarification = z.object({
   id: z.string(),
   requirementId: z.string().optional(),
+  /** All requirements whose tests depend on the answer. */
+  requirementIds: z.array(z.string()).default([]),
+  /** Source section refs the question is about (AC3, BR-04 …). */
+  refs: z.array(z.string()).default([]),
   question: z.string(),
+  testImpact: z.string().optional(),
+  /** Safest, most common interpretation — used when no answer arrives in time (skill step 7). */
+  proposedAssumption: z.string().optional(),
+  /** 1 = most important. */
+  priority: z.number().int().positive().optional(),
+  round: z.number().int().positive().default(1),
   answer: z.string().optional(),
   assumption: z.string().optional(),
-  status: z.enum(['OPEN', 'ANSWERED', 'ASSUMED', 'WITHDRAWN']),
+  status: ClarificationStatus,
 });
 export type Clarification = z.infer<typeof Clarification>;
+
+/** What the Spec Analyst (deterministic lint + LLM) found while reading the sources. */
+export const FindingKind = z.enum([
+  'CONFLICT',
+  'AMBIGUITY',
+  'MISSING_DETAIL',
+  'COVERAGE_GAP',
+  'UNSUPPORTED_TEST',
+  'DUPLICATE_TEST',
+  'RISK_SIGNAL',
+  'ORG_CHECK_NEEDED',
+]);
+export type FindingKind = z.infer<typeof FindingKind>;
+
+export const AnalysisFinding = z.object({
+  id: z.string(),
+  kind: FindingKind,
+  text: z.string().min(1),
+  /** Section refs (AC4, BR-10, MTC-008 …) — at least one: a finding without a source is not reported. */
+  refs: z.array(z.string()).min(1),
+  requirementIds: z.array(z.string()).default([]),
+  severity: z.enum(['HIGH', 'MEDIUM', 'LOW']),
+  /** `lint` = deterministic rule, `llm` = Spec Analyst model output (validated). */
+  origin: z.enum(['lint', 'llm']),
+  rule: z.string().optional(),
+});
+export type AnalysisFinding = z.infer<typeof AnalysisFinding>;

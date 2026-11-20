@@ -102,3 +102,16 @@ describe('domain schemas', () => {
     expect(s.status).toBe('RUNNING');
   });
 });
+
+describe('Phase 1 input schemas', () => {
+  it('requires at least one source ref on a finding and defaults clarification extras', async () => {
+    const { AnalysisFinding, Clarification } = await import('./index.js');
+    expect(
+      AnalysisFinding.safeParse({ id: 'F1', kind: 'CONFLICT', text: 'x', refs: [], severity: 'HIGH', origin: 'llm' })
+        .success,
+    ).toBe(false);
+    const c = Clarification.parse({ id: 'Q1', question: 'Is Email required?', status: 'OPEN' });
+    expect(c.refs).toEqual([]);
+    expect(c.round).toBe(1);
+  });
+});
