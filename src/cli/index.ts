@@ -16,6 +16,7 @@ import { Autonomy, type InputRequest } from '../core/state.js';
 import { createReadline, createRuntime, loadAnswersFile, resumeAnalysis, startAnalysis, summary } from './analyze.js';
 import { registerAuth } from './auth.js';
 import { createDiscoverHook, registerDiscover } from './discover.js';
+import { createDesignHook, designSummary, registerDesign } from './design.js';
 import { registerIngest } from './ingest.js';
 import { registerLocators } from './locators.js';
 import { chatLoop } from './chat.js';
@@ -78,6 +79,7 @@ export function buildCli(): Command {
   registerDiscover(program, rootOf, say);
   registerLocators(program, rootOf, say);
   registerIngest(program, rootOf, say);
+  registerDesign(program, rootOf, say);
 
   const mcp = program.command('mcp').description('MCP server utilities');
   mcp
@@ -165,7 +167,10 @@ export function buildCli(): Command {
     .option('--offline', 'no network: mechanical analysis without a model, no MCP')
     .option('--mcp', 'read JIRA through the Atlassian Rovo MCP server first (OAuth; REST is the fallback)')
     .option('--run-id <id>', 'use this run id instead of a generated one')
-    .option('--org <alias>', 'Phase 2: after analysis, discover this org and cross-check the requirements against it')
+    .option(
+      '--org <alias>',
+      'after analysis: discover this org, cross-check the requirements, then design + review tests (Phases 2–3)',
+    )
     .option('--objects <list>', 'objects to discover with --org', 'Account,Contact')
     .action(
       async (o: {
@@ -214,6 +219,7 @@ export function buildCli(): Command {
                   orgAlias: o.org,
                   objects: o.objects.split(',').map((x) => x.trim()),
                 }),
+                design: createDesignHook({ root, orgAlias: o.org }),
               }
             : {}),
         });
@@ -234,6 +240,7 @@ export function buildCli(): Command {
             say,
           );
           process.stdout.write(`${summary(v, root)}\n`);
+          if (v.testCases.length) process.stdout.write(`${designSummary(v, root)}\n`);
           process.exitCode = v.status === 'BLOCKED' ? 3 : 0;
         } catch (err) {
           say(`qa analyze: ${err instanceof Error ? err.message : String(err)}`);
@@ -290,8 +297,6 @@ export function buildCli(): Command {
 
   // Commands from CLAUDE.md that later phases implement. They say so instead of failing obscurely.
   const later: [string, string, number][] = [
-    ['design', 'Test design', 3],
-    ['review', 'Test Reviewer pass', 3],
     ['run', 'Full run / regression sets', 5],
     ['explore', 'Goal-directed exploration', 7],
     ['cleanup', 'Clean up + reconcile run-owned data', 4],
