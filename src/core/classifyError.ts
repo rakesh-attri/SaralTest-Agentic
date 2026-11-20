@@ -123,6 +123,9 @@ export function classifyError(err: unknown): Classification {
   }
 
   if (name === 'AbortError' || name === 'TimeoutError') return { kind: 'TRANSIENT', message, detail: { name } };
+  // Salesforce error codes that only appear in text (e.g. MCP tool error results).
+  const textCode = Object.keys(SF_ERROR_CODES).find((k) => new RegExp(`\\b${k}\\b`).test(message));
+  if (textCode) return { kind: SF_ERROR_CODES[textCode] ?? 'UNKNOWN', message, detail: { sfErrorCode: textCode } };
   if (/rate limit|quota|too many requests|overloaded/i.test(message)) {
     return { kind: 'TRANSIENT', message, detail: { heuristic: 'rate-limit' } };
   }

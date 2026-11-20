@@ -47,6 +47,7 @@ describe('classifyError', () => {
     ['AbortError', withProps('aborted', { name: 'AbortError' }), 'TRANSIENT'],
     ['rate-limit message', new Error('429 Too Many Requests'), 'TRANSIENT'],
     ['cause chain', new Error('wrapped', { cause: withProps('x', { status: 403 }) }), 'AUTH'],
+    ['SF code only in text', new Error('INVALID_SESSION_ID: Session expired'), 'AUTH'],
     ['string thrown', 'boom', 'UNKNOWN'],
     ['undefined thrown', undefined, 'UNKNOWN'],
   ];
