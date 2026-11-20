@@ -455,7 +455,7 @@ export async function planTests(
 export function caseEvidence(cases: readonly TestCase[], environment: 'LIVE' | 'MOCK', agent: string): EvidenceEntry[] {
   const now = new Date().toISOString();
   return cases.map((c) => ({
-    id: `EV-${c.id}`,
+    id: `EV-${c.id}-${agent === 'test-planner' ? 'PLAN' : 'REVIEW'}`,
     claim: `${c.id} (${c.reviewStatus}) covers ${c.obligationIds.join(', ')}; expectations: ${c.steps.map((s) => s.expected.evidenceLevel).join(', ')}`,
     sources: [...new Set(c.steps.flatMap((s) => s.expected.evidenceIds))].concat(c.obligationIds).slice(0, 20),
     agent,

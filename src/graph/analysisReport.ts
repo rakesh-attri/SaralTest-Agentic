@@ -33,7 +33,12 @@ export function renderAnalysisReport(s: QAGraphStateType, status: QAGraphStateTy
       '',
       '> **Mechanical** — no model answered; requirements were derived deterministically and all need review.',
     );
-  out.push('', 'Requirement analysis only: no Salesforce org was contacted in this phase.');
+  out.push(
+    '',
+    s.orgContext
+      ? `Org context: snapshot \`${s.orgContext.snapshotId}\` (${s.orgEnvironment}) — org: ${s.org}.`
+      : 'Requirement analysis only: no Salesforce org was contacted for this analysis.',
+  );
 
   out.push('', '## Inputs', '');
   for (const d of s.sources) {

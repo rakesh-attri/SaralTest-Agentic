@@ -82,6 +82,8 @@ export const QAGraphState = Annotation.Root({
   designModels: last<string[]>(() => []),
   /** Snapshot environment the design was built against (FIXTURE must be labelled). */
   orgEnvironment: last<'LIVE' | 'FIXTURE' | 'NONE'>(() => 'NONE'),
+  /** Planner justifications for open Reviewer findings, consumed by the next review round. */
+  planJustifications: last<{ findingId: string; reason: string }[]>(() => []),
   /** Nodes that run in degraded mode after triage chose `degrade`. */
   degradedNodes: last<string[]>(() => []),
   /** `${node}:${kind}` → how often each policy response was applied. */
