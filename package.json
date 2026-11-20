@@ -19,7 +19,8 @@
     "format:check": "prettier --check \"{src,tests,examples,packages,bin}/**/*.{ts,mjs,js}\" \"*.{ts,js}\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "cross-env QA_INTEGRATION=1 vitest run tests/integration"
+    "test:integration": "cross-env QA_INTEGRATION=1 vitest run tests/integration",
+    "validate:analysis": "tsx scripts/validate-analysis.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

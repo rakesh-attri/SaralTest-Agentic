@@ -22,6 +22,6 @@
     "rootDir": ".",
     "outDir": "dist"
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "examples/**/*.ts", "*.config.ts", "packages/**/*.ts"],
+  "include": ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.ts", "examples/**/*.ts", "*.config.ts", "packages/**/*.ts"],
   "exclude": ["node_modules", "dist", "runs", "templates"]
 }
