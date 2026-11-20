@@ -148,6 +148,31 @@ describe('mechanical planning', () => {
   });
 });
 
+describe('requirement-level review reasons', () => {
+  it('cases on a mechanical or outcome-less requirement are REVIEW_REQUIRED; section-scoped reasons are not copied', async () => {
+    const reqs = requirements.map((r) =>
+      r.id === 'SF-219-R10'
+        ? {
+            ...r,
+            status: 'REVIEW_REQUIRED' as const,
+            reviewReasons: ['generated mechanically (model unavailable): needs analyst review'],
+          }
+        : r.id === 'SF-219-R36'
+          ? { ...r, reviewReasons: ['F-001 ambiguity: Vague wording "probably"'] }
+          : r,
+    );
+    const res = await planTests({ ...ctx, requirements: reqs }, { ids: ids() }, 'mechanical');
+    const r10 = res.testCases.filter((c) => c.requirementIds.includes('SF-219-R10'));
+    expect(r10.length).toBeGreaterThan(0);
+    for (const c of r10) {
+      expect(c.reviewStatus).toBe('REVIEW_REQUIRED');
+      expect(c.reviewReasons.join(' ')).toMatch(/requirement SF-219-R10: generated mechanically/);
+    }
+    const ac1 = res.testCases.find((c) => c.refs.includes('AC1') && c.requirementIds.includes('SF-219-R36'));
+    expect(ac1?.reviewStatus).toBe('APPROVED');
+  });
+});
+
 describe('model planning', () => {
   it('uses model drafts, labels MOCK, code assigns levels and status', async () => {
     const router = await mockRouter({ reasoning: { responder: plannerResponder() } });

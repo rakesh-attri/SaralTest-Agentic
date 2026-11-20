@@ -100,6 +100,21 @@ export function priorityFor(reqs: readonly Requirement[], obligations: readonly 
   return (['P0', 'P1', 'P2', 'P3'] as const)[best] ?? 'P3';
 }
 
+/**
+ * Requirement-level review reasons that hold for every case built on the requirement: an unreviewed mechanical
+ * interpretation, or no stated outcome. Other reasons are section-scoped and handled by the evidence index (an
+ * ambiguity in one cited section does not block a case that only cites another, uncontested section).
+ */
+const CASE_BLOCKING_REASON = /generated mechanically|no expected outcome stated/i;
+
+export function requirementReasons(reqs: readonly Requirement[]): string[] {
+  return reqs.flatMap((r) =>
+    r.status === 'REVIEW_REQUIRED'
+      ? r.reviewReasons.filter((x) => CASE_BLOCKING_REASON.test(x)).map((x) => `requirement ${r.id}: ${x}`)
+      : [],
+  );
+}
+
 const obligationFp = (o: CoverageObligation): string =>
   `${o.requirementId}|${o.ref}|${o.kind}|${o.values.join(',')}|${o.evidenceIds[0] ?? ''}`;
 
@@ -129,6 +144,7 @@ export function buildCases(
       stepReasons,
       personaAvailable: persona?.available ?? false,
       persona: d.persona,
+      extraReasons: requirementReasons(reqs),
     });
     const tier = obs.map((o) => o.tier).sort((a, b) => TIER_ORDER[a] - TIER_ORDER[b])[0] ?? 'optional';
     const fp = `${obs.map(obligationFp).sort().join('||')}::${d.persona}`;
