@@ -19,3 +19,6 @@ coverage/
 
 # scratch scripts
 .tmp/
+eval/.deepeval/
+.pytest_cache/
+__pycache__/

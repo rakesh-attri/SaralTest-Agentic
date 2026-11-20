@@ -24,6 +24,8 @@ export interface GuardOptions {
   timeoutMs: number;
   secrets: () => readonly string[];
   limiter?: RateLimiter;
+  /** Last model of its role chain: waits out a 429 cooldown instead of failing at once (nothing left to fail over to). */
+  lastInChain?: boolean;
   /** Per-slot override of the limiter's max wait (the last model of a chain waits longer). */
   maxWaitMs?: number;
   /** Output reservation for the token-quota estimate. */
@@ -151,7 +153,7 @@ export class GuardedChatModel extends BaseChatModel {
     this.guard.budget?.()?.assertWithin();
     const promptChars = texts.reduce((n, t) => n + t.length, 0);
     const estimate = estimateTokens(promptChars) + Math.min(this.guard.maxOutputTokens ?? 1024, 1024);
-    const ticket = await this.guard.limiter?.acquire(estimate, this.guard.maxWaitMs);
+    const ticket = await this.guard.limiter?.acquire(estimate, this.guard.maxWaitMs, this.guard.lastInChain === true);
 
     const timeoutSignal = AbortSignal.timeout(this.guard.timeoutMs);
     const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal;

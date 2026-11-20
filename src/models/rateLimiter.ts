@@ -95,10 +95,19 @@ export class RateLimiter {
   }
 
   /**
-   * Reserve one request of ~`estTokens` tokens. `maxWaitMs` overrides the limiter default for this call (the last
-   * model of a chain may wait longer, since there is nothing left to fail over to).
+   * Reserve one request of ~`estTokens` tokens. `maxWaitMs` overrides the limiter default for this call. While the
+   * provider is cooling down after a 429 the call fails at once, unless `waitOnCooldown` (the last model of a chain:
+   * nothing is left to fail over to, so it waits up to `maxWaitMs`).
    */
-  async acquire(estTokens = 0, maxWaitMs: number = this.maxWaitMs): Promise<LimiterTicket> {
+  async acquire(estTokens = 0, maxWaitMs: number = this.maxWaitMs, waitOnCooldown = false): Promise<LimiterTicket> {
+    const cooling = this.cooldownRemaining();
+    if (cooling > 0 && !waitOnCooldown) {
+      throw rateLimitedError(
+        this.name,
+        `${this.name}: rate limited (cooling down after HTTP 429; next slot in ${Math.ceil(cooling / 1000)} s)`,
+        cooling,
+      );
+    }
     const tpm = this.tokensPerMinute;
     if (tpm !== undefined && estTokens > tpm) {
       throw rateLimitedError(

@@ -8,6 +8,7 @@ import { classifyError } from '../../core/classifyError.js';
 import { resolveEndpoint } from '../../models/endpoints.js';
 import { groupModels, listAvailableModels, suggestGeminiModels, type AvailableModel } from '../../models/listModels.js';
 import { ModelRouter } from '../../models/router.js';
+import { resolveJudgeChain } from '../../eval/judgeEndpoint.js';
 import type { ProviderSecrets } from '../../models/providers/index.js';
 import type { Check, CheckResult, DoctorContext } from '../types.js';
 
@@ -136,6 +137,15 @@ export const modelsCheck: Check = async (ctx) => {
       return `${p} ${parts.join(', ')}`;
     });
   if (quotaLine.length) details.push(`quotas: ${quotaLine.join('; ')}`);
+
+  // DeepEval judge: the same judge chain over OpenAI-compatible endpoints (src/eval/judgeEndpoint.ts).
+  const dj = resolveJudgeChain(cfg, (k) => ctx.env[k]);
+  details.push(
+    `DeepEval judge chain: ${dj.chain.length ? dj.chain.map((e) => `${e.provider}/${e.model}`).join(' → ') : 'none usable yet'}` +
+      (dj.skipped.length
+        ? ` (skipped: ${dj.skipped.map((x) => `${x.provider}/${x.model} — ${x.reason}`).join('; ')})`
+        : ''),
+  );
 
   const emb = cfg.embeddings;
   const googleList = listed.get('google');

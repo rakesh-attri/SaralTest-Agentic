@@ -287,6 +287,17 @@ describe('RateLimiter — requests, tokens, cooldown', () => {
     await expect(l.acquire(80)).resolves.toBeDefined();
   });
 
+  it('a 429 cooldown fails fast, except for the last model of a chain, which waits it out', async () => {
+    const f = fakeTime();
+    const l = new RateLimiter(100, f.now, f.sleep, { maxWaitMs: 20_000, name: 'nvidia-nim' });
+    l.cooldown(5_000);
+    const err = await l.acquire(10).catch((e: unknown) => e);
+    expect((err as Error).message).toMatch(/cooling down after HTTP 429/);
+    expect(f.slept).toEqual([]);
+    await l.acquire(10, 61_000, true);
+    expect(f.slept).toEqual([5_000]);
+  });
+
   it('requests per minute still wait by default (ingest / embeddings behaviour)', async () => {
     const f = fakeTime();
     const l = new RateLimiter(2, f.now, f.sleep);

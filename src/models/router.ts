@@ -101,6 +101,19 @@ export interface RoleStatus extends ModelStatus {
 
 export type EffectiveQuota = ProviderQuota & { maxWaitMs: number };
 
+/** Effective quota for a provider: models.yaml `quotas` over DEFAULT_QUOTAS (also used for the DeepEval judge). */
+export function effectiveQuota(config: ModelsConfig, provider: ChatProvider): EffectiveQuota {
+  const q = config.quotas?.[provider];
+  const d = DEFAULT_QUOTAS[provider];
+  const rpm = q?.requestsPerMinute ?? d.requestsPerMinute;
+  const tpm = q?.tokensPerMinute ?? d.tokensPerMinute;
+  return {
+    ...(rpm !== undefined ? { requestsPerMinute: rpm } : {}),
+    ...(tpm !== undefined ? { tokensPerMinute: tpm } : {}),
+    maxWaitMs: q?.maxWaitMs ?? DEFAULT_MAX_WAIT_MS,
+  };
+}
+
 /**
  * The single entry point to language models (CLAUDE.md rule 8). Agents ask for a role, never a provider.
  * Each role has an ordered chain: primary, then fallbacks (e.g. NVIDIA NIM → Groq → Gemini). Rate limits are per
@@ -139,15 +152,7 @@ export class ModelRouter {
 
   /** Effective quota for a provider (models.yaml `quotas` over the defaults). */
   quota(provider: ChatProvider): EffectiveQuota {
-    const q = this.opts.config.quotas?.[provider];
-    const d = DEFAULT_QUOTAS[provider];
-    const rpm = q?.requestsPerMinute ?? d.requestsPerMinute;
-    const tpm = q?.tokensPerMinute ?? d.tokensPerMinute;
-    return {
-      ...(rpm !== undefined ? { requestsPerMinute: rpm } : {}),
-      ...(tpm !== undefined ? { tokensPerMinute: tpm } : {}),
-      maxWaitMs: q?.maxWaitMs ?? DEFAULT_MAX_WAIT_MS,
-    };
+    return effectiveQuota(this.opts.config, provider);
   }
 
   private limiter(provider: ChatProvider): RateLimiter {
@@ -198,6 +203,7 @@ export class ModelRouter {
         secrets: this.opts.secretValues,
         limiter,
         maxWaitMs: last ? Math.max(limiter.maxWaitMs, LAST_IN_CHAIN_MAX_WAIT_MS) : limiter.maxWaitMs,
+        lastInChain: last,
         maxOutputTokens: cfg.maxOutputTokens,
         tools: ref.tools !== false,
         ...(this.opts.budget ? { budget: this.opts.budget } : {}),
