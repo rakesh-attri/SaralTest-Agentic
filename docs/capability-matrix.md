@@ -4,7 +4,7 @@ Status of every capability in PLAN.md. **implemented** = working code with tests
 stated limitation · **blocked** = needs an external prerequisite (exact blocker given) · **planned** = later phase.
 Updated at the end of each phase (CLAUDE.md rule 16).
 
-_Last updated: Phase 1 — 2026-11-20 (branch `claude/phase-1-implementation-854b3b`)._
+_Last updated: Phase 2 — 2026-11-20 (branch `main`)._
 
 ## Phase 0 — Foundation
 
@@ -24,7 +24,7 @@ _Last updated: Phase 1 — 2026-11-20 (branch `claude/phase-1-implementation-854
 | pino logging, run folders `runs/<runId>/` | implemented | `src/core/logger.ts`, `runFolder.ts` | |
 | MCP client + allow-list + health checks | implemented | `src/mcp/` | stdio + streamable HTTP (legacy SSE dropped: deprecated in the SDK) |
 | Real MCP tool names classified | implemented | `config/mcp-tools.yaml` | Salesforce (13) + Playwright (25) verified live; Atlassian names from the observed connection, not yet re-verified on `/v2/mcp` |
-| Mutation guard (org profile enforcement) | partial | `src/mcp/client.ts` | Deny-all default until Phase 2 plugs in org profiles |
+| Mutation guard (org profile enforcement) | implemented | `src/mcp/client.ts`, `src/security/orgPolicy.ts` | Deny-all stays the default when no guard is wired; Phase 2 wires the org-profile guard (`createSalesforceHub`, `GuardedSalesforce`) |
 | Audit log `runs/<runId>/audit.jsonl` | implemented | `src/security/audit.ts` | |
 | Redaction (secrets + PII) | partial | `src/security/redact.ts` | Free-text personal names are masked only in known fields (Name, FirstName, …), not in prose |
 | Idempotency keys + write ledger + reconcile | implemented | `src/security/idempotency.ts` | |
@@ -60,16 +60,45 @@ _Last updated: Phase 1 — 2026-11-20 (branch `claude/phase-1-implementation-854
 | `qa analyze` / `qa chat` (REPL, `/why` answered from the evidence ledger) / `qa resume` | implemented | `src/cli/` | `--offline` = no network at all |
 | Analysis report + JSON outputs per run | implemented | `src/graph/analysisReport.ts` | MOCK / mechanical banners |
 | Independent output validation | implemented | `scripts/validate-analysis.ts` (`pnpm validate:analysis`) | |
-| RAG ingest of inputs | planned | — | Phase 2 (sources are already saved as normalized JSON) |
-| Org cross-check of requirements | planned | — | Phase 2; Phase 1 only emits `ORG_CHECK_NEEDED` findings |
+| RAG ingest of inputs | implemented | `src/rag/` | Phase 2 (`qa ingest <runId>`) |
+| Org cross-check of requirements | implemented | `src/agents/sf-intelligence/` | Phase 2 (`qa discover --cross-check`, `qa analyze --org`) |
+
+## Phase 2 — Salesforce intelligence
+
+| Capability | Status | Where | Notes / blocker |
+|---|---|---|---|
+| API sessions via OAuth JWT Bearer against the External Client App (in-process RS256 assertion, token in memory + Redactor) | implemented | `src/sf/auth/sfCli.ts` | Live on qa-prod. sf CLI 2.159 redacts tokens in `--json`, so the grant is made directly; `sf org login jwt` keeps the alias for frontdoor + MCP |
+| Token renewal on `INVALID_SESSION_ID` (one new grant, one retry) | implemented | `src/sf/api.ts` | |
+| Frontdoor browser session per persona (`.auth/<org>/<persona>.json`, TTL reuse, login/MFA → AUTH, foreign host → IDENTITY_MISMATCH) | implemented | `src/sf/auth/browserState.ts` | Live on qa-prod (lands on `nexturninc6.lightning.force.com`) |
+| Identity check (Organization + userinfo + instance + IsSandbox per profile; release drift warning) | implemented | `src/sf/identity.ts` | `qa auth status`, `qa doctor` live check |
+| Org-profile enforcement for every mutation (jsforce + MCP): metadata, blocked categories, untagged cleanup, per-run approval, bulk-delete confirmation | implemented | `src/security/orgPolicy.ts`, `src/sf/client.ts`, `src/sf/hub.ts` | No live mutation in Phase 2 (discovery is read-only); all paths unit-tested |
+| Write-ahead audit of record writes (ALLOWED → SUCCEEDED/FAILED, REFUSED) | implemented | `src/sf/client.ts` | Fixture-tested |
+| Personas beyond admin (sales rep, read only) | blocked | `config/personas.yaml` | **Blocker:** no dedicated non-admin test users in qa-prod; the only persona is a named administrator's account |
+| Discovery: objects, fields, record types, picklists + dependencies, validation rules, Apex, flows + active versions, LWC + Aura, layouts, FlexiPages, profiles, permission sets + groups, CRUD, FLS, OWD, duplicate rules, custom metadata/settings, MetadataComponentDependency | implemented | `src/sf/discovery/` | Live Account+Contact in ~5 s (399 components). Apex bodies hashed only |
+| Unreadable areas → UNKNOWN placeholders (never "missing"); TRANSIENT retries | implemented | same | Live: hidden-parent permission rows recorded UNKNOWN |
+| Immutable snapshots + type-prefixed content hashes + lineage | implemented | `src/knowledge/snapshotStore.ts` | `.qa-memory/knowledge.db` |
+| Snapshot diff (added/removed/changed + changed keys/unknown; scope-aware; no cross-org) | implemented | `src/knowledge/diff.ts` | Fixture: changed VR detected. Live: 0-change diffs between unchanged snapshots (no false positives) |
+| SQLite knowledge graph + impact (recursive CTE, depth ≤ 3, edge path as evidence) | implemented | `src/sf/graph/` | `.qa-memory/graph.db` |
+| Test assets linked to components (requirements, manual tests by deterministic text match; locators explicitly) → RE_VERIFY marks | implemented | `src/sf/graph/assetLinks.ts`, `impactOfDiff` | Text match is heuristic (word-bounded labels in the objects the text names); evidence term kept on each edge |
+| Org cross-check of requirements (existence, required, format, duplicate rule, personas, CRUD, picklist values, approved lists, timing mechanism) | implemented | `src/agents/sf-intelligence/crossCheck.ts` | Deterministic; NOT_FOUND only in a fully readable scope. Live findings: see phase-2-notes |
+| `discover` node in the main graph (`qa analyze --org`) | implemented | `src/graph/mainGraph.ts`, `src/cli/discover.ts` | Failures degrade (PARTIAL), hard stops block |
+| Application Explorer (Lightning) + locator registry (rank rules enforced, field match basis, privacy filter, redacted evidence) | implemented | `src/agents/app-explorer/`, `src/knowledge/locatorRegistry.ts` | Live: 3 pages (35/44/36 locators). Page objects are generated in Phase 4 |
+| Application Explorer on Experience Cloud | blocked | same | **Blocker:** Digital Experiences not enabled in qa-prod (`Network` unsupported). No site to explore |
+| Playwright MCP as explorer backend | partial | `config/mcp-tools.yaml` | Library-based explorer is the deterministic default; MCP stays available for ad-hoc exploration |
+| RAG ingest: LanceDB tables, chunkers per §7, sha256 dedupe, incremental per source, resumable per batch, embed model per row, PII masking | implemented | `src/rag/` | `.qa-memory/rag/` |
+| Hybrid retrieval (vector + FTS, RRF, org/release filters, sourceRef) | implemented | `src/rag/store.ts` | |
+| Embedding quota handling (empty vectors from swallowed 429 → TRANSIENT, retried) | implemented | `src/models/guarded.ts` `checkVectors` | Gemini free tier allows ~60 embedded chunks/min; ingest is rate-limited accordingly |
+| Run-tag field for data cleanup (`QA_Run_Id__c`) | blocked | `config/orgs.yaml` | **Blocker for Phase 4:** the field does not exist in qa-prod. Create it (admin) or set `runTagField: null` (name prefix) |
 
 ## External prerequisites (open blockers)
 
 | Blocker | Needed for | Owner | How to clear |
 |---|---|---|---|
 | Google key on the Gemini **free tier** | a Pro-class judge; any Full Copy data in prompts (free-tier prompts may be used by Google to improve products, PLAN.md §12) | Rakesh | Enable billing on the Google project behind the key, then set judge to a Pro model and re-run `pnpm qa doctor --live` |
-| Real org IDs / instance URLs in `config/orgs.yaml` | live runs | Rakesh / SF admin | Phase 2 |
-| External Client App + JWT key (`SF_ECA_CLIENT_ID`, `SF_JWT_KEY_PATH`) | Salesforce auth | SF admin | PLAN.md §7b, Phase 2 |
+| Full Copy sandbox `fc-admin`: placeholder org ID/URL, expired sf session | later live runs on the sandbox | Rakesh / SF admin | Fill `config/orgs.yaml`, authorize with `pnpm qa auth login --org fc-admin` |
+| Dedicated non-admin test users (sales rep, read only) on qa-prod, pre-approved on the ECA | persona-based UI/permission checks (AC6), BLOCKED-NO-PERSONA otherwise | SF admin | Create users, approve on the ECA, add to `config/personas.yaml`, `pnpm qa auth login --persona <id>` |
+| `QA_Run_Id__c` run-tag field missing in qa-prod | Phase 4 data cleanup guard | SF admin | Create the field on Account/Contact (metadata is never changed by the agent) or set `runTagField: null` |
+| Digital Experiences not enabled in qa-prod | Explorer on Experience Cloud | SF admin | Enable + create a site, or explore it in the Full Copy sandbox |
 | Atlassian Rovo MCP on deprecated `/v1/mcp` in `.mcp.json` | JIRA via MCP (REST works and carried the demo) | Rakesh | Change to `https://mcp.atlassian.com/v2/mcp`, then `pnpm qa doctor --include-oauth` |
 | Azure DevOps organisation + PAT | ADO work items as input (optional) | Rakesh | Set `ADO_ORG_URL` and `ADO_PAT` (Credential Manager preferred) |
 | Small reasoning model on the Gemini free tier | stable cross-source conflict detection | Rakesh | Enable billing, move `reasoning` + `judge` to a Pro model, re-run the Phase 1 demo |
@@ -78,7 +107,6 @@ _Last updated: Phase 1 — 2026-11-20 (branch `claude/phase-1-implementation-854
 
 | Capability | Status | Phase |
 |---|---|---|
-| JWT/ECA auth, identity checks, org-profile enforcement, discovery, snapshots, knowledge graph, RAG, Explorer | planned | 2 |
 | Risk model, Test Planner, oracles, Reviewer pass 1, RTM/XLSX | planned | 3 |
 | Test Generator, locator ESLint rule, Reviewer pass 2, data engine | planned | 4 |
 | Runner, reporting-labs + Playwright HTML, JIRA comment, Account→Contact demo | planned | 5 |

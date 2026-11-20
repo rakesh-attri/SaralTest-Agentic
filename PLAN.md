@@ -397,12 +397,17 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
   (REST was used live). Cross-source conflict detection depends on the model and varies between runs.
 
 ### Phase 2 — Salesforce intelligence
-- [ ] JWT via ECA, frontdoor sessions per persona, identity checks, org profiles enforced (start with `dedicated-qa-prod`)
-- [ ] Discovery (objects, fields, relationships, record types, picklists + dependencies, validation rules, Apex, Flows +
+- [x] JWT via ECA, frontdoor sessions per persona, identity checks, org profiles enforced (start with `dedicated-qa-prod`)
+- [x] Discovery (objects, fields, relationships, record types, picklists + dependencies, validation rules, Apex, Flows +
       versions, LWC + Aura, layouts/FlexiPages, profiles, permission sets + groups, FLS/CRUD, sharing, custom metadata/settings)
-- [ ] Snapshots + diff + lineage; knowledge graph; impact query
-- [ ] Application Explorer (Lightning + Experience Cloud), locator registry; RAG ingest (hash dedupe, incremental, resumable)
+- [x] Snapshots + diff + lineage; knowledge graph; impact query
+- [x] Application Explorer (Lightning + Experience Cloud), locator registry; RAG ingest (hash dedupe, incremental, resumable)
 - **Exit:** a second discovery detects a changed validation rule and flags dependent tests; 3 pages in the registry.
+- **Status (2026-11-20):** exit criteria met live on qa-prod (operator-edited `Contact.Phone_Must_Be_10_Digits` →
+  `changed` → MTC-001, SF-219-R14/R36/R39 and 2 Phone locators RE_VERIFY; registry: account-record, contact-record,
+  contact-new) and on the fixture; see `docs/phase-2-notes.md`. Experience Cloud explorer blocked (no Digital
+  Experiences in qa-prod); non-admin personas blocked (no test users); API sessions use an in-process JWT grant
+  because sf CLI redacts tokens.
 
 ### Phase 3 — Test planning
 - [ ] Risk model (mandatory / recommended / optional regression; never drop AC coverage for low risk)
@@ -454,7 +459,7 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
 - DECIDED: Gemini default (switchable per role); Python OK; JWT via External Client App; browsers Chromium + Chrome + Edge;
   prod-test-org profile for production orgs with real data; dedicated-qa-prod profile for the production org holding only
   test data (first live target).
-- Who creates the ECA and pre-approves test users? — Phase 2
+- ~~Who creates the ECA and pre-approves test users?~~ DONE for qa-prod (Rakesh created the ECA; JWT works). Non-admin test users still open.
 - Which production org IDs (if any) get `prod-test-org`? — Phase 10
 
 - ~~JIRA MCP choice~~ DECIDED: Atlassian Rovo MCP Server (OAuth locally, admin-enabled API token for CI)
