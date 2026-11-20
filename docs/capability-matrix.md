@@ -4,7 +4,7 @@ Status of every capability in PLAN.md. **implemented** = working code with tests
 stated limitation · **blocked** = needs an external prerequisite (exact blocker given) · **planned** = later phase.
 Updated at the end of each phase (CLAUDE.md rule 16).
 
-_Last updated: Phase 0 — 2026-11-20 (branch `phase-0-foundation`)._
+_Last updated: Phase 0 — 2026-11-20 (branch `phase-0-foundation`), after model configuration._
 
 ## Phase 0 — Foundation
 
@@ -16,9 +16,9 @@ _Last updated: Phase 0 — 2026-11-20 (branch `phase-0-foundation`)._
 | Config loaders: models, policy, personas, orgs (+profiles), execution, mcp-tools, observability | implemented | `src/config/` | judge≠coder, every IssueKind has a policy entry, 18-char org IDs, `allowAssertionChanges` must be false, no screenshots in traces; `<placeholders>` reported as unconfigured |
 | `.env` loader + secret store (Windows Credential Manager → `.env`) | implemented | `src/config/env.ts`, `src/security/secretStore.ts` | Uses `@napi-rs/keyring` (keytar-compatible, maintained) instead of archived `keytar` — operator decision |
 | ModelRouter: google (default), anthropic, openai, azure-openai, ollama, mock | implemented | `src/models/` | Only google + mock exercised in tests; other providers construct but are not live-tested (no keys) |
-| Router guards: secret-in-prompt hard stop, quotas, timeouts, token accounting, fallback | implemented | `src/models/guarded.ts`, `router.ts` | Fallback never triggers on HARD_STOP/BUDGET |
+| Router guards: secret-in-prompt hard stop, quotas, timeouts, token accounting, fallback | implemented | `src/models/guarded.ts`, `router.ts` | Fallback never triggers on HARD_STOP/BUDGET. A timeout frees the caller, but the Google SDK does not cancel the underlying HTTP request (it finishes in the background) |
 | Embeddings (Google default, OpenAI, Ollama, mock) | implemented | `src/models/providers/index.ts` | `voyage` → TOOL_UNAVAILABLE (planned with RAG, Phase 2) |
-| Real model ids configured | **blocked** | `config/models.yaml` | Operator to pick ids; `qa doctor` lists the key's models and suggests ids |
+| Real model ids configured | partial | `config/models.yaml` (local, git-ignored) | reasoning/coder/fast = `gemini-3.5-flash-lite`, judge + reasoning fallback = `gemini-3.1-flash-lite`, embeddings = `gemini-embedding-2`; all answered `qa doctor --live` on 2026-11-20. Judge is a **temporary** small model: the key is on the Gemini free tier (Pro quota 0) |
 | SkillLoader + `load_skill` tool | implemented | `src/skills/skillLoader.ts` | 16 skills (15 + vendored `langfuse`) |
 | Issue, classifyError, HardStopError, resilientNode, budgets, retry | implemented | `src/core/` | QA Lead triage that *acts* on issues is Phase 1 |
 | pino logging, run folders `runs/<runId>/` | implemented | `src/core/logger.ts`, `runFolder.ts` | |
@@ -37,10 +37,9 @@ _Last updated: Phase 0 — 2026-11-20 (branch `phase-0-foundation`)._
 
 | Blocker | Needed for | Owner | How to clear |
 |---|---|---|---|
-| Gemini model ids in `config/models.yaml` | any LLM call | Rakesh | Pick from `qa doctor` suggestions |
+| Google key on the Gemini **free tier** | a Pro-class judge; any Full Copy data in prompts (free-tier prompts may be used by Google to improve products, PLAN.md §12) | Rakesh | Enable billing on the Google project behind the key, then set judge to a Pro model and re-run `pnpm qa doctor --live` |
 | Real org IDs / instance URLs in `config/orgs.yaml` | live runs | Rakesh / SF admin | Phase 2 |
 | External Client App + JWT key (`SF_ECA_CLIENT_ID`, `SF_JWT_KEY_PATH`) | Salesforce auth | SF admin | PLAN.md §7b, Phase 2 |
-| `JIRA_BASE_URL` still the template value in `.env` | JIRA REST fallback | Rakesh | Set your Atlassian site URL |
 | Atlassian Rovo MCP on deprecated `/v1/mcp` in `.mcp.json` | JIRA via MCP | Rakesh | Change to `https://mcp.atlassian.com/v2/mcp`, then `pnpm qa doctor --include-oauth` |
 
 ## Later phases

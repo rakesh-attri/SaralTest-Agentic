@@ -48,13 +48,32 @@ fallback explained; unit tests for router, resilience, allow-list and redaction 
    `SELECT Id, AccountId, Account.Name FROM Contact WHERE LastName='Lovelace'` → `AccountId = 001FX0000000001AAA`
    (FIXTURE evidence only).
 
+## Model configuration (after the exit check)
+
+Operator choices, verified with `pnpm qa doctor --live` (18 OK, 3 WARN, 0 FAIL; all four roles answered):
+
+| Role | Model | Why |
+|---|---|---|
+| reasoning, coder, fast | `gemini-3.5-flash-lite` | operator choice |
+| reasoning fallback | `gemini-3.1-flash-lite` | `gemini-3.8-flash` does not answer on this key |
+| judge | `gemini-3.1-flash-lite` | temporary: must differ from coder (rule 8); Pro models unavailable on the free tier |
+| embeddings | `gemini-embedding-2` | live-tested (3072-dim vectors) |
+
+Live probes of the key (free tier): `gemini-2.5-pro` → 404 "no longer available to new users" although it is
+*listed*; `gemini-3.1-pro-preview` → 429 with free-tier quota **0**; `gemini-3.5…3.8-flash` → no answer within 30 s;
+`gemini-2.5-flash` → error; `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite` → OK in ~2 s. Lesson built into the doctor:
+a model being listed is not proof it can be called — use `--live`.
+
 ## Open items for the operator
 
-See `docs/capability-matrix.md` → *External prerequisites*: Gemini model ids, `JIRA_BASE_URL`, Atlassian `/v2/mcp`,
-and (Phase 2) org IDs + External Client App.
+See `docs/capability-matrix.md` → *External prerequisites*: Gemini billing (Pro judge + data-use terms),
+Atlassian `/v2/mcp`, and (Phase 2) org IDs + External Client App. `JIRA_BASE_URL` is now set and REST auth works.
 
 ## Known limitations
 
 - PII redaction masks personal names only in known fields, not in free text.
 - Providers other than Google and mock are constructed but not live-tested (no keys).
 - Fixture SOQL is a small subset; anything else returns `MALFORMED_QUERY` on purpose.
+- A model-call timeout frees the caller, but the Google SDK keeps the HTTP request running in the background until it
+  ends (seen as a process that lingers after timeouts).
+- The judge runs on a small model until billing is enabled; reviewer/defect-judge quality is limited accordingly.
