@@ -87,7 +87,9 @@ export const modelsCheck: Check = async (ctx) => {
   if (google) {
     const sug = suggestGeminiModels(google);
     const line = [...MODEL_ROLES, 'embeddings' as const].map((r) => `${r}=${sug[r] ?? '?'}`).join(', ');
-    details.push(`Suggested from your key (confirm before use): ${line}`);
+    details.push(
+      `Suggested from models listed for your key (listed is not proof a model can be called; confirm, then run qa doctor --live): ${line}`,
+    );
     if (sug.newerPreview) {
       const p = Object.entries(sug.newerPreview)
         .map(([k, v]) => `${k}=${v}`)
@@ -99,6 +101,7 @@ export const modelsCheck: Check = async (ctx) => {
     fix = 'fill model ids in config/models.yaml';
   }
 
+  let liveFailures = 0;
   if (ctx.options.live && !ctx.options.offline) {
     for (const role of MODEL_ROLES) {
       const s = router.status().find((x) => x.role === role);
@@ -108,7 +111,9 @@ export const modelsCheck: Check = async (ctx) => {
         const text = typeof out.content === 'string' ? out.content : JSON.stringify(out.content);
         details.push(`live ${role}: answered "${text.trim().slice(0, 20)}"`);
       } catch (err) {
-        details.push(`live ${role}: FAILED ${err instanceof Error ? err.message : String(err)}`);
+        const msg = (err instanceof Error ? err.message : String(err)).replace(/\s+/g, ' ');
+        details.push(`live ${role}: FAILED ${msg.length > 400 ? `${msg.slice(0, 400)}…` : msg}`);
+        liveFailures++;
         bump('red');
       }
     }
@@ -121,10 +126,14 @@ export const modelsCheck: Check = async (ctx) => {
     status,
     summary:
       status === 'green'
-        ? `all ${MODEL_ROLES.length} roles ready${ctx.options.live ? ' (live-tested)' : ''}`
-        : notReady
-          ? `${notReady} of ${MODEL_ROLES.length} roles not configured`
-          : 'configuration problem (see details)',
+        ? ctx.options.live && !ctx.options.offline
+          ? `all ${MODEL_ROLES.length} roles answered a live call`
+          : `all ${MODEL_ROLES.length} roles configured and listed for the key (not called; run qa doctor --live to verify)`
+        : liveFailures
+          ? `${liveFailures} role(s) failed a live call`
+          : notReady
+            ? `${notReady} of ${MODEL_ROLES.length} roles not configured`
+            : 'configuration problem (see details)',
     details,
     ...(fix ? { fix } : {}),
   };

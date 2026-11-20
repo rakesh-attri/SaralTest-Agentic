@@ -90,7 +90,7 @@ describe('qa doctor', () => {
     const models = byId(report, 'models');
     expect(models?.status).toBe('yellow');
     expect(models?.details?.join('\n')).toMatch(
-      /Suggested from your key .*reasoning=gemini-2\.5-pro.*coder=gemini-3\.8-flash/,
+      /Suggested from models listed for your key .*reasoning=gemini-2\.5-pro.*coder=gemini-3\.8-flash/,
     );
     expect(byId(report, 'fixture')?.status).toBe('green');
     expect(byId(report, 'skills')?.status).toBe('green');
