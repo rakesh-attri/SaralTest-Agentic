@@ -19,9 +19,10 @@ import { finalStatus, writeAnalysisReport } from './analysisReport.js';
 import { QAGraphState, type QAGraphStateType, type QAGraphUpdate } from './state.js';
 
 /**
- * Phase 1 main graph (PLAN.md §2):
- *   START → intake → understand ⇄ clarify(interrupt) → report → END, with QA Lead triage after every node.
- * Later phases insert discover/plan/build/execute… between clarify and report. Every path ends at `report`.
+ * Main graph (PLAN.md §2), Phase 1 + 2:
+ *   START → intake → understand ⇄ clarify(interrupt) → discover (if an org is set) → report → END, with QA Lead
+ *   triage after every node.
+ * Later phases insert plan/build/execute… between discover and report. Every path ends at `report`.
  */
 
 export interface GraphDeps {
@@ -43,7 +44,25 @@ export interface GraphDeps {
   /** Max understand ⇄ clarify rounds with human answers (default 2). */
   maxClarifyRounds?: number;
   onProgress?: (msg: string) => void;
+  /**
+   * Phase 2 Salesforce Intelligence: discovery + org cross-check of the analysed requirements. Absent → the graph
+   * skips `discover` (analysis-only runs, `--offline`).
+   */
+  discover?: DiscoverHook;
 }
+
+export interface DiscoverHookResult {
+  org: string;
+  orgContext: QAGraphStateType['orgContext'];
+  impact: QAGraphStateType['impact'];
+  /** New org findings (ORG_CONFLICT / ORG_NOT_FOUND / ORG_CHECK_NEEDED). */
+  findings: QAGraphStateType['findings'];
+  evidence: EvidenceEntry[];
+  notes: string[];
+}
+export type DiscoverHook = (
+  s: Pick<QAGraphStateType, 'runId' | 'requirements' | 'findings' | 'existingTests'>,
+) => Promise<DiscoverHookResult>;
 
 /** Clarification interrupt payload / resume value (CLI, chat REPL, `qa resume`). */
 export interface ClarifyRequest {
@@ -63,6 +82,8 @@ const CAPS: Record<string, NodeCapabilities> = {
   intake: { retry: true, fallback: false, degrade: true, ask: false },
   understand: { retry: true, fallback: false, degrade: true, ask: true },
   clarify: { retry: false, fallback: false, degrade: true, ask: false },
+  // Discovery failing degrades to "no org context" (requirements stay as analysed); hard stops still block.
+  discover: { retry: true, fallback: false, degrade: true, ask: false },
   report: { retry: false, fallback: false, degrade: false, ask: false },
 };
 
@@ -307,6 +328,27 @@ export function buildMainGraph(deps: GraphDeps) {
     };
   });
 
+  // ------------------------------------------------------------------ discover (Phase 2)
+  const discover = wrap('discover', 'sf-intelligence', async (s) => {
+    if (!deps.discover) return {};
+    const r = await deps.discover({
+      runId: s.runId,
+      requirements: s.requirements,
+      findings: s.findings,
+      existingTests: s.existingTests,
+    });
+    for (const n of r.notes) say(n);
+    const known = new Set(s.findings.map((f) => f.id));
+    return {
+      org: r.org,
+      orgContext: r.orgContext,
+      impact: r.impact,
+      findings: [...s.findings, ...r.findings.filter((f) => !known.has(f.id))],
+      evidence: r.evidence,
+      notes: r.notes,
+    };
+  });
+
   // ------------------------------------------------------------------ report
   const report = wrap(
     'report',
@@ -341,8 +383,8 @@ export function buildMainGraph(deps: GraphDeps) {
       if (d.response !== 'report-only')
         applied[key] = { ...applied[key], [d.response]: (applied[key]?.[d.response] ?? 0) + 1 };
       updated.push({ ...issue, resolution: d.resolution, attempts: issue.attempts + (d.response === 'retry' ? 1 : 0) });
-      if (d.response === 'degrade' && node === 'understand' && !degradedNodes.includes('understand'))
-        degradedNodes = [...degradedNodes, 'understand'];
+      if (d.response === 'degrade' && (node === 'understand' || node === 'discover') && !degradedNodes.includes(node))
+        degradedNodes = [...degradedNodes, node];
       say(`QA Lead: ${issue.kind} at ${node} → ${d.response} (${d.reason})`);
     }
     const has = (r: string): TriageDecision | undefined => decisions.find((d) => d.response === r);
@@ -374,32 +416,38 @@ export function buildMainGraph(deps: GraphDeps) {
     };
   };
 
+  /** After analysis: discover (when an org is configured for the run) → report. */
+  const afterAnalysis = (s: QAGraphStateType): string =>
+    deps.discover && s.requirements.length && !s.degradedNodes.includes('discover') ? 'discover' : 'report';
+
   function nextAfter(node: string, s: QAGraphStateType): string {
     switch (node) {
       case 'intake':
         return s.sources.length ? 'understand' : 'report';
       case 'understand':
-        return s.clarifications.some((c) => c.status === 'OPEN') ? 'clarify' : 'report';
+        return s.clarifications.some((c) => c.status === 'OPEN') ? 'clarify' : afterAnalysis(s);
       case 'clarify': {
         const newAnswers = s.clarifications.some((c) => c.status === 'ANSWERED' && c.round === s.clarifyRound);
-        return newAnswers && s.clarifyRound < maxRounds ? 'understand' : 'report';
+        return newAnswers && s.clarifyRound < maxRounds ? 'understand' : afterAnalysis(s);
       }
       default:
         return 'report';
     }
   }
 
-  const routes = ['intake', 'understand', 'clarify', 'report'] as const;
+  const routes = ['intake', 'understand', 'clarify', 'discover', 'report'] as const;
   const graph = new StateGraph(QAGraphState)
     .addNode('intake', intake)
     .addNode('understand', understand)
     .addNode('clarify', clarify)
+    .addNode('discover', discover)
     .addNode('report', report)
     .addNode('triage', triage)
     .addEdge(START, 'intake')
     .addEdge('intake', 'triage')
     .addEdge('understand', 'triage')
     .addEdge('clarify', 'triage')
+    .addEdge('discover', 'triage')
     .addConditionalEdges(
       'triage',
       (s) => ((routes as readonly string[]).includes(s.route) ? (s.route as (typeof routes)[number]) : 'report'),

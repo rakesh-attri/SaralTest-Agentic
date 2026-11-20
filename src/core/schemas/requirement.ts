@@ -73,6 +73,10 @@ export const FindingKind = z.enum([
   'DUPLICATE_TEST',
   'RISK_SIGNAL',
   'ORG_CHECK_NEEDED',
+  /** Phase 2 org cross-check: the org contradicts the requirement or does not enforce it. */
+  'ORG_CONFLICT',
+  /** Phase 2 org cross-check: a referenced component was not found in a fully readable scope. */
+  'ORG_NOT_FOUND',
 ]);
 export type FindingKind = z.infer<typeof FindingKind>;
 
@@ -84,8 +88,8 @@ export const AnalysisFinding = z.object({
   refs: z.array(z.string()).min(1),
   requirementIds: z.array(z.string()).default([]),
   severity: z.enum(['HIGH', 'MEDIUM', 'LOW']),
-  /** `lint` = deterministic rule, `llm` = Spec Analyst model output (validated). */
-  origin: z.enum(['lint', 'llm']),
+  /** `lint` = deterministic rule, `llm` = Spec Analyst model output (validated), `org` = deterministic org cross-check. */
+  origin: z.enum(['lint', 'llm', 'org']),
   rule: z.string().optional(),
 });
 export type AnalysisFinding = z.infer<typeof AnalysisFinding>;

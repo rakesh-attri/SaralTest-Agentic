@@ -311,3 +311,62 @@ describe('main graph (intake → understand ⇄ clarify → report, triage after
     expect(md).not.toContain(TEST_SECRET);
   });
 });
+
+describe('main graph — discover node (Phase 2)', () => {
+  const orgFinding = {
+    id: 'F-ORG-001',
+    kind: 'ORG_NOT_FOUND' as const,
+    text: 'Region__c exists on Order: no field Region__c on Order (FIXTURE snapshot snap-x, OC-001)',
+    refs: ['AC2'],
+    requirementIds: ['CHAT-R02'],
+    severity: 'HIGH' as const,
+    origin: 'org' as const,
+    rule: 'org-existence',
+  };
+
+  it('runs after analysis, adds org findings + evidence + context, then reports', async () => {
+    const hook = vi.fn(() =>
+      Promise.resolve({
+        org: 'fixture',
+        orgContext: { snapshotId: 'snap-x', components: ['Field:Order.Status'] },
+        impact: { dependencies: [], regressionCandidates: [], riskScores: {} },
+        findings: [orgFinding],
+        evidence: [],
+        notes: ['discovered (FIXTURE)'],
+      }),
+    );
+    const s = await setup({ deps: { discover: hook } });
+    const v = await run(s);
+    expect(hook).toHaveBeenCalledTimes(1);
+    expect(v.status).toBe('COMPLETE');
+    expect(v.org).toBe('fixture');
+    expect(v.orgContext?.snapshotId).toBe('snap-x');
+    expect(v.findings.map((f) => f.id)).toContain('F-ORG-001');
+    expect(v.notes).toContain('discovered (FIXTURE)');
+  });
+
+  it('a discovery failure degrades (run continues to the report, PARTIAL); no hook → no discover', async () => {
+    const failing = vi.fn(() =>
+      Promise.reject(Object.assign(new Error('describe failed'), { errorCode: 'INSUFFICIENT_ACCESS' })),
+    );
+    const s = await setup({ deps: { discover: failing } });
+    const v = await run(s);
+    expect(v.status).toBe('PARTIAL');
+    expect(v.issues.some((i) => i.node === 'discover')).toBe(true);
+    expect(existsSync(join(s.root, 'runs', s.runId, 'analysis', 'analysis-report.md'))).toBe(true);
+
+    const plain = await setup();
+    const pv = await run(plain);
+    expect(pv.orgContext).toBeUndefined();
+  });
+
+  it('an identity mismatch during discovery is a HARD_STOP → BLOCKED with a report', async () => {
+    const { HardStopError } = await import('../core/errors.js');
+    const s = await setup({
+      deps: { discover: () => Promise.reject(new HardStopError('IDENTITY_MISMATCH', 'wrong org')) },
+    });
+    const v = await run(s);
+    expect(v.status).toBe('BLOCKED');
+    expect(readFileSync(join(s.root, 'runs', s.runId, 'analysis', 'analysis-report.md'), 'utf8')).toContain('BLOCKED');
+  });
+});

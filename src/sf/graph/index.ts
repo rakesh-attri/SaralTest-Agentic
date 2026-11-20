@@ -124,11 +124,11 @@ function readJsonArray(file: string, key: string): unknown[] {
   return Array.isArray(inner) ? inner : [];
 }
 
-/** Requirements + manual test cases written by `qa analyze` (runs/<runId>/analysis/). */
-export function assetsFromAnalysis(root: string, runId: string): TestAsset[] {
-  const dir = join(root, 'runs', runId, 'analysis');
-  const reqs = readJsonArray(join(dir, 'requirements.json'), 'requirements').map((r) => ReqRow.parse(r));
-  const tests = readJsonArray(join(dir, 'existing-tests.json'), 'tests').map((t) => MtcRow.parse(t));
+/** Requirements + manual test cases as linkable test assets. */
+export function assetsFrom(
+  reqs: readonly z.infer<typeof ReqRow>[],
+  tests: readonly z.infer<typeof MtcRow>[],
+): TestAsset[] {
   return [
     ...reqs.map((r): TestAsset => ({
       type: 'Requirement',
@@ -153,4 +153,12 @@ export function assetsFromAnalysis(root: string, runId: string): TestAsset[] {
       text: [t.title, ...(t.preconditions ?? []), ...(t.steps ?? []), t.expected].filter(Boolean).join('\n'),
     })),
   ];
+}
+
+/** Requirements + manual test cases written by `qa analyze` (runs/<runId>/analysis/). */
+export function assetsFromAnalysis(root: string, runId: string): TestAsset[] {
+  const dir = join(root, 'runs', runId, 'analysis');
+  const reqs = readJsonArray(join(dir, 'requirements.json'), 'requirements').map((r) => ReqRow.parse(r));
+  const tests = readJsonArray(join(dir, 'existing-tests.json'), 'tests').map((t) => MtcRow.parse(t));
+  return assetsFrom(reqs, tests);
 }

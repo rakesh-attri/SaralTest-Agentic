@@ -15,6 +15,7 @@ import { Redactor } from '../security/redact.js';
 import { Autonomy, type InputRequest } from '../core/state.js';
 import { createReadline, createRuntime, loadAnswersFile, resumeAnalysis, startAnalysis, summary } from './analyze.js';
 import { registerAuth } from './auth.js';
+import { createDiscoverHook, registerDiscover } from './discover.js';
 import { chatLoop } from './chat.js';
 
 /** Walk up from `start` to the folder that holds CLAUDE.md + config/ (works from any sub-folder). */
@@ -72,6 +73,7 @@ export function buildCli(): Command {
     });
 
   registerAuth(program, rootOf, say);
+  registerDiscover(program, rootOf, say);
 
   const mcp = program.command('mcp').description('MCP server utilities');
   mcp
@@ -159,8 +161,12 @@ export function buildCli(): Command {
     .option('--offline', 'no network: mechanical analysis without a model, no MCP')
     .option('--mcp', 'read JIRA through the Atlassian Rovo MCP server first (OAuth; REST is the fallback)')
     .option('--run-id <id>', 'use this run id instead of a generated one')
+    .option('--org <alias>', 'Phase 2: after analysis, discover this org and cross-check the requirements against it')
+    .option('--objects <list>', 'objects to discover with --org', 'Account,Contact')
     .action(
       async (o: {
+        org?: string;
+        objects: string;
         story?: string[];
         file?: string[];
         text?: string;
@@ -197,6 +203,15 @@ export function buildCli(): Command {
           say,
           ...(o.offline ? { offline: true } : {}),
           ...(o.mcp ? { useMcp: true } : {}),
+          ...(o.org
+            ? {
+                discover: createDiscoverHook({
+                  root,
+                  orgAlias: o.org,
+                  objects: o.objects.split(',').map((x) => x.trim()),
+                }),
+              }
+            : {}),
         });
         const rl = o.input ? createReadline() : undefined;
         try {
@@ -271,7 +286,6 @@ export function buildCli(): Command {
 
   // Commands from CLAUDE.md that later phases implement. They say so instead of failing obscurely.
   const later: [string, string, number][] = [
-    ['discover', 'Org discovery → snapshot + diff', 2],
     ['ingest', 'Documents, manual tests, defect history into RAG', 2],
     ['design', 'Test design', 3],
     ['review', 'Test Reviewer pass', 3],

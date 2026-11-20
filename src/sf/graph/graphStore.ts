@@ -197,9 +197,7 @@ export class GraphStore {
           ...(typeof r['label'] === 'string' ? { label: r['label'] } : {}),
         },
         depth: Number(r['depth']),
-        path: (typeof r['path'] === 'string' ? r['path'] : '')
-          .split(' ;; ')
-          .filter(Boolean),
+        path: (typeof r['path'] === 'string' ? r['path'] : '').split(' ;; ').filter(Boolean),
       }));
   }
 }

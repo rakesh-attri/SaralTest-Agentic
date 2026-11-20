@@ -49,6 +49,8 @@ export interface RuntimeOptions {
   useMcp?: boolean;
   say: Say;
   logLevel?: 'info' | 'warn' | 'error' | 'debug';
+  /** Phase 2: discover the org + cross-check requirements after analysis (`qa analyze --org`). */
+  discover?: GraphDeps['discover'];
 }
 
 export interface Runtime {
@@ -122,6 +124,7 @@ export async function createRuntime(o: RuntimeOptions): Promise<Runtime> {
     root: o.root,
     policy,
     logger,
+    ...(o.discover && !o.offline ? { discover: o.discover } : {}),
     ...(router ? { router } : {}),
     skills: SkillLoader.forProject(o.root),
     redactor,
