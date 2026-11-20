@@ -131,7 +131,9 @@ describe('mechanical planning', () => {
 
   it('manual tests listed on an obligation are reused', async () => {
     const res = await planTests(ctx, { ids: ids() }, 'mechanical');
-    expect(res.testCases.some((c) => c.origin === 'manual-reuse' && c.manualTestId === 'MTC-002')).toBe(true);
+    // a mechanical case keeps origin 'mechanical' (labelled honestly) and records the reused manual test
+    expect(res.testCases.some((c) => c.origin === 'mechanical' && c.manualTestId === 'MTC-002')).toBe(true);
+    expect(res.testCases.every((c) => c.origin === 'mechanical')).toBe(true);
   });
 
   it('RTM covers every requirement with obligation coverage', async () => {

@@ -204,7 +204,7 @@ export function buildCases(
       reviewStatus: status.reviewStatus,
       reviewReasons: status.reviewReasons,
       snapshotId: ctx.snapshotId,
-      origin: reuse ? 'manual-reuse' : origin,
+      origin: origin === 'mechanical' ? 'mechanical' : reuse ? 'manual-reuse' : 'planned',
       ...(reuse ? { manualTestId: reuse } : {}),
       refs: [...new Set(obs.map((o) => o.ref).filter((r) => r !== '*'))],
       obligationIds: obs.map((o) => o.id),
