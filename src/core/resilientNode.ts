@@ -1,3 +1,4 @@
+import { isGraphBubbleUp } from '@langchain/langgraph';
 import { SpanStatusCode, trace, type Tracer } from '@opentelemetry/api';
 import type { BudgetTracker } from './budget.js';
 import { classifyError } from './classifyError.js';
@@ -29,7 +30,16 @@ export type NodeFn<S extends ResilientState> = (state: S, ctx: NodeCtx) => Promi
  * - BudgetExceededError (or time box already exhausted) → `status: 'PARTIAL'` + BUDGET issue
  * - anything else → classified Issue; QA Lead triage decides what happens next
  */
-export function resilientNode<S extends ResilientState>(name: string, fn: NodeFn<S>): NodeFn<S> {
+export interface ResilientOptions {
+  /** Run even when the run is already BLOCKED (only the report node: every path ends at a report). */
+  runWhenBlocked?: boolean;
+}
+
+export function resilientNode<S extends ResilientState>(
+  name: string,
+  fn: NodeFn<S>,
+  options: ResilientOptions = {},
+): NodeFn<S> {
   return async (state, ctx) => {
     const tracer = ctx.tracer ?? trace.getTracer('sf-qa-agent');
     return tracer.startActiveSpan(`node:${name}`, async (span) => {
@@ -38,18 +48,24 @@ export function resilientNode<S extends ResilientState>(name: string, fn: NodeFn
       const log = ctx.logger.child({ node: name, runId: state.runId });
       let update: Partial<S>;
       try {
-        if (state.status === 'BLOCKED') {
+        if (state.status === 'BLOCKED' && !options.runWhenBlocked) {
           // A hard stop already happened: no further work, only reporting.
           log.warn('skipped: run is BLOCKED');
           update = {};
         } else {
-          ctx.budget.assertWithin();
+          if (state.status !== 'BLOCKED') ctx.budget.assertWithin();
           log.debug('start');
           const result = await fn(state, ctx);
           update = { ...result };
           span.setStatus({ code: SpanStatusCode.OK });
         }
       } catch (err) {
+        // LangGraph control flow (interrupt() for clarification, Command) is not an error: let the graph handle it.
+        if (isGraphBubbleUp(err)) {
+          span.setAttribute('qa.interrupted', true);
+          span.end();
+          throw err;
+        }
         const c = classifyError(err);
         const issue = createIssue({ kind: c.kind, node: name, message: c.message, detail: c.detail });
         span.setStatus({ code: SpanStatusCode.ERROR, message: c.kind });

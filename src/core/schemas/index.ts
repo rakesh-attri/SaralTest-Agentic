@@ -7,3 +7,4 @@ export * from './knowledge.js';
 export * from './investigation.js';
 export * from './data.js';
 export * from './learning.js';
+export * from './inputs.js';

@@ -10,6 +10,9 @@ import { ToolAllowList } from '../mcp/allowList.js';
 import { loadMcpJson, McpHub } from '../mcp/client.js';
 import { needsOAuth } from '../doctor/checks/mcp.js';
 import { Redactor } from '../security/redact.js';
+import { Autonomy, type InputRequest } from '../core/state.js';
+import { createReadline, createRuntime, loadAnswersFile, resumeAnalysis, startAnalysis, summary } from './analyze.js';
+import { chatLoop } from './chat.js';
 
 /** Walk up from `start` to the folder that holds CLAUDE.md + config/ (works from any sub-folder). */
 export function findProjectRoot(start: string): string {
@@ -30,7 +33,7 @@ export function buildCli(): Command {
   const program = new Command();
   program
     .name('qa')
-    .description('sf-qa-agent — autonomous Salesforce QA engineer (Phase 0: foundation)')
+    .description('sf-qa-agent — autonomous Salesforce QA engineer (Phase 1: inputs & clarification)')
     .option('--root <path>', 'project root (default: nearest folder with config/policy.yaml)')
     .showHelpAfterError();
 
@@ -126,11 +129,139 @@ export function buildCli(): Command {
       process.on('SIGTERM', stop);
     });
 
+  // ------------------------------------------------------------------ Phase 1: analyze / chat / resume
+  const collect = (v: string, prev: string[] = []): string[] => [...prev, v];
+  program
+    .command('analyze')
+    .description('Requirements + clarification questions from JIRA stories, spec files, chat text and manual tests')
+    .option('--story <key>', 'JIRA issue key (repeatable)', collect)
+    .option('--file <path>', 'spec file: .md .txt .feature .json .yaml .pdf .docx (repeatable)', collect)
+    .option('--text <story>', 'plain-English story text')
+    .option('--manual-tests <path>', 'existing manual test cases: .xlsx or .csv (repeatable)', collect)
+    .option('--ado <id>', 'Azure DevOps work item id (repeatable)', collect)
+    .option('--defects <jql>', 'defect history: JQL, or "past-results" for earlier runs only')
+    .option('--diff <ref>', 'git ref: changed Salesforce metadata components (impact input)')
+    .option('--objective <text>', 'exploratory objective (stored for the Autonomous Explorer)')
+    .option('--autonomy <level>', 'L1 | L2 | L3 (default: policy.yaml / QA_AUTONOMY)')
+    .option('--no-input', 'never wait for answers: unanswered questions become flagged assumptions')
+    .option('--answers <file>', 'YAML file with answers, e.g. "Q1: Yes, Email is required"')
+    .option('--offline', 'no network: mechanical analysis without a model, no MCP')
+    .option('--mcp', 'read JIRA through the Atlassian Rovo MCP server first (OAuth; REST is the fallback)')
+    .option('--run-id <id>', 'use this run id instead of a generated one')
+    .action(
+      async (o: {
+        story?: string[];
+        file?: string[];
+        text?: string;
+        manualTests?: string[];
+        ado?: string[];
+        defects?: string;
+        diff?: string;
+        objective?: string;
+        autonomy?: string;
+        input: boolean;
+        answers?: string;
+        offline?: boolean;
+        mcp?: boolean;
+        runId?: string;
+      }) => {
+        const root = rootOf();
+        const inputs: InputRequest[] = [
+          ...(o.story ?? []).map((v) => ({ kind: 'jira' as const, value: v })),
+          ...(o.ado ?? []).map((v) => ({ kind: 'ado' as const, value: v })),
+          ...(o.file ?? []).map((v) => ({ kind: 'file' as const, value: v })),
+          ...(o.text ? [{ kind: 'chat' as const, value: o.text }] : []),
+          ...(o.manualTests ?? []).map((v) => ({ kind: 'manual-tests' as const, value: v })),
+          ...(o.defects ? [{ kind: 'defects' as const, value: o.defects }] : []),
+          ...(o.diff ? [{ kind: 'git-diff' as const, value: o.diff }] : []),
+          ...(o.objective ? [{ kind: 'objective' as const, value: o.objective }] : []),
+        ];
+        if (!inputs.some((i) => ['jira', 'ado', 'file', 'chat'].includes(i.kind))) {
+          say('qa analyze: give at least one of --story, --file, --text or --ado (see qa analyze --help).');
+          process.exitCode = 2;
+          return;
+        }
+        const rt = await createRuntime({
+          root,
+          say,
+          ...(o.offline ? { offline: true } : {}),
+          ...(o.mcp ? { useMcp: true } : {}),
+        });
+        const rl = o.input ? createReadline() : undefined;
+        try {
+          const autonomy = Autonomy.parse(o.autonomy ?? rt.env.QA_AUTONOMY ?? rt.policy.autonomy);
+          const answersFile = o.answers ? await loadAnswersFile(resolve(o.answers)) : undefined;
+          const v = await startAnalysis(
+            rt,
+            {
+              inputs,
+              autonomy,
+              interactive: o.input,
+              ...(o.runId ? { runId: o.runId } : {}),
+              ...(answersFile ? { answersFile } : {}),
+              ...(rl ? { rl } : {}),
+            },
+            say,
+          );
+          process.stdout.write(`${summary(v, root)}\n`);
+          process.exitCode = v.status === 'BLOCKED' ? 3 : 0;
+        } catch (err) {
+          say(`qa analyze: ${err instanceof Error ? err.message : String(err)}`);
+          process.exitCode = 2;
+        } finally {
+          rl?.close();
+          await rt.close();
+        }
+      },
+    );
+
+  program
+    .command('resume')
+    .description('Resume a run from its checkpoint (e.g. answer pending clarification questions)')
+    .requiredOption('--run <id>', 'run id')
+    .option('--answers <file>', 'YAML file with answers')
+    .option('--offline', 'no model calls (mechanical analysis)')
+    .action(async (o: { run: string; answers?: string; offline?: boolean }) => {
+      const root = rootOf();
+      const rt = await createRuntime({ root, say, ...(o.offline ? { offline: true } : {}) });
+      const rl = createReadline();
+      try {
+        const answersFile = o.answers ? await loadAnswersFile(resolve(o.answers)) : undefined;
+        const v = await resumeAnalysis(rt, o.run, { rl, ...(answersFile ? { answersFile } : {}) }, say);
+        if (!v) {
+          say(`No checkpoint for run ${o.run} in .qa-memory/checkpoints.db.`);
+          process.exitCode = 2;
+          return;
+        }
+        process.stdout.write(`${summary(v, root)}\n`);
+        process.exitCode = v.status === 'BLOCKED' ? 3 : 0;
+      } finally {
+        rl.close();
+        await rt.close();
+      }
+    });
+
+  program
+    .command('chat')
+    .description('Chat REPL: paste a story, answer questions, ask /why about any requirement')
+    .option('--autonomy <level>', 'L1 | L2 | L3')
+    .option('--offline', 'no model calls (mechanical analysis)')
+    .action(async (o: { autonomy?: string; offline?: boolean }) => {
+      const root = rootOf();
+      const rt = await createRuntime({ root, say, ...(o.offline ? { offline: true } : {}) });
+      const rl = createReadline();
+      try {
+        await chatLoop(rt, rl, Autonomy.parse(o.autonomy ?? rt.env.QA_AUTONOMY ?? rt.policy.autonomy), root);
+      } finally {
+        rl.close();
+        await rt.close();
+      }
+    });
+
   // Commands from CLAUDE.md that later phases implement. They say so instead of failing obscurely.
   const later: [string, string, number][] = [
     ['discover', 'Org discovery → snapshot + diff', 2],
     ['ingest', 'Documents, manual tests, defect history into RAG', 2],
-    ['analyze', 'Requirements + clarification questions', 1],
     ['design', 'Test design', 3],
     ['review', 'Test Reviewer pass', 3],
     ['run', 'Full run / regression sets', 5],
@@ -140,8 +271,6 @@ export function buildCli(): Command {
     ['history', 'Past runs and trends', 9],
     ['learnings', 'Inspect learnings', 8],
     ['visual', 'Visual baselines', 6],
-    ['chat', 'Chat REPL', 1],
-    ['resume', 'Resume from checkpoint', 1],
   ];
   for (const [name, desc, phase] of later) {
     program

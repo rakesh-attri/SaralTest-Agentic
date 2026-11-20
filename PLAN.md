@@ -388,10 +388,13 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
   `@napi-rs/keyring` (keytar-compatible) by operator decision.
 
 ### Phase 1 — Inputs & clarification
-- [ ] All input adapters (§7a) → canonical `Requirement`; `REVIEW_REQUIRED` status
-- [ ] Spec Analyst; clarify node with `interrupt()`; chat REPL; assumption handling
-- [ ] QA Lead skeleton + policy-driven triage
+- [x] All input adapters (§7a) → canonical `Requirement`; `REVIEW_REQUIRED` status
+- [x] Spec Analyst; clarify node with `interrupt()`; chat REPL; assumption handling
+- [x] QA Lead skeleton + policy-driven triage
 - **Exit:** a JIRA story and a PDF both produce validated requirements and ≥1 sensible question.
+- **Status (2026-11-20):** exit criteria met on live Gemini with JIRA SF-219 and the Contact BRD PDF; see
+  `docs/phase-1-notes.md`. ADO live input is blocked (no org). The Atlassian Rovo MCP path is tested with mocks only
+  (REST was used live). Cross-source conflict detection depends on the model and varies between runs.
 
 ### Phase 2 — Salesforce intelligence
 - [ ] JWT via ECA, frontdoor sessions per persona, identity checks, org profiles enforced (start with `dedicated-qa-prod`)

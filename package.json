@@ -19,7 +19,8 @@
     "format:check": "prettier --check \"{src,tests,examples,packages,bin}/**/*.{ts,mjs,js}\" \"*.{ts,js}\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "cross-env QA_INTEGRATION=1 vitest run tests/integration"
+    "test:integration": "cross-env QA_INTEGRATION=1 vitest run tests/integration",
+    "validate:analysis": "tsx scripts/validate-analysis.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -31,6 +32,7 @@
     "eslint": "^10.15.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.14.0",
+    "jszip": "^3.10.2",
     "prettier": "^3.10.1",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",
@@ -39,9 +41,13 @@
   },
   "dependencies": {
     "@arizeai/openinference-instrumentation-langchain": "^4.2.1",
+    "@cucumber/gherkin": "^43.0.0",
+    "@cucumber/messages": "^35.0.0",
     "@langchain/anthropic": "^1.6.5",
     "@langchain/core": "^1.4.2",
     "@langchain/google-genai": "^2.3.6",
+    "@langchain/langgraph": "^1.7.5",
+    "@langchain/langgraph-checkpoint": "^1.2.3",
     "@langchain/ollama": "^1.3.0",
     "@langchain/openai": "^1.8.4",
     "@langfuse/otel": "^6.1.1",
@@ -58,6 +64,9 @@
     "commander": "^15.1.0",
     "cross-spawn": "^7.0.6",
     "dotenv": "^18.0.10",
+    "exceljs": "^4.4.0",
+    "mammoth": "^1.13.0",
+    "pdf-parse": "^2.4.5",
     "pino": "^10.4.0",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"
