@@ -245,6 +245,11 @@ export interface AnalyzeOptions {
 
 export async function startAnalysis(rt: Runtime, o: AnalyzeOptions, say: Say): Promise<QAGraphStateType> {
   const runId = o.runId ?? newRunId('run');
+  if (rt.checkpointer.threads().includes(runId)) {
+    throw new Error(
+      `run id ${runId} already exists in .qa-memory/checkpoints.db — use "qa resume --run ${runId}" or a new --run-id`,
+    );
+  }
   const models = await loadConfigFile('models', projectPaths(rt.deps.root));
   const budgets = models.ok ? models.value.budgets : { tokensPerRun: 2_000_000, minutesPerRun: 90 };
   const primary = o.inputs.find((i) => i.kind === 'jira' || i.kind === 'ado' || i.kind === 'file' || i.kind === 'chat');

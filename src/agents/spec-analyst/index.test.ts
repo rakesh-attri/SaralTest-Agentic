@@ -215,6 +215,53 @@ describe('analyzeSpec', () => {
     expect(res.requirements[0]?.sources[0]?.section).toBe('AC1');
   });
 
+  it('a CONFLICT citing a single section is reflected back as needing two sides', async () => {
+    let reflection = '';
+    const router = await mockRouter({
+      reasoning: {
+        responder: analystResponder({
+          extract: () => extractOk,
+          analyze: (i) => {
+            if (i === 0) {
+              return JSON.stringify({
+                findings: [
+                  {
+                    kind: 'CONFLICT',
+                    text: 'OR-01 is unclear about zero',
+                    refs: ['ORS-2#OR-01'],
+                    requirementIds: [],
+                    severity: 'HIGH',
+                  },
+                ],
+                questions: [],
+              });
+            }
+            reflection = 'seen';
+            return JSON.stringify({
+              findings: [
+                {
+                  kind: 'AMBIGUITY',
+                  text: 'OR-01 is unclear about zero',
+                  refs: ['ORS-2#OR-01'],
+                  requirementIds: [],
+                  severity: 'MEDIUM',
+                },
+              ],
+              questions: [],
+            });
+          },
+        }),
+      },
+    });
+    const res = await analyzeSpec(input({ existingTests: [] }), {
+      router,
+      ids: new RequirementIdStore('ORD-1'),
+      maxQuestions: 5,
+    });
+    expect(reflection).toBe('seen');
+    expect(res.findings.filter((f) => f.origin === 'llm').map((f) => f.kind)).toEqual(['AMBIGUITY']);
+  });
+
   it('extract that stays invalid throws INVALID_LLM_OUTPUT (QA Lead then degrades to the mechanical path)', async () => {
     const router = await mockRouter({
       reasoning: { responder: () => '{"requirements":[]}' },

@@ -257,6 +257,12 @@ export async function analyzeSpec(input: SpecAnalystInput, deps: SpecAnalystDeps
           const problems: string[] = [];
           out.findings.forEach((f, i) => {
             for (const r of f.refs) if (!refs.resolve(r)) problems.push(`findings.${i}: ref "${r}" does not exist`);
+            const distinct = new Set(f.refs.map((r) => refs.resolve(r) ?? r));
+            if (f.kind === 'CONFLICT' && distinct.size < 2) {
+              problems.push(
+                `findings.${i}: a CONFLICT must cite the two disagreeing sections; with one section it is an AMBIGUITY`,
+              );
+            }
             for (const id of f.requirementIds)
               if (!knownIds.has(id)) problems.push(`findings.${i}: unknown requirement id ${id}`);
           });

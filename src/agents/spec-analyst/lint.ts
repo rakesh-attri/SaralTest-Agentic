@@ -61,7 +61,7 @@ export const LINT_RULES: readonly LintRule[] = [
     severity: 'MEDIUM',
     appliesTo: ['ac', 'rule', 'nfr', 'assumption'],
     match: firstMatch(
-      /\b(?:one of the|from the|in the|on the)\s+(?:approved|allowed|permitted|valid|supported|standard|agreed)\b[^.]*|\b(?:maintained|published|defined|managed|owned) by\b[^.]*/i,
+      /\b(?:one of the|from the|in the|on the)\s+(?:approved|allowed|permitted|valid|supported|standard|agreed)\b[^.]*|\b(?:maintained|published|defined|managed) by\b[^.]*/i,
     ),
     message: (e) =>
       `Refers to values defined elsewhere ("${e.trim()}") that are not provided: tests cannot assert valid/invalid values until the list is supplied.`,
@@ -125,7 +125,7 @@ export function lintSources(docs: readonly SourceDocument[], refs: RefIndex): An
     for (const section of doc.sections) {
       for (const rule of LINT_RULES) {
         if (!rule.appliesTo.includes(section.kind)) continue;
-        const evidence = rule.match(section.text);
+        const evidence = rule.match(section.text)?.replace(/\s+/g, ' ');
         if (!evidence) continue;
         out.push({
           id: nextId('LINT'),

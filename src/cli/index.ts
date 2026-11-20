@@ -205,6 +205,9 @@ export function buildCli(): Command {
           );
           process.stdout.write(`${summary(v, root)}\n`);
           process.exitCode = v.status === 'BLOCKED' ? 3 : 0;
+        } catch (err) {
+          say(`qa analyze: ${err instanceof Error ? err.message : String(err)}`);
+          process.exitCode = 2;
         } finally {
           rl?.close();
           await rt.close();

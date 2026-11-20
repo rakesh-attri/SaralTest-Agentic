@@ -190,6 +190,47 @@ describe('main graph (intake → understand ⇄ clarify → report, triage after
     expect(secondExtract).toContain('Answer (human): North and South');
   });
 
+  it('a second clarification round is asked too (bounded by maxClarifyRounds), then the run reports', async () => {
+    let analyzeCalls = 0;
+    const mock = {
+      reasoning: {
+        responder: (msgs: BaseMessage[]) => {
+          const all = msgs.map(messageText).join('\n');
+          if (all.includes('Turn the source documents into canonical')) return extractJson;
+          analyzeCalls += 1;
+          return JSON.stringify({
+            findings: [],
+            questions: [
+              {
+                question:
+                  analyzeCalls === 1
+                    ? 'Which regions are on the approved list?'
+                    : 'Must a Clerk pick a Region before saving an Order?',
+                refs: ['AC2'],
+                requirementIds: [],
+                testImpact: 'cases',
+                proposedAssumption: 'no region asserts',
+                priority: 1,
+              },
+            ],
+          });
+        },
+      },
+    };
+    const s = await setup({ interactive: true, mock });
+    await s.graph.invoke(s.state, s.config);
+    await s.graph.invoke(new Command({ resume: { answers: { Q1: 'North' } } }), s.config);
+    const round2 = (await s.graph.getState(s.config)).tasks[0]?.interrupts[0]?.value as ClarifyRequest | undefined;
+    expect(round2?.round).toBe(2);
+    expect(round2?.questions.map((q) => q.id)).toEqual(['Q2']);
+    await s.graph.invoke(new Command({ resume: { answers: { Q2: 'South' } } }), s.config);
+    const v = (await s.graph.getState(s.config)).values as QAGraphStateType;
+    expect(v.clarifyRound).toBe(2);
+    expect(v.clarifications.map((c) => `${c.id}:${c.status}`)).toEqual(['Q1:ANSWERED', 'Q2:ANSWERED']);
+    expect(v.triageLog.map((d) => d.response)).toEqual(['ask', 'ask']);
+    expect((await s.graph.getState(s.config)).next).toEqual([]);
+  });
+
   it('interactive but timed out → ASSUMED; L3 never waits', async () => {
     const s = await setup({ interactive: true });
     await s.graph.invoke(s.state, s.config);

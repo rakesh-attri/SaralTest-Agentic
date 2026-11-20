@@ -334,7 +334,7 @@ export function buildMainGraph(deps: GraphDeps) {
         issue,
         deps.policy,
         CAPS[node] ?? CAPS['report'] ?? { retry: false, fallback: false, degrade: false, ask: false },
-        { applied: applied[key] ?? {} },
+        { applied: applied[key] ?? {}, askLimit: maxRounds },
       );
       decisions.push(d);
       if (d.response !== 'report-only')

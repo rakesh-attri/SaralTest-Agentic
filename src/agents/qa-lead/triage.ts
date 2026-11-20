@@ -19,6 +19,8 @@ export interface NodeCapabilities {
 export interface TriageHistory {
   /** How often each response was already applied for this node + IssueKind. */
   applied: Partial<Record<PolicyResponse, number>>;
+  /** How many clarification rounds `ask` may use (default 1). */
+  askLimit?: number;
 }
 
 /**
@@ -153,8 +155,8 @@ export async function triageIssue(
           skip('not available for this node');
           continue;
         }
-        if (used >= 1) {
-          skip('already applied');
+        if (used >= (response === 'ask' ? (history.askLimit ?? 1) : 1)) {
+          skip(response === 'ask' ? 'clarification round limit reached' : 'already applied');
           continue;
         }
         return {

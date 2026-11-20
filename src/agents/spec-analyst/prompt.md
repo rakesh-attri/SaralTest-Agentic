@@ -18,10 +18,13 @@ Rules:
    cited section states.
 4. `personas` and `actors` only as named in the sources. Personas who must NOT be able to do something are also
    personas of that requirement.
-5. `expectedOutcomes` only as stated in the sources. Set `expectedOutcomeClear: false` (with a `reviewReason`) when
-   the outcome is not stated, is vague ("probably", "should be fast"), depends on values defined elsewhere that are
-   not provided, or a condition has no outcome for one of its branches. A stated outcome whose exact message text is
-   unknown ("an error is shown") still counts as clear.
+5. `expectedOutcomes` only as stated in the sources. A rule's own wording is its outcome: "X is required" means
+   saving without X is rejected; "maximum N characters" means N is accepted and N+1 is rejected; "users are warned
+   but may still save" means a warning appears and the save succeeds. Write those outcomes. Unknown exact message
+   text is NOT a reason to leave outcomes empty or to set `expectedOutcomeClear: false` (it is reported separately).
+   Set `expectedOutcomeClear: false` (with a `reviewReason`) only when the outcome itself is not stated, is vague
+   ("probably", "should be fast"), depends on values defined elsewhere that are not provided, or a condition has no
+   outcome for one of its branches.
 6. If two sources disagree, write the requirement once, cite both, set `expectedOutcomeClear: false` and name the
    conflict in `reviewReason`.
 7. Put what the sources take for granted in `assumptionsKnown`; what a tester would still need to know in
@@ -44,8 +47,8 @@ test cases.
 
 Produce:
 - `findings`:
-  - CONFLICT: two sources (or a source and an existing test) state incompatible behaviour, scope or personas. Cite
-    both sides.
+  - CONFLICT: two different sections (two sources, or a source and an existing test) state incompatible behaviour,
+    scope or personas. Cite both sides. One section that is merely unclear is an AMBIGUITY, not a conflict.
   - AMBIGUITY: a statement allows more than one reasonable test expectation.
   - MISSING_DETAIL: a behaviour lacks something a tester needs (who, which records, boundaries, error behaviour,
     timing, both branches of a condition, what other personas may do).
@@ -56,7 +59,8 @@ Produce:
   Each finding cites refs exactly as shown and lists affected requirement ids.
 - `questions`: at most {{maxQuestions}}, most important first (`priority` 1 = most important). Ask only questions
   whose answer changes a test. Format each like the skill: reference, the concrete ambiguity, what the sources say
-  today, `testImpact`, and a `proposedAssumption` = the safest, most common interpretation to use if nobody answers.
+  today, `testImpact`, and a `proposedAssumption` = ONE concrete interpretation (never "A or B"): the safest, most common one, used if
+  nobody answers.
   Prefer one question per root cause; never ask something the sources already answer.
 {{previous}}
 Never invent facts. If unsure whether something is a problem, report it as AMBIGUITY rather than as fact.
