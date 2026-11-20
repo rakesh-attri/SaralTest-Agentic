@@ -73,6 +73,9 @@ describe('locator registry rules', () => {
     expect(reg.list()).toHaveLength(1);
     expect(reg.markReverify(base.org, { fieldApiName: 'Contact.Phone' })).toBe(1);
     expect(reg.list({ status: 'RE_VERIFY' })).toHaveLength(1);
+    reg.upsert([{ ...base, element: 'button:Save', status: 'ACTIVE' }]);
+    expect(reg.markAssetReverify(base.org, 'p/button:Save')).toBe(1);
+    expect(reg.list({ status: 'RE_VERIFY' })).toHaveLength(2);
     expect(assetsFromRegistry(reg, base.org)[0]?.explicit?.[0]).toMatchObject({
       type: 'Field',
       apiName: 'Contact.Phone',

@@ -123,6 +123,18 @@ export class LocatorRegistry {
     ).map((r) => ({ page: r.page, count: r.count }));
   }
 
+  /** Mark one locator RE_VERIFY by its graph asset id (`<page>/<element>`). Returns rows changed. */
+  markAssetReverify(org: string, assetId: string): number {
+    const slash = assetId.indexOf('/');
+    if (slash < 0) return 0;
+    const r = this.db
+      .prepare(
+        "UPDATE locators SET status = 'RE_VERIFY' WHERE org = ? AND page = ? AND element = ? AND status != 'RETIRED'",
+      )
+      .run(org, assetId.slice(0, slash), assetId.slice(slash + 1));
+    return Number(r.changes);
+  }
+
   /** Mark locators RE_VERIFY (e.g. their field changed in a new snapshot). */
   markReverify(org: string, element: { page?: string; fieldApiName?: string }): number {
     let n = 0;

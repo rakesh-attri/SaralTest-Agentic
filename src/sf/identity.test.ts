@@ -68,18 +68,16 @@ describe('identity check + GuardedSalesforce on the offline fixture', () => {
     expect(Object.keys(accounts[0] ?? {})).not.toContain('attributes');
   });
 
-  it('wrong persona user → IDENTITY_MISMATCH hard stop', async () => {
-    const readOnlyUser = { ...admin, id: 'read-only' }; // fixture logs in the read-only user, persona expects admin
-    const err = await connectSalesforce({
+  it('fixture personas map to seed users by persona id (the read-only persona logs in as the read-only user)', async () => {
+    const sf = await connectSalesforce({
       provider: new FixtureSessionProvider(seed),
       org,
       orgs,
-      persona: readOnlyUser,
+      persona: { ...admin, id: 'read-only' },
       runId: 'run-t2',
       registry: new IdentityRegistry(),
-    }).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(HardStopError);
-    expect((err as HardStopError).reason).toBe('IDENTITY_MISMATCH');
+    });
+    expect(sf.identity.username).toBe('qa.readonly@fixture.example.invalid');
   });
 
   it('writes go through the guard and are audit-logged write-ahead; refused writes are logged too', async () => {
@@ -163,6 +161,16 @@ describe('verifyIdentity edge cases (fake API)', () => {
       persona,
     }).catch((e: unknown) => e);
     expect((err as HardStopError).reason).toBe('UNLISTED_ORG');
+  });
+  it('logged-in user is not the persona → IDENTITY_MISMATCH', async () => {
+    const err = await verifyIdentity({
+      api: api({ user: 'someone.else@acme.example' }),
+      session,
+      org: live,
+      orgs,
+      persona,
+    }).catch((e: unknown) => e);
+    expect((err as HardStopError).reason).toBe('IDENTITY_MISMATCH');
   });
   it('instance URL different from orgs.yaml → hard stop', async () => {
     await expect(

@@ -82,7 +82,13 @@ export function registerIngest(program: Command, rootOf: () => string, say: Say)
             `Embeddings: ${embedModel} (metadata, requirements and test assets only — PII masked, never record data).`,
           );
         }
-        const rag = new RagStore({ dir: ragDir, embeddings, embedModel, limiter: new RateLimiter(60), batchSize: 32 });
+        const rag = new RagStore({
+          dir: ragDir,
+          embeddings,
+          embedModel,
+          limiter: new RateLimiter(o.offline ? 600 : 6),
+          batchSize: o.offline ? 32 : 10,
+        });
         const snapshots = new SnapshotStore(join(root, '.qa-memory', 'knowledge.db'));
         const registry = o.locators ? new LocatorRegistry(registryFile(root)) : undefined;
         try {

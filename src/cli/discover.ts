@@ -108,7 +108,6 @@ export function registerDiscover(
           const findings = analysisDir ? readList(join(analysisDir, 'findings.json'), 'findings', AnalysisFinding) : [];
           const registry = new LocatorRegistry(registryFile(root));
           const locatorAssets = assetsFromRegistry(registry, ctx.org.orgId);
-          registry.close();
           const assets = [
             ...(analysisRun ? assetsFromAnalysis(root, analysisRun) : []),
             ...locatorAssets,
@@ -128,10 +127,13 @@ export function registerDiscover(
             snapshots,
             graph,
             assets,
+            registry,
             ...(o.crossCheck && requirements.length ? { requirements, findings } : {}),
             configuredPersonas: ctx.personas.personas.flatMap((p) => [p.id, p.profile]),
             ...(o.baseline ? { baselineSnapshotId: o.baseline } : {}),
             onProgress: say,
+          }).finally(() => {
+            registry.close();
           });
           process.stdout.write(
             [

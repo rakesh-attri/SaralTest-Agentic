@@ -75,8 +75,11 @@ export async function verifyIdentity(i: VerifyIdentityInput): Promise<VerifiedId
 
   const info = UserInfo.parse(await api.userinfo());
   if (!same18(info.organization_id, org.orgId)) mismatch(`userinfo org ${info.organization_id} ≠ ${org.orgId}`);
-  if (info.preferred_username.toLowerCase() !== persona.username.toLowerCase()) {
-    mismatch(`logged-in user ${info.preferred_username} is not persona ${persona.id} (${persona.username})`);
+  // Live orgs: the persona's configured username. Fixture: the seed user the persona id maps to (personas.yaml
+  // usernames belong to the live org; the fixture has its own users).
+  const expectedUser = org.environment === 'FIXTURE' ? session.username : persona.username;
+  if (info.preferred_username.toLowerCase() !== expectedUser.toLowerCase()) {
+    mismatch(`logged-in user ${info.preferred_username} is not persona ${persona.id} (${expectedUser})`);
   }
 
   const sessionHost = new URL(session.instanceUrl).host;

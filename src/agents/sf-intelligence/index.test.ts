@@ -213,3 +213,57 @@ describe('Salesforce Intelligence on the offline fixture (FIXTURE)', () => {
     graph.close();
   });
 });
+
+describe('cross-check never claims NOT_FOUND for an unreadable scope', () => {
+  it('fields area UNKNOWN → existence is UNKNOWN with a question, not NOT_FOUND', () => {
+    const placeholder = (type: string, apiName: string, parent?: string) => ({
+      snapshotId: 's',
+      type,
+      apiName,
+      ...(parent ? { parent } : {}),
+      hash: 'h',
+      dataScope: 'metadata',
+      evidenceStatus: 'UNKNOWN' as const,
+      reviewStatus: 'REVIEW_REQUIRED' as const,
+      body: { reason: 'UNKNOWN: unexpected response shape' },
+    });
+    const snapshot = {
+      info: {
+        id: 's',
+        orgId: '00DFIXTURE00000001',
+        orgAlias: 'fixture',
+        capturedAt: new Date().toISOString(),
+        sourceType: 'METADATA' as const,
+        release: 'r',
+        environment: 'FIXTURE' as const,
+        apiVersion: '62.0',
+        objects: ['Account', 'Contact'],
+        componentCount: 4,
+        unknownCount: 4,
+      },
+      components: [
+        placeholder('SObject', 'Account.*', 'Account'),
+        placeholder('Field', 'Account.*', 'Account'),
+        placeholder('SObject', 'Contact.*', 'Contact'),
+        placeholder('Field', 'Contact.*', 'Contact'),
+      ],
+      dependencies: [],
+    };
+    const cc = crossCheckRequirements({ snapshot, requirements: [requirements[3] as Requirement] });
+    const c = cc.checks.find((x) => x.check === 'existence');
+    expect(c?.result).toBe('UNKNOWN');
+    expect(c?.question).toMatch(/could not be verified/);
+  });
+});
+
+describe('blocksBlank (required vs format rules)', () => {
+  it('counts only non-negated blank tests on the field', async () => {
+    const { blocksBlank } = await import('./crossCheck.js');
+    expect(blocksBlank('ISBLANK(Email)', 'Email')).toBe(true);
+    expect(blocksBlank('AND(ISPICKVAL(LeadSource,"Web"), ISBLANK( Phone ))', 'Phone')).toBe(true);
+    expect(blocksBlank('LEN(Phone) = 0', 'Phone')).toBe(true);
+    // live qa-prod rule: fires only when Phone is filled in → a format rule, not "required"
+    expect(blocksBlank('AND( NOT( ISBLANK( Phone ) ), NOT( REGEX( Phone, "[0-9]{10}" ) ) )', 'Phone')).toBe(false);
+    expect(blocksBlank('ISBLANK(MobilePhone)', 'Phone')).toBe(false);
+  });
+});

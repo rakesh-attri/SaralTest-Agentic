@@ -4,6 +4,8 @@ import { DatabaseSync } from 'node:sqlite';
 import * as lancedb from '@lancedb/lancedb';
 import type { Embeddings } from '@langchain/core/embeddings';
 import { QAError } from '../core/errors.js';
+import { withRetry, type RetryOptions } from '../core/retry.js';
+import { checkVectors } from '../models/guarded.js';
 import type { RateLimiter } from '../models/rateLimiter.js';
 import { RAG_TABLES, type Chunk, type RagTable } from './chunkers.js';
 
@@ -99,6 +101,8 @@ export interface RagStoreOptions {
   embedModel: string;
   limiter?: RateLimiter;
   batchSize?: number;
+  /** Retry policy for TRANSIENT embedding failures (quota / rate limit). */
+  retry?: RetryOptions;
 }
 
 /** LanceDB-backed RAG memory (PLAN.md §7): hybrid vector + full-text retrieval with reciprocal-rank fusion. */
@@ -181,8 +185,21 @@ export class RagStore {
     const touched = new Set<RagTable>();
     for (let i = 0; i < todo.length; i += batchSize) {
       const batch = todo.slice(i, i + batchSize);
-      await this.o.limiter?.acquire();
-      const vectors = await this.o.embeddings.embedDocuments(batch.map((c) => c.text));
+      const vectors = await withRetry(
+        async () => {
+          await this.o.limiter?.acquire();
+          return checkVectors(
+            await this.o.embeddings.embedDocuments(batch.map((c) => c.text)),
+            batch.length,
+            this.o.embedModel,
+          );
+        },
+        this.o.retry ?? {
+          maxAttempts: 4,
+          backoffSeconds: [15, 30, 60],
+          onRetry: (r) => onProgress?.(`  embedding provider busy (${r.message}); retrying in ${r.delayMs / 1000}s`),
+        },
+      );
       const now = new Date().toISOString();
       const byTable = new Map<RagTable, RagRow[]>();
       batch.forEach((c, j) => {

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { AnalysisFinding, Requirement } from '../../core/schemas/index.js';
 import type { ReverifyMark, SnapshotDiff } from '../../core/schemas/knowledge.js';
 import { diffSnapshots } from '../../knowledge/diff.js';
+import type { LocatorRegistry } from '../../knowledge/locatorRegistry.js';
 import type { SnapshotStore, StoredSnapshot } from '../../knowledge/snapshotStore.js';
 import type { GuardedSalesforce } from '../../sf/client.js';
 import { runDiscovery, type DiscoveryResult } from '../../sf/discovery/index.js';
@@ -24,6 +25,8 @@ export interface DiscoverInput {
   requirements?: readonly Requirement[];
   findings?: readonly AnalysisFinding[];
   configuredPersonas?: readonly string[];
+  /** Locator registry: locators impacted by a change are set to RE_VERIFY. */
+  registry?: LocatorRegistry;
   /** Compare with this snapshot instead of the org's previous one. */
   baselineSnapshotId?: string;
   onProgress?: (msg: string) => void;
@@ -101,6 +104,8 @@ export async function discoverOrg(i: DiscoverInput): Promise<DiscoverOutcome> {
   say(`Knowledge graph: ${graph.nodes} nodes, ${graph.edges} edges.`);
   const impact = diff ? impactOfDiff(i.graph, diff) : { seeds: [], impacted: [], reverify: [] };
   const reverify = i.snapshots.markReverify(impact.reverify);
+  for (const m of reverify.filter((x) => x.assetType === 'locator'))
+    i.registry?.markAssetReverify(snapshot.info.orgId, m.assetId);
   if (reverify.length) say(`RE_VERIFY: ${[...new Set(reverify.map((m) => `${m.assetType}:${m.assetId}`))].join(', ')}`);
 
   const crossCheck = i.requirements?.length

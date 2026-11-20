@@ -165,7 +165,13 @@ describe('RagStore (LanceDB + manifest)', () => {
   it('resumes after an interrupted ingest without re-embedding finished batches', async () => {
     const d = dir();
     const failing = new CountingEmbeddings(undefined, 2);
-    const s1 = new RagStore({ dir: d, embeddings: failing, embedModel: 'mock/hash-32', batchSize: 2 });
+    const s1 = new RagStore({
+      dir: d,
+      embeddings: failing,
+      embedModel: 'mock/hash-32',
+      batchSize: 2,
+      retry: { maxAttempts: 1, backoffSeconds: [0] },
+    });
     await expect(s1.ingest([chunk(1), chunk(2), chunk(3), chunk(4)])).rejects.toThrow(/socket/);
     expect(s1.counts()).toEqual({ docs: 2 });
     s1.close();
@@ -196,5 +202,33 @@ describe('collectChunks', () => {
     expect(maskForEmbedding('Call +1 (415) 555-0100 or mail jane.doe@acme.example; AC2 has 10 digits')).toBe(
       'Call <PHONE> or mail <EMAIL>; AC2 has 10 digits',
     );
+  });
+});
+
+describe('embedding provider returning empty vectors (swallowed 429)', () => {
+  it('is treated as TRANSIENT and retried, never stored', async () => {
+    let calls = 0;
+    class Flaky extends Embeddings {
+      constructor() {
+        super({});
+      }
+      embedDocuments(d: string[]): Promise<number[][]> {
+        calls++;
+        return calls === 1 ? Promise.resolve(d.map(() => [])) : new MockEmbeddings(32).embedDocuments(d);
+      }
+      embedQuery(d: string): Promise<number[]> {
+        return new MockEmbeddings(32).embedQuery(d);
+      }
+    }
+    const store = new RagStore({
+      dir: dir(),
+      embeddings: new Flaky(),
+      embedModel: 'mock/hash-32',
+      retry: { maxAttempts: 3, backoffSeconds: [0], sleep: () => Promise.resolve() },
+    });
+    const r = await store.ingest([chunk(1), chunk(2)]);
+    expect(r.added).toBe(2);
+    expect(calls).toBe(2);
+    store.close();
   });
 });

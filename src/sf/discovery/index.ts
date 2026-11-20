@@ -1,3 +1,4 @@
+import { ZodError } from 'zod';
 import { classifyError } from '../../core/classifyError.js';
 import { withRetry, type RetryOptions } from '../../core/retry.js';
 import {
@@ -129,7 +130,14 @@ export async function runDiscovery(o: DiscoveryOptions): Promise<DiscoveryResult
       areas.push({ area: area.name, ok: true, count, durationMs: Date.now() - t0 });
       o.onProgress?.(`  ${area.name}: ${count}`);
     } catch (err) {
-      const c = classifyError(err);
+      // A response that does not match the expected Salesforce shape is not model output: report it as such.
+      const c =
+        err instanceof ZodError
+          ? {
+              kind: 'UNKNOWN',
+              message: `unexpected response shape at ${err.issues[0]?.path.join('.') ?? '?'}: ${err.issues[0]?.message ?? ''}`,
+            }
+          : classifyError(err);
       const error = `${c.kind}: ${c.message}`.slice(0, 300);
       areas.push({ area: area.name, ok: false, count: 0, error, durationMs: Date.now() - t0 });
       o.onProgress?.(`  ${area.name}: UNKNOWN (${error})`);

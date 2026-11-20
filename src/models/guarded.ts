@@ -10,7 +10,7 @@ import type { BaseLanguageModelInput } from '@langchain/core/language_models/bas
 import type { AIMessageChunk, BaseMessage } from '@langchain/core/messages';
 import type { ChatResult } from '@langchain/core/outputs';
 import type { Runnable } from '@langchain/core/runnables';
-import { TimeoutError } from '../core/errors.js';
+import { QAError, TimeoutError } from '../core/errors.js';
 import type { BudgetTracker } from '../core/budget.js';
 import type { RateLimiter } from './rateLimiter.js';
 import { assertNoSecrets, messageText } from './secretGuard.js';
@@ -158,11 +158,31 @@ export class GuardedEmbeddings extends Embeddings {
 
   async embedDocuments(documents: string[]): Promise<number[][]> {
     assertNoSecrets(documents, this.secrets(), 'documents sent for embedding');
-    return await this.inner.embedDocuments(documents);
+    return checkVectors(await this.inner.embedDocuments(documents), documents.length, this.modelName);
   }
 
   async embedQuery(document: string): Promise<number[]> {
     assertNoSecrets([document], this.secrets(), 'an embedding query');
-    return await this.inner.embedQuery(document);
+    return checkVectors([await this.inner.embedQuery(document)], 1, this.modelName)[0] ?? [];
   }
+}
+
+/**
+ * Some provider wrappers (LangChain's Google embeddings) turn a failed batch — e.g. HTTP 429 quota — into empty
+ * vectors instead of an error. An empty, NaN or ragged vector is never returned: it becomes a TRANSIENT error that
+ * the caller retries with backoff.
+ */
+export function checkVectors(vectors: number[][], expected: number, model: string): number[][] {
+  const dims = vectors[0]?.length ?? 0;
+  const bad = vectors.filter((v) => v.length === 0 || v.length !== dims || v.some((x) => !Number.isFinite(x))).length;
+  if (vectors.length !== expected || dims === 0 || bad > 0) {
+    throw new QAError(
+      'TRANSIENT',
+      `${model} returned ${bad || expected - vectors.length} empty/invalid vector(s) of ${expected} (provider quota or rate limit — retry later)`,
+      {
+        status: 429,
+      },
+    );
+  }
+  return vectors;
 }

@@ -49,6 +49,20 @@ class Index {
   }
 }
 
+/**
+ * True when the rule fires on a blank value of `field` (i.e. it makes the field required). Conservative:
+ * `ISBLANK(f)` / `ISNULL(f)` / `LEN(f) = 0` count only when not directly negated — `AND(NOT(ISBLANK(Phone)), …)`
+ * fires only when Phone is filled in, so it is a format rule, not a required rule.
+ */
+export function blocksBlank(formula: string, field: string): boolean {
+  const f = escapeRe(field);
+  const tests = [
+    new RegExp(`(NOT\\s*\\(\\s*)?(?:ISBLANK|ISNULL)\\s*\\(\\s*${f}\\s*\\)`, 'gi'),
+    new RegExp(`(NOT\\s*\\(\\s*)?LEN\\s*\\(\\s*${f}\\s*\\)\\s*=\\s*0`, 'gi'),
+  ];
+  return tests.some((re) => [...formula.matchAll(re)].some((m) => !m[1]));
+}
+
 function requirementText(r: Requirement): string {
   return [
     r.title,
@@ -153,7 +167,8 @@ export function crossCheckRequirements(input: CrossCheckInput): OrgCrossCheck {
         phrase(o.label ?? o.apiName).test(text) ||
         phrase(str(o.body?.['labelPlural']) ?? `${o.label ?? o.apiName}s`).test(text),
     );
-    const candidates = (named.length ? named : [...idx.objects.values()]).map((o) => o.apiName);
+    // Scope objects come from the snapshot header: an object whose describe failed is still in scope (as UNKNOWN).
+    const candidates = named.length ? named.map((o) => o.apiName) : [...scope];
     // Linked fields carry the term the text actually used (an org may relabel Phone as "Business Phone").
     const termOf = new Map<string, string>();
     const linked = linkAssets([{ type: 'Requirement', id: r.id, label: r.id, text }], input.snapshot.components)
@@ -250,10 +265,8 @@ export function crossCheckRequirements(input: CrossCheckInput): OrgCrossCheck {
           evidence.push(ev(l, 'Required on this page layout (UI only)'));
       }
       for (const v of idx.rulesReferencing(field)) {
-        if (
-          /ISBLANK|ISNULL|LEN\s*\(/i.test(str(v.body?.['errorConditionFormula']) ?? '') &&
-          v.body?.['active'] === true
-        )
+        const formula = str(v.body?.['errorConditionFormula']) ?? '';
+        if (v.body?.['active'] === true && blocksBlank(formula, field.apiName.split('.')[1] ?? ''))
           evidence.push(ev(v, 'active validation rule blocks blank values'));
       }
       push(`required|${field.apiName}`, r, refs, {
