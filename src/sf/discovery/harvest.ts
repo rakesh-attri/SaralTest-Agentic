@@ -547,7 +547,7 @@ export async function harvestFlows(ctx: HarvestContext): Promise<number> {
     const rows = await ctx.sf.query(`SELECT Id, Metadata FROM Flow WHERE Id = '${d.ActiveVersionId}'`, {
       tooling: true,
     });
-    const m = (rows[0])?.['Metadata'];
+    const m = rows[0]?.['Metadata'];
     return m && typeof m === 'object' ? (m as Record<string, unknown>) : undefined;
   });
   defs.forEach((d, i) => {
@@ -650,7 +650,7 @@ export async function harvestLayouts(ctx: HarvestContext): Promise<number> {
     const m = await ctx.sf.query(`SELECT Id, Metadata FROM Layout WHERE Id = '${str(r['Id']) ?? ''}'`, {
       tooling: true,
     });
-    return (m[0])?.['Metadata'] as Record<string, unknown> | undefined;
+    return m[0]?.['Metadata'] as Record<string, unknown> | undefined;
   });
   rows.forEach((r, i) => {
     const object = str(r['TableEnumOrId']) ?? 'Unknown';
