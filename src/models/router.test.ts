@@ -272,3 +272,23 @@ describe('suggestGeminiModels', () => {
     });
   });
 });
+
+describe('suggestGeminiModels — previews', () => {
+  it('keeps the stable pick but reports a newer preview of the same family', () => {
+    const gen = ['generateContent'];
+    const s = suggestGeminiModels([
+      { id: 'gemini-2.5-pro', methods: gen },
+      { id: 'gemini-3.1-pro-preview', methods: gen },
+      { id: 'gemini-3.1-pro-preview-customtools', methods: gen },
+      { id: 'gemini-2.5-pro-preview-tts', methods: gen },
+      { id: 'gemini-3.8-flash', methods: gen },
+      { id: 'gemini-3-flash-preview', methods: gen },
+      { id: 'gemini-3.5-flash-lite', methods: gen },
+      { id: 'gemini-3.8-flash-lite-tts', methods: gen },
+    ]);
+    expect(s.reasoning).toBe('gemini-2.5-pro');
+    expect(s.coder).toBe('gemini-3.8-flash');
+    expect(s.fast).toBe('gemini-3.5-flash-lite');
+    expect(s.newerPreview).toEqual({ pro: 'gemini-3.1-pro-preview' });
+  });
+});

@@ -41,12 +41,12 @@ export const SECRET_ENV_KEYS: readonly EnvKey[] = [
   'SF_ECA_CLIENT_ID',
 ];
 
-/** Treat empty strings and the template's `<...>` placeholders as unset. */
+/** Treat empty strings and values still holding a template `<...>` placeholder as unset. */
 function clean(record: Record<string, string | undefined>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(record)) {
     const t = v?.trim();
-    if (t && !/^<[^<>]+>$/.test(t)) out[k] = t;
+    if (t && !/<[^<>]+>/.test(t)) out[k] = t;
   }
   return out;
 }

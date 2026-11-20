@@ -199,16 +199,20 @@ export async function initTracing(opts: TracingOptions): Promise<Tracing> {
  * Langfuse reachability for `qa doctor`: authenticated GET of the public health endpoint. Keys go in the
  * Authorization header only.
  */
-export async function checkLangfuse(env: Env, timeoutMs = 10_000): Promise<{ ok: boolean; detail: string }> {
+export async function checkLangfuse(
+  env: Env,
+  timeoutMs = 10_000,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ ok: boolean; detail: string }> {
   const { LANGFUSE_PUBLIC_KEY: pk, LANGFUSE_SECRET_KEY: sk } = env;
   const base = (env.LANGFUSE_BASE_URL ?? 'https://cloud.langfuse.com').replace(/\/$/, '');
   if (!pk || !sk) return { ok: false, detail: 'LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY not set' };
   try {
     const auth = Buffer.from(`${pk}:${sk}`).toString('base64');
-    const health = await fetch(`${base}/api/public/health`, { signal: AbortSignal.timeout(timeoutMs) });
+    const health = await fetchImpl(`${base}/api/public/health`, { signal: AbortSignal.timeout(timeoutMs) });
     if (!health.ok) return { ok: false, detail: `${base} health → HTTP ${health.status}` };
     // An authenticated, read-only call proves the keys belong to a project.
-    const proj = await fetch(`${base}/api/public/projects`, {
+    const proj = await fetchImpl(`${base}/api/public/projects`, {
       headers: { authorization: `Basic ${auth}` },
       signal: AbortSignal.timeout(timeoutMs),
     });

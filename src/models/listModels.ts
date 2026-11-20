@@ -25,8 +25,13 @@ const GoogleModels = z.object({
 const IdList = z.object({ data: z.array(z.looseObject({ id: z.string() })).default([]) });
 const OllamaTags = z.object({ models: z.array(z.looseObject({ name: z.string() })).default([]) });
 
-async function getJson(url: string, headers: Record<string, string>, timeoutMs: number): Promise<unknown> {
-  const res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
+async function getJson(
+  url: string,
+  headers: Record<string, string>,
+  timeoutMs: number,
+  fetchImpl: typeof fetch,
+): Promise<unknown> {
+  const res = await fetchImpl(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
   if (!res.ok) throw Object.assign(new Error(`GET ${new URL(url).host} → HTTP ${res.status}`), { status: res.status });
   return res.json();
 }
@@ -39,6 +44,7 @@ export async function listAvailableModels(
   provider: ChatProvider,
   secrets: ProviderSecrets,
   timeoutMs = 15_000,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<AvailableModel[]> {
   switch (provider) {
     case 'google': {
@@ -50,7 +56,7 @@ export async function listAvailableModels(
         const url = new URL('https://generativelanguage.googleapis.com/v1beta/models');
         url.searchParams.set('pageSize', '1000');
         if (pageToken) url.searchParams.set('pageToken', pageToken);
-        const page = GoogleModels.parse(await getJson(url.toString(), { 'x-goog-api-key': key }, timeoutMs));
+        const page = GoogleModels.parse(await getJson(url.toString(), { 'x-goog-api-key': key }, timeoutMs, fetchImpl));
         for (const m of page.models) {
           out.push({
             id: m.name.replace(/^models\//, ''),
@@ -70,6 +76,7 @@ export async function listAvailableModels(
           'https://api.anthropic.com/v1/models?limit=1000',
           { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
           timeoutMs,
+          fetchImpl,
         ),
       );
       return body.data.map((m) => ({ id: m.id, methods: ['messages'] }));
@@ -78,13 +85,13 @@ export async function listAvailableModels(
       const key = await secrets.get('OPENAI_API_KEY');
       if (!key) throw new QAError('TOOL_UNAVAILABLE', 'OPENAI_API_KEY is not set');
       const body = IdList.parse(
-        await getJson('https://api.openai.com/v1/models', { authorization: `Bearer ${key}` }, timeoutMs),
+        await getJson('https://api.openai.com/v1/models', { authorization: `Bearer ${key}` }, timeoutMs, fetchImpl),
       );
       return body.data.map((m) => ({ id: m.id, methods: [] }));
     }
     case 'ollama': {
       const base = secrets.setting('OLLAMA_BASE_URL') ?? 'http://localhost:11434';
-      const body = OllamaTags.parse(await getJson(`${base.replace(/\/$/, '')}/api/tags`, {}, timeoutMs));
+      const body = OllamaTags.parse(await getJson(`${base.replace(/\/$/, '')}/api/tags`, {}, timeoutMs, fetchImpl));
       return body.models.map((m) => ({ id: m.name, methods: ['chat'] }));
     }
     case 'azure-openai':
@@ -100,6 +107,8 @@ export interface ModelSuggestion {
   fast?: string;
   judge?: string;
   embeddings?: string;
+  /** Newer preview/experimental ids that were passed over in favour of a stable one (for the operator to weigh). */
+  newerPreview?: { pro?: string; flash?: string; lite?: string };
 }
 
 /** Compare version-ish ids so newer families sort first (gemini-3.1 > gemini-3 > gemini-2.5). */
@@ -123,15 +132,24 @@ function newerFirst(a: string, b: string): number {
 export function suggestGeminiModels(models: readonly AvailableModel[]): ModelSuggestion {
   const unstable = /preview|exp|experimental|latest|tts|image|audio|live|thinking|computer|robotics|vision|native/i;
   const chat = models.filter((m) => m.methods.includes('generateContent') && /^gemini-/i.test(m.id));
-  const pick = (re: RegExp, exclude?: RegExp): string | undefined => {
+  const previews: { pro?: string; flash?: string; lite?: string } = {};
+  const pick = (slot: 'pro' | 'flash' | 'lite', re: RegExp, exclude?: RegExp): string | undefined => {
     const pool = chat.filter((m) => re.test(m.id) && !(exclude?.test(m.id) ?? false));
     const stable = pool.filter((m) => !unstable.test(m.id)).map((m) => m.id);
-    const any = pool.map((m) => m.id);
-    return [...stable].sort(newerFirst)[0] ?? [...any].sort(newerFirst)[0];
+    // Plain "-preview" ids of the same family (tts/image/live/customtools… stay excluded).
+    const preview = pool
+      .map((m) => m.id)
+      .filter((id) => id.endsWith('-preview') && !unstable.test(id.slice(0, -'-preview'.length)));
+    const chosen = [...stable].sort(newerFirst)[0] ?? [...preview].sort(newerFirst)[0];
+    const newestPreview = [...preview].sort(newerFirst)[0];
+    if (chosen && newestPreview && newestPreview !== chosen && newerFirst(newestPreview, chosen) < 0) {
+      previews[slot] = newestPreview;
+    }
+    return chosen;
   };
-  const pro = pick(/-pro\b/);
-  const flash = pick(/-flash\b/, /lite/);
-  const lite = pick(/flash-lite/);
+  const pro = pick('pro', /-pro\b/);
+  const flash = pick('flash', /-flash\b/, /lite/);
+  const lite = pick('lite', /flash-lite/);
   const embedIds = models.filter((m) => m.methods.includes('embedContent') && /embedding/i.test(m.id)).map((m) => m.id);
   // Prefer the Gemini embedding family over legacy text-embedding-* ids.
   const embed =
@@ -141,5 +159,6 @@ export function suggestGeminiModels(models: readonly AvailableModel[]): ModelSug
     ...(flash ? { coder: flash } : {}),
     ...(lite ? { fast: lite } : flash ? { fast: flash } : {}),
     ...(embed ? { embeddings: embed } : {}),
+    ...(Object.keys(previews).length ? { newerPreview: previews } : {}),
   };
 }

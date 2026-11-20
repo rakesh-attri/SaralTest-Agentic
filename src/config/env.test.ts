@@ -66,3 +66,13 @@ describe('SecretStore', () => {
     expect(status.available).toBe(true);
   });
 });
+
+describe('loadEnv placeholders', () => {
+  it('treats a value that still contains a <placeholder> as unset', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'qa env '));
+    const env = await loadEnv(root, { JIRA_BASE_URL: 'https://<your-site>.atlassian.net', JIRA_EMAIL: 'a@b.example' });
+    expect(env.JIRA_BASE_URL).toBeUndefined();
+    expect(env.JIRA_EMAIL).toBe('a@b.example');
+    await rm(root, { recursive: true, force: true });
+  });
+});
