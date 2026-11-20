@@ -368,22 +368,24 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
 `docs/capability-matrix.md` (implemented / partial / blocked), commit.
 
 ### Phase 0 — Foundation
-- [ ] pnpm workspace, TS strict, ESLint, Prettier, Vitest, `cross-env`; Node LTS check
-- [ ] Config loaders with Zod: models, policy, personas, orgs (profiles), execution (browser), mcp-tools; `.env` + `keytar`
-- [ ] `ModelRouter`: google (`@langchain/google-genai`, **default**), anthropic, openai/azure-openai, ollama; **mock provider**;
+- [x] pnpm workspace, TS strict, ESLint, Prettier, Vitest, `cross-env`; Node LTS check
+- [x] Config loaders with Zod: models, policy, personas, orgs (profiles), execution (browser), mcp-tools; `.env` + `keytar`
+- [x] `ModelRouter`: google (`@langchain/google-genai`, **default**), anthropic, openai/azure-openai, ollama; **mock provider**;
       quotas, timeouts, token accounting, fallback; embeddings via `GoogleGenerativeAIEmbeddings` by default
-- [ ] `SkillLoader`, `Issue`, `classifyError`, `HardStopError`, `resilientNode`, budgets, pino, run folders
-- [ ] MCP client + **tool allow-list** + health checks; audit log; redaction utility; idempotency helper
-- [ ] **Tracing** (`src/observability/`): one OpenTelemetry `NodeTracerProvider` + LangChain/LangGraph instrumentation
+- [x] `SkillLoader`, `Issue`, `classifyError`, `HardStopError`, `resilientNode`, budgets, pino, run folders
+- [x] MCP client + **tool allow-list** + health checks; audit log; redaction utility; idempotency helper
+- [x] **Tracing** (`src/observability/`): one OpenTelemetry `NodeTracerProvider` + LangChain/LangGraph instrumentation
       (instrument ONCE — never add both the Langfuse callback handler and OpenInference, or spans duplicate), with
       switchable span processors from `config/observability.yaml`: Langfuse (`@langfuse/otel` LangfuseSpanProcessor,
       primary, Langfuse Cloud keys from `.env`) and Phoenix (OTLP exporter, optional). Redaction runs before export; no
       screenshots in traces; exporter failure = warning only, never stops a run. Tag traces with runId, storyKey, org
       profile, agent, persona. `qa doctor` checks Langfuse reachability. (Langfuse's own skill from
       github.com/langfuse/skills may be used as reference, but these rules win.)
-- [ ] Offline Salesforce fixture skeleton (`examples/fixture/`: mock REST/SOQL + static Lightning-like pages)
-- [ ] `qa doctor`
+- [x] Offline Salesforce fixture skeleton (`examples/fixture/`: mock REST/SOQL + static Lightning-like pages)
+- [x] `qa doctor`
 - **Exit:** `qa doctor` green or each fallback explained; unit tests for router, resilience, allow-list, redaction pass.
+- **Status (2026-11-20):** exit criteria met — see `docs/phase-0-notes.md` and `docs/capability-matrix.md`. Secret store uses
+  `@napi-rs/keyring` (keytar-compatible) by operator decision.
 
 ### Phase 1 — Inputs & clarification
 - [ ] All input adapters (§7a) → canonical `Requirement`; `REVIEW_REQUIRED` status
