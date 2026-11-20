@@ -55,7 +55,7 @@ describe('sectionize', () => {
   });
 
   it('does not treat numbered steps as headings and de-duplicates repeated refs', () => {
-    const s = sectionize('## Steps\n1. Open the Account named \'X\'\n2. Leave the field empty\n\nAC1 a\nAC1 b');
+    const s = sectionize("## Steps\n1. Open the Account named 'X'\n2. Leave the field empty\n\nAC1 a\nAC1 b");
     expect(s.map((x) => x.ref)).toEqual(['S1', 'AC1', 'AC1#2']);
     expect(s[0]?.text).toContain('2. Leave the field empty');
   });

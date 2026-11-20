@@ -61,8 +61,7 @@ export class SqliteCheckpointSaver extends MemorySaver {
     if (threadId === undefined || this.loaded.has(threadId)) return;
     this.loaded.add(threadId);
     const row = this.db.prepare('SELECT storage, writes FROM lg_threads WHERE thread_id = ?').get(threadId) as
-      | { storage: string; writes: string }
-      | undefined;
+      { storage: string; writes: string } | undefined;
     if (!row) return;
     const storage = decode(row.storage) as Storage[string];
     const writes = decode(row.writes) as Writes;

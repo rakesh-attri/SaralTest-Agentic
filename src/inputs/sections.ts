@@ -22,7 +22,8 @@ export function normalizeText(text: string): string {
 }
 
 /** `AC1`, `AC 1`, `AC-1`, `AC#1`, `Acceptance criterion 1` → `AC1`. */
-const AC_LINE = /^\s*(?:[-*]\s*)?(?:\*\*)?(?:AC|Acceptance\s+criteri(?:on|a))\s*[-#:]?\s*(\d{1,3})\b(?:\*\*)?\s*[:.–—-]?\s*/i;
+const AC_LINE =
+  /^\s*(?:[-*]\s*)?(?:\*\*)?(?:AC|Acceptance\s+criteri(?:on|a))\s*[-#:]?\s*(\d{1,3})\b(?:\*\*)?\s*[:.–—-]?\s*/i;
 /** `BR-03`, `NFR-01`, `A-02`, `REQ-12` at the start of a line or table row. */
 const ID_LINE = /^\s*(?:[-*|]\s*)?(?:\*\*)?([A-Z][A-Z0-9]{0,7})-(\d{1,4})\b(?:\*\*)?\s*[:|.–—-]?\s*/;
 /** Further ids inside one paragraph after a sentence end: `… quarter. A-03: …` */
@@ -49,7 +50,8 @@ const BOLD_LABEL = /^\s*\*\*([^*]{2,60}?):?\*\*:?\s*(.*)$/;
 /** Mentions of requirement-like ids anywhere in a text (AC numbers normalized). */
 export function findRefs(text: string): string[] {
   const out = new Set<string>();
-  for (const m of text.matchAll(/\b(?:AC|Acceptance\s+criteri(?:on|a))\s*[-#]?\s*(\d{1,3})\b/gi)) out.add(`AC${m[1] ?? ''}`);
+  for (const m of text.matchAll(/\b(?:AC|Acceptance\s+criteri(?:on|a))\s*[-#]?\s*(\d{1,3})\b/gi))
+    out.add(`AC${m[1] ?? ''}`);
   for (const m of text.matchAll(/\b([A-Z][A-Z0-9]{0,7})-(\d{1,4})\b/g)) {
     if (m[1] !== 'AC') out.add(`${m[1] ?? ''}-${m[2] ?? ''}`);
   }
@@ -63,6 +65,7 @@ export function kindForPrefix(prefix: string): SectionKind {
   if (p === 'NFR' || p === 'NF') return 'nfr';
   if (p === 'A' || p === 'ASM' || p === 'AS' || p === 'ASSUMP') return 'assumption';
   if (p === 'TC' || p === 'MTC' || p === 'T') return 'test';
+  if (p === 'CM') return 'text'; // JIRA comments (adapter numbering)
   return 'rule';
 }
 
@@ -182,7 +185,10 @@ export function sectionize(raw: string, opts: SectionizeOptions = {}): SourceSec
     ref: d.ref,
     kind: d.kind,
     ...(d.heading ? { heading: d.heading } : {}),
-    text: d.lines.join('\n').replace(/\n{2,}/g, '\n').trim(),
+    text: d.lines
+      .join('\n')
+      .replace(/\n{2,}/g, '\n')
+      .trim(),
   }));
 }
 
