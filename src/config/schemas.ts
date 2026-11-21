@@ -49,6 +49,13 @@ export const ModelRef = z.object({
   model: z.string().min(1),
   /** Set false for models that reject tool calls; skills are then inlined into the prompt instead of `load_skill`. */
   tools: z.boolean().optional(),
+  /**
+   * OpenAI-compatible providers: ask the endpoint for JSON output (`response_format: { type: "json_object" }`).
+   * Measured 2026-11-21: NIM poolside/laguna-xs-2.1 produced a valid test IR only in this mode; Groq gpt-oss-120b
+   * rejects it (HTTP 400 json_validate_failed) — leave it unset there. JSON mode replaces tool calling for the model
+   * (skills are inlined).
+   */
+  responseFormat: z.enum(['json_object']).optional(),
 });
 export type ModelRef = z.infer<typeof ModelRef>;
 
@@ -334,7 +341,10 @@ export const ExecutionConfig = z.object({
    */
   a11y: z
     .object({
-      customNamespaces: z.array(z.string().regex(/^[a-z][a-z0-9_]*$/)).min(1).default(['c']),
+      customNamespaces: z
+        .array(z.string().regex(/^[a-z][a-z0-9_]*$/))
+        .min(1)
+        .default(['c']),
       standardNamespaces: z
         .array(z.string().min(1))
         .default(['lightning', 'force', 'records', 'one', 'forcegenerated', 'runtime_', 'flexipage', 'slds']),

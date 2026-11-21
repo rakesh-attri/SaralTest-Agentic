@@ -35,6 +35,9 @@ Rules (from the playwright-standards, salesforce-lightning-locators and salesfor
     `length` value over the limit) with the metadata error code; never query an existing record for it.
   - "appears in the related list" → `relatedListHasRecord` with the same value the test typed.
   - a record created through the UI → `adopt` it with the SAME `unique` value the test typed into it.
+    Type `unique` values into a form the test fills itself; never recipe `data` values for a record it creates in the UI.
+  - changing fields of an existing record → `apiUpdate` (record pages have no edit-form elements in the catalog);
+    say so in `notes`.
   - "all fields reachable by keyboard" → `tabOrder` over EVERY field of the dialog (all textbox/combobox/checkbox
     members of that page) plus its Save/Cancel buttons.
 - Use `notes` for substitutions and assumptions a reviewer must see. Do not restate the case.

@@ -144,6 +144,21 @@ export function renderBuildReport(s: QAGraphStateType, status: string): string {
       );
     }
   }
+  const attempts = s.buildSpecs.flatMap((x) => (x.attempts ?? []).map((a) => ({ caseId: x.caseId, ...a })));
+  if (attempts.length) {
+    L.push(
+      '',
+      '## Model attempts (last build round per case)',
+      '',
+      '| Case | Model | Attempt | Outcome | Problems / error |',
+      '|---|---|---|---|---|',
+    );
+    for (const a of attempts) {
+      L.push(
+        `| ${a.caseId} | ${a.model} | ${a.attempt} | ${a.outcome} | ${md((a.problems ?? []).slice(0, 3).join(' · ').slice(0, 400))} |`,
+      );
+    }
+  }
   const dr = s.buildChecks.dryRun;
   if (dr) {
     L.push(
@@ -198,6 +213,20 @@ export async function writeBuildReport(s: QAGraphStateType, runDir: string, stat
   );
   await put('review-pass2.json', `${JSON.stringify(s.pass2Findings, null, 2)}\n`);
   if (s.buildChecks.toolchain) await put('toolchain.json', `${JSON.stringify(s.buildChecks.toolchain, null, 2)}\n`);
+  await put(
+    'model-attempts.json',
+    `${JSON.stringify(
+      s.buildSpecs.map((x) => ({
+        caseId: x.caseId,
+        model: x.model,
+        origin: x.artifact.origin,
+        attempts: x.attempts ?? [],
+      })),
+      null,
+      2,
+    )}
+`,
+  );
   if (s.buildChecks.dryRun) await put('dry-run.json', `${JSON.stringify(s.buildChecks.dryRun, null, 2)}\n`);
   for (const x of s.buildSpecs)
     if (x.ir) await put(join('ir', `${x.caseId}.json`), `${JSON.stringify(x.ir, null, 2)}\n`);

@@ -56,6 +56,24 @@
           ]
         },
         {
+          "name": "BillingStreet",
+          "label": "Billing Street",
+          "type": "textarea",
+          "length": 255
+        },
+        {
+          "name": "BillingCity",
+          "label": "Billing City",
+          "type": "string",
+          "length": 40
+        },
+        {
+          "name": "BillingPostalCode",
+          "label": "Billing Zip/Postal Code",
+          "type": "string",
+          "length": 20
+        },
+        {
           "name": "BillingCountry",
           "label": "Billing Country",
           "type": "string",
@@ -122,6 +140,24 @@
           "label": "Phone",
           "type": "phone",
           "length": 40
+        },
+        {
+          "name": "MailingStreet",
+          "label": "Mailing Street",
+          "type": "textarea",
+          "length": 255
+        },
+        {
+          "name": "MailingCity",
+          "label": "Mailing City",
+          "type": "string",
+          "length": 40
+        },
+        {
+          "name": "MailingPostalCode",
+          "label": "Mailing Zip/Postal Code",
+          "type": "string",
+          "length": 20
         },
         {
           "name": "MailingCountry",

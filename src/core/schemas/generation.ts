@@ -11,6 +11,16 @@ import { ReviewStatus } from './testCase.js';
 /** `<pageId>.<member>`, e.g. `contact-new.lastName`. */
 export const ElementRef = z.string().regex(/^[a-z][a-z0-9-]*\.[a-zA-Z][a-zA-Z0-9]*$/, '<pageId>.<member>');
 
+/** `contactLastName` / `Contact Last_Name` → `contact-last-name`. */
+export function toLabel(raw: string): string {
+  const k = raw
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return /^[a-z]/.test(k) ? k : `v-${k || 'value'}`;
+}
+
 export const ValueRef = z.discriminatedUnion('kind', [
   /** A field value of a record from the data plan (recipe step alias + field). */
   z.object({ kind: z.literal('data'), ref: z.string().min(1), field: z.string().min(1) }),
@@ -30,7 +40,12 @@ export const ValueRef = z.discriminatedUnion('kind', [
    */
   z.object({
     kind: z.literal('unique'),
-    label: z.string().regex(/^[a-z][a-z0-9-]*$/),
+    /** Normalised to lowercase-kebab (models often answer `contactLastName`): meaning-preserving. */
+    label: z
+      .string()
+      .min(1)
+      .transform(toLabel)
+      .pipe(z.string().regex(/^[a-z][a-z0-9-]*$/)),
     format: z.enum(['text', 'email', 'phone']).default('text'),
   }),
 ]);
@@ -72,7 +87,12 @@ export const IrAssertion = z.discriminatedUnion('check', [
   z.object({ check: z.literal('fieldError'), element: ElementRef, expect: ExpectationRef }),
   z.object({ check: z.literal('toast'), contains: ValueRef.optional(), expect: ExpectationRef }),
   /** The record view of `object` is shown; the new record id is kept under `as` (for later SOQL checks/adopt). */
-  z.object({ check: z.literal('recordView'), object: z.string().min(1), as: z.string().optional(), expect: ExpectationRef }),
+  z.object({
+    check: z.literal('recordView'),
+    object: z.string().min(1),
+    as: z.string().optional(),
+    expect: ExpectationRef,
+  }),
   /** The record page header (h1) shows the value. */
   z.object({ check: z.literal('recordTitle'), contains: ValueRef, expect: ExpectationRef }),
   z.object({

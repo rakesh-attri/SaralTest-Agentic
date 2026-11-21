@@ -130,11 +130,29 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
   const member = (ref: string, roles?: Set<string>, interact = false): CatalogPage | undefined => {
     const m = findMember(ctx.catalog, ref);
     if (!m) {
-      p.push(`element ${ref} is not a page-object member (use only refs from the catalog)`);
+      const page = ctx.catalog.pages.find((x) => x.id === ref.slice(0, ref.indexOf('.')));
+      p.push(
+        `element ${ref} is not a page-object member (use only refs from the catalog)` +
+          (page?.kind === 'record'
+            ? `. The catalog has no edit-form fields on ${page.className}: to change field values of an existing record use {"do":"apiUpdate","ref":"<recipe step>","fields":{...}} and note the substitution in notes`
+            : ''),
+      );
       return undefined;
     }
     if (roles && (!m.member.role || !roles.has(m.member.role))) {
-      p.push(`element ${ref} has role ${m.member.role ?? '?'}; this action needs ${[...roles].join('/')}`);
+      const fields = m.page.members
+        .filter(
+          (x) =>
+            x.kind === 'element' &&
+            x.role &&
+            roles.has(x.role) &&
+            (x.scopeName === m.member.accessibleName || !x.scopeName),
+        )
+        .slice(0, 6)
+        .map((x) => x.ref);
+      p.push(
+        `element ${ref} has role ${m.member.role ?? '?'}; this action needs ${[...roles].join('/')}${fields.length ? ` (e.g. ${fields.join(', ')})` : ''}`,
+      );
     }
     if (!onScreen.includes(m.page.id)) {
       p.push(
@@ -279,7 +297,7 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
           p.push(`${where}: adopt needs a run-unique text value (kind unique, format text) — never foreign data`);
         } else if (!typedUniques.has(a.value.label)) {
           p.push(
-            `${where}: adopt must use the same unique value the test typed into the record (a fill with unique label "${a.value.label}" before it)`,
+            `${where}: adopt must use the same unique value the test typed into the record. Type it first: {"do":"fill","element":"<the ${a.field} field>","value":{"kind":"unique","label":"${a.value.label}"}} — never a recipe "data" value for a record the test creates in the UI`,
           );
         }
         if (!ctx.facts.field(a.object, a.field)) p.push(`${where}: ${a.object}.${a.field} is not in the snapshot`);
@@ -376,4 +394,83 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
 
 function labels(cat: PageCatalog): string[] {
   return cat.pages.flatMap((p) => p.members.map((m) => m.accessibleName ?? '')).filter(Boolean);
+}
+
+/**
+ * Meaning-preserving clean-up of a parsed IR before the checks (seen with the NIM coder, run-p4-coder-nim-1): record
+ * refs given as a page id / page ref / class / object name (`account-record.root`, `AccountRecordPage`, `account`)
+ * become the recipe step id of that object (`Account`) — only when exactly one recipe step has that object.
+ * Anything ambiguous is left as is, so the checks still reject it.
+ */
+export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeView | undefined): TestIR {
+  const steps = recipe?.plan.steps ?? [];
+  const named = new Set<string>(); // names the IR itself introduces (adopt / recordView `as`)
+  for (const st of ir.steps) {
+    for (const a of st.actions) if (a.do === 'adopt') named.add(a.as);
+    for (const a of st.assertions) if (a.check === 'recordView' && a.as) named.add(a.as);
+  }
+  const objectOf = (v: string): string | undefined => {
+    const base = v.includes('.') ? v.slice(0, v.indexOf('.')) : v;
+    const page = ctx.catalog.pages.find((p) => p.id === base || p.className === base || p.id === v);
+    if (page) return page.object;
+    return steps.find((s) => s.object.toLowerCase() === v.toLowerCase())?.object;
+  };
+  const ref = (v: string): string => {
+    if (named.has(v) || steps.some((s) => s.stepId === v)) return v;
+    const obj = objectOf(v);
+    const matches = obj ? steps.filter((s) => s.object === obj) : [];
+    return matches.length === 1 && matches[0] ? matches[0].stepId : v;
+  };
+  const val = (x: ValueRef): ValueRef => (x.kind === 'data' || x.kind === 'recordId' ? { ...x, ref: ref(x.ref) } : x);
+  const fields = (f: Record<string, ValueRef>): Record<string, ValueRef> =>
+    Object.fromEntries(Object.entries(f).map(([k, x]) => [k, val(x)]));
+  const action = (a: IrAction): IrAction => {
+    switch (a.do) {
+      case 'openRecord':
+        return { ...a, ref: ref(a.ref), object: objectOf(a.object) ?? a.object };
+      case 'openNewFromRelatedList':
+        return { ...a, parentRef: ref(a.parentRef), relatedList: canonicalList(ctx.catalog, a.relatedList) };
+      case 'fill':
+        return { ...a, value: val(a.value) };
+      case 'apiUpdate':
+        return { ...a, ref: ref(a.ref), fields: fields(a.fields) };
+      case 'adopt':
+        return { ...a, object: objectOf(a.object) ?? a.object, value: val(a.value) };
+      default:
+        return a;
+    }
+  };
+  const assertion = (a: IrAssertion): IrAssertion => {
+    switch (a.check) {
+      case 'inputValue':
+        return { ...a, equals: val(a.equals) };
+      case 'toast':
+        return a.contains ? { ...a, contains: val(a.contains) } : a;
+      case 'recordTitle':
+        return { ...a, contains: val(a.contains) };
+      case 'relatedListHasRecord':
+        return {
+          ...a,
+          parentRef: ref(a.parentRef),
+          relatedList: canonicalList(ctx.catalog, a.relatedList),
+          name: val(a.name),
+        };
+      case 'soqlField':
+        return { ...a, ref: ref(a.ref), equals: val(a.equals) };
+      case 'soqlNoRecord':
+        return { ...a, value: val(a.value) };
+      case 'apiRejects':
+        return { ...a, basedOn: ref(a.basedOn), fields: fields(a.fields) };
+      case 'historyTracked':
+        return { ...a, ref: ref(a.ref) };
+      default:
+        return a;
+    }
+  };
+  const data = [...new Set(ir.data.map(ref))];
+  return {
+    ...ir,
+    data,
+    steps: ir.steps.map((st) => ({ ...st, actions: st.actions.map(action), assertions: st.assertions.map(assertion) })),
+  };
 }

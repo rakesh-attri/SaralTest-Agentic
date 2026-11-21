@@ -44,7 +44,9 @@ embeddings:
 #   openai-compatible: { baseURL: https://example.internal/v1, apiKeyEnv: OPENAI_COMPATIBLE_API_KEY }
 quotas:                            # per provider, shared by all roles; check your account's real limits
   nvidia-nim: { requestsPerMinute: 40 }
-  groq: { requestsPerMinute: 30, tokensPerMinute: 6000 }
+  # Groq on_demand tier, read from x-ratelimit headers 2026-11-21: gpt-oss-120b 8,000 TPM; qwen3.8-27b 7,000 input +
+  # 1,000 OUTPUT tokens/minute. One generator call (~3k prompt + ~3k reasoning output) uses most of a minute.
+  groq: { requestsPerMinute: 30, tokensPerMinute: 8000 }
   google: { requestsPerMinute: 15 }
   # maxWaitMs (default 20000): longest wait for quota before failing over to the next model in the chain
 budgets:

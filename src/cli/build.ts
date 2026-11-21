@@ -20,7 +20,7 @@ import { LocatorRegistry } from '../knowledge/locatorRegistry.js';
 import { SnapshotStore } from '../knowledge/snapshotStore.js';
 import { createSfContext } from '../sf/context.js';
 import { buildDataPlan, loadRecipe, RECIPE_DIR, SnapshotFacts } from '../sf/data/plan.js';
-import { createRuntime } from './analyze.js';
+import { createRuntime, parseModelChain } from './analyze.js';
 import { registryFile } from './locators.js';
 
 type Say = (msg: string) => void;
@@ -64,6 +64,8 @@ export interface BuildRuntimeOptions {
   designRunId: string;
   storyKey: string;
   offline?: boolean;
+  /** Partial rebuild (`--cases`): keep the other specs and manifest entries. */
+  merge?: boolean;
   say: Say;
 }
 
@@ -133,6 +135,7 @@ export function createBuild(
   };
   return {
     build: hook,
+    ...(o.merge ? { merge: true } : {}),
     toolchain: (files) => runToolchain(o.root, files),
     ...(o.offline
       ? {}
@@ -183,6 +186,11 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
     .option('--run-id <id>', 'run id (default build-<timestamp>)')
     .option('--autonomy <level>', 'L1 | L2 | L3 (default: policy.yaml / QA_AUTONOMY)')
     .option('--offline', 'no model calls and no org/browser: mechanical skeletons, no dry-run')
+    .option(
+      '--coder <chain>',
+      'coder models for this run only, in order, no other fallback: provider/model[,provider/model…] (append :json for response_format json_object, :no-tools to inline skills)',
+    )
+    .option('--cases <ids>', 'rebuild only these APPROVED cases (comma-separated); other generated specs are kept')
     .action(
       async (o: {
         fromRun: string;
@@ -191,9 +199,28 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
         runId?: string;
         autonomy?: string;
         offline?: boolean;
+        coder?: string;
+        cases?: string;
       }) => {
         const root = rootOf();
         const seed = loadDesignRun(root, o.fromRun);
+        const only = o.cases
+          ?.split(',')
+          .map((x) => x.trim())
+          .filter(Boolean);
+        if (only) {
+          const unknown = only.filter(
+            (id) => !seed.testCases.some((c) => c.id === id && c.reviewStatus === 'APPROVED'),
+          );
+          if (unknown.length) throw new QAError('DATA', `not APPROVED cases of ${o.fromRun}: ${unknown.join(', ')}`);
+          seed.testCases = seed.testCases.filter((c) => only.includes(c.id));
+        }
+        const coderChain = o.coder ? parseModelChain(o.coder) : undefined;
+        if (coderChain) {
+          say(
+            `Coder chain for this run: ${coderChain.map((m) => `${m.provider}/${m.model}${m.responseFormat ? ' (JSON mode)' : ''}${m.tools === false ? ' (no tools)' : ''}`).join(' → ')} (no other fallback).`,
+          );
+        }
         const approved = seed.testCases.filter((c) => c.reviewStatus === 'APPROVED');
         say(
           `Build for ${seed.storyKey} from design run ${o.fromRun} (${seed.info.status}, ${seed.info.designEnvironment ?? '?'}): ${approved.length} APPROVED of ${seed.testCases.length} cases.`,
@@ -202,6 +229,8 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
         const rt = await createRuntime({
           root,
           say,
+          logFile: runPaths(root, runId).runLog,
+          ...(coderChain ? { roleChains: { coder: coderChain } } : {}),
           ...(o.offline ? { offline: true } : {}),
           build: createBuild({
             root,
@@ -211,6 +240,7 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
             designRunId: o.fromRun,
             storyKey: seed.storyKey,
             ...(o.offline ? { offline: true } : {}),
+            ...(only ? { merge: true } : {}),
             say,
           }),
         });

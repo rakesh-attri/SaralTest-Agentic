@@ -10,9 +10,10 @@ import type { TestCase } from '../../core/schemas/testCase.js';
 import type { ModelRouter } from '../../models/router.js';
 import type { Redactor } from '../../security/redact.js';
 import type { SkillLoader } from '../../skills/skillLoader.js';
-import { runStructured } from '../shared/structured.js';
-import { bindRecipe, irProblems, type GenerationContext, type RecipeView } from './context.js';
+import { runStructured, type AttemptRecord } from '../shared/structured.js';
+import { bindRecipe, irProblems, normalizeIr, type GenerationContext, type RecipeView } from './context.js';
 import { hashText } from './pageObjects.js';
+import { catalogText, factsText, IR_CONTRACT, relevantCatalog } from './promptParts.js';
 import { locatorsUsed, renderSkeleton, renderSpec, specPath } from './render.js';
 
 export const TEST_GENERATOR_SKILLS = [
@@ -50,6 +51,8 @@ export interface GeneratedSpec {
   problems: string[];
   model: string;
   degradedReason?: string;
+  /** Every model attempt for this case (model, outcome, problems / error) — kept for the run log and report. */
+  attempts?: AttemptRecord[];
 }
 
 export interface GenerateResult {
@@ -79,52 +82,6 @@ export function caseHash(tc: TestCase): string {
   );
 }
 
-function catalogText(ctx: GenerationContext): string {
-  return ctx.catalog.pages
-    .map(
-      (p) =>
-        `${p.className} (${p.id}, ${p.kind}${p.kind === 'record' ? `, object ${p.object}` : ''}):\n` +
-        p.members
-          .map(
-            (m) =>
-              `  ${m.ref} · ${m.role ?? m.kind} "${m.accessibleName ?? ''}"${m.fieldApiName ? ` · ${m.fieldApiName}` : ''}${m.scopeName ? ` · in "${m.scopeName}"` : ''}${m.status === 'RE_VERIFY' ? ' · RE_VERIFY' : ''}`,
-          )
-          .join('\n'),
-    )
-    .join('\n');
-}
-
-function factsText(ctx: GenerationContext, recipe: RecipeView | undefined): string {
-  const objects = [
-    ...new Set([...(recipe?.plan.steps.map((s) => s.object) ?? []), ...ctx.catalog.pages.map((p) => p.object)]),
-  ];
-  const lines: string[] = [];
-  for (const o of objects) {
-    const fields = new Set<string>([
-      ...(recipe?.plan.steps.filter((s) => s.object === o).flatMap((s) => Object.keys(s.fields)) ?? []),
-      ...ctx.catalog.pages
-        .flatMap((p) => p.members.map((m) => m.fieldApiName))
-        .filter((f): f is string => f?.startsWith(`${o}.`) === true)
-        .map((f) => f.split('.')[1] ?? ''),
-    ]);
-    for (const f of [...fields].sort()) {
-      const fact = ctx.facts.field(o, f);
-      if (fact)
-        lines.push(
-          `${o}.${f} · ${fact.type}${fact.length ? ` · ${fact.length}` : ''}${fact.required ? ' · required' : ''}`,
-        );
-    }
-    for (const vr of ctx.facts.activeValidationRules(o)) {
-      const text = (k: string): string => {
-        const v = vr.body?.[k];
-        return typeof v === 'string' ? v : '';
-      };
-      lines.push(`${o} rule ${vr.apiName}: "${text('errorMessage')}" when ${text('errorConditionFormula')}`);
-    }
-  }
-  return lines.join('\n');
-}
-
 function recipeText(recipe: RecipeView | undefined): string {
   if (!recipe) return '(no approved recipe covers this case: do not create data)';
   return recipe.plan.steps
@@ -139,6 +96,42 @@ function recipeText(recipe: RecipeView | undefined): string {
     .join('\n');
 }
 
+/** The generator's instructions and task for one case (exported so probes can measure the real prompt). */
+export function generatorPrompt(
+  ctx: GenerationContext,
+  tc: TestCase,
+  recipe: RecipeView | undefined,
+  prior: readonly string[] = [],
+): { system: string; user: string } {
+  const prompts = loadPrompts();
+  const pages = relevantCatalog(ctx, tc, recipe);
+  return {
+    system: fill(prompts['generate'] ?? '', { storyKey: ctx.storyKey, recipe: recipe?.name ?? 'none' }),
+    user:
+      fill(prompts['user'] ?? '', {
+        case: JSON.stringify(
+          {
+            id: tc.id,
+            title: tc.title,
+            type: tc.type,
+            persona: tc.persona,
+            preconditions: tc.preconditions,
+            steps: tc.steps.map((s, i) => ({ caseStep: i, action: s.action, expected: s.expected })),
+          },
+          null,
+          1,
+        ),
+        recipeSteps: recipeText(recipe),
+        catalog: catalogText(pages),
+        facts: factsText(ctx, pages, recipe),
+        caseId: tc.id,
+      }) +
+      (prior.length
+        ? `\n\nReviewer findings on your previous test for this case (fix them):\n- ${prior.join('\n- ')}`
+        : ''),
+  };
+}
+
 /** Generate one spec per APPROVED case. Cases that are not APPROVED are never generated (Phase 3 decided). */
 export async function generateTests(
   ctx: GenerationContext,
@@ -148,7 +141,6 @@ export async function generateTests(
   /** Pass-2 findings to reflect into a regeneration, per case id. */
   feedback: Record<string, string[]> = {},
 ): Promise<GenerateResult> {
-  const prompts = loadPrompts();
   const specs: GeneratedSpec[] = [];
   const degraded: GenerateResult['degraded'] = [];
   const models = new Set<string>();
@@ -158,7 +150,7 @@ export async function generateTests(
     const recipe = bindRecipe(tc, ctx);
     const ch = caseHash(tc);
     const path = specPath(ctx.storyKey, tc);
-    const skeleton = (reason: string): void => {
+    const skeleton = (reason: string, attempts: AttemptRecord[] = []): void => {
       const text = renderSkeleton(tc, ctx, reason, ch);
       degraded.push({ caseId: tc.id, reason });
       specs.push({
@@ -166,6 +158,7 @@ export async function generateTests(
         path,
         text,
         problems: [reason],
+        attempts,
         model: 'mechanical',
         degradedReason: reason,
         artifact: {
@@ -193,30 +186,10 @@ export async function generateTests(
         role: 'coder',
         agent: 'test-generator',
         schema: TestIR,
-        system: fill(prompts['generate'] ?? '', { storyKey: ctx.storyKey, recipe: recipe?.name ?? 'none' }),
-        user:
-          fill(prompts['user'] ?? '', {
-            case: JSON.stringify(
-              {
-                id: tc.id,
-                title: tc.title,
-                type: tc.type,
-                persona: tc.persona,
-                preconditions: tc.preconditions,
-                steps: tc.steps.map((s, i) => ({ caseStep: i, action: s.action, expected: s.expected })),
-              },
-              null,
-              1,
-            ),
-            recipeSteps: recipeText(recipe),
-            catalog: catalogText(ctx),
-            facts: factsText(ctx, recipe),
-            caseId: tc.id,
-          }) +
-          (prior.length
-            ? `\n\nReviewer findings on your previous test for this case (fix them):\n- ${prior.join('\n- ')}`
-            : ''),
+        ...generatorPrompt(ctx, tc, recipe, prior),
+        contract: IR_CONTRACT,
         ...(deps.skills ? { skills: { loader: deps.skills, names: TEST_GENERATOR_SKILLS } } : {}),
+        normalize: (ir) => normalizeIr(ir, ctx, recipe),
         check: (ir) => irProblems(tc, ir, ctx, recipe),
         ...(deps.redactor ? { redactor: deps.redactor } : {}),
         ...(deps.logger ? { logger: deps.logger } : {}),
@@ -232,6 +205,7 @@ export async function generateTests(
         text,
         ir,
         problems: [],
+        attempts: r.attempts,
         model: r.model,
         artifact: {
           kind: 'spec',
@@ -249,7 +223,8 @@ export async function generateTests(
       });
     } catch (e) {
       if (!(e instanceof QAError) || (e.kind !== 'INVALID_LLM_OUTPUT' && e.kind !== 'TOOL_UNAVAILABLE')) throw e;
-      skeleton(`${e.kind}: ${e.message}`);
+      const log = e.detail?.['attemptLog'];
+      skeleton(`${e.kind}: ${e.message}`, Array.isArray(log) ? (log as AttemptRecord[]) : []);
     }
   }
   const environment = envs.has('MOCK') ? 'MOCK' : envs.has('LIVE') ? 'LIVE' : 'NONE';

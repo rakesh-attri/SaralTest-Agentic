@@ -253,14 +253,15 @@ export function registerDesign(program: Command, rootOf: () => string, say: Say)
         say(
           `Design for ${seed.storyKey} from run ${o.fromRun}: ${String(seed.requirements.length)} requirements, ${String(seed.existingTests.length)} manual tests, ${String(seed.sources.length)} sources`,
         );
+        const runId = o.runId ?? newRunId('design');
         const rt = await createRuntime({
           root,
           say,
+          logFile: runPaths(root, runId).runLog,
           ...(o.offline ? { offline: true } : {}),
           design: createDesignHook({ root, orgAlias: o.org, snapshotId: o.snapshot }),
         });
         try {
-          const runId = o.runId ?? newRunId('design');
           if (rt.checkpointer.threads().includes(runId)) {
             throw new QAError(
               'DATA',
