@@ -21,7 +21,9 @@
     "test:watch": "vitest",
     "test:integration": "cross-env QA_INTEGRATION=1 vitest run tests/integration",
     "validate:analysis": "tsx scripts/validate-analysis.ts",
-    "validate:design": "tsx scripts/validate-design.ts"
+    "validate:design": "tsx scripts/validate-design.ts",
+    "validate:build": "tsx scripts/validate-build.ts",
+    "validate:data": "tsx scripts/validate-build.ts --data"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

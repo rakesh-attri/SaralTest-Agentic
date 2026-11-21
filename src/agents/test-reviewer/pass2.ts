@@ -187,7 +187,7 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
       }
     }
     for (const tag of [`@${tc.type}`, `@persona:${tc.persona}`]) {
-      if (!spec.text.includes(`'${tag}'`)) {
+      if (!spec.text.includes(`'${tag}'`) && !spec.text.includes(`"${tag}"`)) {
         add({
           ...base,
           key: `tag:${tc.id}:${tag}`,

@@ -15,6 +15,7 @@ import { Redactor } from '../security/redact.js';
 import { Autonomy, type InputRequest } from '../core/state.js';
 import { createReadline, createRuntime, loadAnswersFile, resumeAnalysis, startAnalysis, summary } from './analyze.js';
 import { registerAuth } from './auth.js';
+import { registerBuild } from './build.js';
 import { registerData } from './data.js';
 import { createDiscoverHook, registerDiscover } from './discover.js';
 import { createDesignHook, designSummary, registerDesign } from './design.js';
@@ -81,6 +82,7 @@ export function buildCli(): Command {
   registerLocators(program, rootOf, say);
   registerIngest(program, rootOf, say);
   registerDesign(program, rootOf, say);
+  registerBuild(program, rootOf, say);
   registerData(program, rootOf, say);
 
   const mcp = program.command('mcp').description('MCP server utilities');

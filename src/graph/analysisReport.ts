@@ -11,7 +11,7 @@ const md = (s: string): string => s.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ')
 
 export function finalStatus(s: QAGraphStateType): QAGraphStateType['status'] {
   if (s.status === 'BLOCKED') return 'BLOCKED';
-  if (!s.requirements.length) return 'PARTIAL';
+  if (!s.requirements.length && !s.buildSpecs.length) return 'PARTIAL';
   const unfinished = s.issues.some(
     (i) =>
       i.kind !== 'AMBIGUOUS_SPEC' && (i.resolution === 'DEGRADED' || i.resolution === 'ESCALATED' || !i.resolution),
