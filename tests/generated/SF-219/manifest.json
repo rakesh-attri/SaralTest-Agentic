@@ -175,10 +175,11 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-003 locator-not-active: contact-new.phone is RE_VERIFY in the registry (the org changed since it was verified)"
+        "RF-001 assertion-missing: step 1 tabOrder: the keyboard check must cover every field of contact-new.root; missing contact-new.qARunId"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-coder-nim-8"
+      "buildRun": "run-p4-coder-nim-8",
+      "reviewedBy": "review2-20261121-153613-91da"
     },
     {
       "kind": "spec",

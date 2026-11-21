@@ -210,6 +210,32 @@ The committed SF-219 set is nim-8 plus tc004-3, merged:
 
 Run-to-run variance remains: 4–6 of 7 cases come from the coder per full build.
 
+## Fresh snapshot, Phone rule re-verification, TC-022 pass 2 (2026-11-21, afternoon)
+
+- **`qa discover --org qa-prod`** (`run-p4-discover-2`) → snapshot `snap-00DdN00000uQ5dK-20261121095503-c1ce`
+  (409 components). The diff against `…e218` shows the admin's changes:
+  - added `Contact.Phone_Required_For_Web` (Phone required when Lead Source = Web);
+  - added `Contact.Title_Must_Be_Approved` (approved Title list);
+  - added the active duplicate rule `Contact.Contact_Same_Email_Same_Account`;
+  - Account / Contact `childRelationships` changed. This object-level change propagated RE_VERIFY to most
+    Account/Contact locators, 10 manual tests and 15 requirements.
+- **Phone rule re-verified:** `Contact.Phone_Must_Be_10_Digits` has the same content hash in `…b92b`, `…e218` and
+  `…c1ce` — active, `AND(NOT(ISBLANK(Phone)), NOT(REGEX(Phone, "[0-9]{10}")))`, error "Enter a 10-digit phone
+  number." on Phone. The live behaviour (a rejected write) was not re-checked: it needs a data write, and the
+  recipe changed since the last approval.
+- **Locators re-verified in the live UI** (`qa locators discover --org qa-prod`, observe only): all 118 qa-prod rows
+  are ACTIVE with a fresh `lastVerifiedAt` (account-record 36, contact-record 45, contact-new 37). That includes the
+  New Contact Phone field and the Phone edit buttons. Page objects were regenerated: no RE_VERIFY member is left, and
+  the specs still typecheck.
+- **New `qa review --pass 2 --run <build run> [--cases]`:** Test Reviewer pass 2 on specs that already exist, without
+  regenerating them. It refuses when the file is not the version the build produced. It uses the latest snapshot and
+  registry, fresh tsc / ESLint / `--list` and a live dry-run. Verified manually (below); there is no unit test yet.
+- **TC-022** (`qa review --pass 2 --run run-p4-coder-nim-8 --cases TC-SF-219-022` → `review2-20261121-153613-91da`):
+  - the RE_VERIFY finding is gone, and the dry-run resolved 36/36;
+  - it is still **REVIEW_REQUIRED**, because the dialog now shows a new field, **QA Run Id** (`QA_Run_Id__c` was
+    added to the Contact layout), and the spec's keyboard check does not cover it;
+  - next step: regenerate TC-022 (`qa build --cases TC-SF-219-022`), or remove the run-tag field from the layout.
+
 ## Not verified / known limits
 
 - **The specs have not been executed** (Phase 5). APPROVED means generated, typechecked, linted, listed,

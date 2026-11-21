@@ -25,6 +25,7 @@ import { LocatorRegistry } from '../knowledge/locatorRegistry.js';
 import { SnapshotStore } from '../knowledge/snapshotStore.js';
 import { GraphStore } from '../sf/graph/index.js';
 import type { QAGraphStateType } from '../graph/state.js';
+import { rerunPass2 } from './review2.js';
 import { createRuntime } from './analyze.js';
 
 type Say = (msg: string) => void;
@@ -306,11 +307,31 @@ export function registerDesign(program: Command, rootOf: () => string, say: Say)
     .description(
       'Test Reviewer pass 1 again on an existing design run (writes design/review-recheck.json, rebuilds outputs)',
     )
-    .requiredOption('--run <runId>', 'design run to review')
+    .requiredOption('--run <runId>', 'design run to review (pass 1) or build run whose specs to review (pass 2)')
     .option('--org <alias>', "org for the org facts (default: the run's org)")
-    .option('--offline', 'deterministic review only (no judge model)')
-    .action(async (o: { run: string; org?: string; offline?: boolean }) => {
+    .option('--offline', 'deterministic review only (no judge model, no dry-run)')
+    .option('--pass <n>', '1 = test design (default), 2 = generated specs (no regeneration)', '1')
+    .option('--cases <ids>', 'pass 2: only these cases (comma-separated)')
+    .action(async (o: { run: string; org?: string; offline?: boolean; pass: string; cases?: string }) => {
       const root = rootOf();
+      if (o.pass === '2') {
+        const r = await rerunPass2({
+          root,
+          buildRun: o.run,
+          ...(o.org ? { org: o.org } : {}),
+          ...(o.cases ? { cases: o.cases.split(',').map((x) => x.trim()) } : {}),
+          ...(o.offline ? { offline: true } : {}),
+          say,
+        });
+        for (const a of r.artifacts) {
+          say(`  ${a.reviewStatus ?? '-'} ${a.path}`);
+          for (const reason of a.reviewReasons) say(`    ${reason}`);
+        }
+        say(
+          `Saved: ${join(runPaths(root, r.runId).dir, 'build', 'review-pass2-recheck.json')} (story manifest updated)`,
+        );
+        return;
+      }
       const rt = await createRuntime({ root, say, ...(o.offline ? { offline: true } : {}) });
       try {
         const snap = await rt.graph.getState({ configurable: { thread_id: o.run } });
