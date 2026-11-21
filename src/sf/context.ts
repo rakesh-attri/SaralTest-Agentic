@@ -2,14 +2,7 @@ import { join } from 'node:path';
 import { loadEnv, secretValues, type Env } from '../config/env.js';
 import { loadConfigFile, projectPaths, requireConfig } from '../config/loader.js';
 import { ExecutionConfig } from '../config/schemas.js';
-import type {
-  McpToolsConfig,
-  OrgEntry,
-  OrgsConfig,
-  Persona,
-  PersonasConfig,
-  PolicyConfig,
-} from '../config/schemas.js';
+import type { McpToolsConfig, OrgEntry, OrgsConfig, Persona, PersonasConfig, PolicyConfig } from '../config/schemas.js';
 import { QAError } from '../core/errors.js';
 import { createLogger, type Logger } from '../core/logger.js';
 import { ensureRunFolder, type RunPaths } from '../core/runFolder.js';

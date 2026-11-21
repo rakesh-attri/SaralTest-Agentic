@@ -15,6 +15,7 @@ import { Redactor } from '../security/redact.js';
 import { Autonomy, type InputRequest } from '../core/state.js';
 import { createReadline, createRuntime, loadAnswersFile, resumeAnalysis, startAnalysis, summary } from './analyze.js';
 import { registerAuth } from './auth.js';
+import { registerData } from './data.js';
 import { createDiscoverHook, registerDiscover } from './discover.js';
 import { createDesignHook, designSummary, registerDesign } from './design.js';
 import { registerIngest } from './ingest.js';
@@ -40,7 +41,7 @@ export function buildCli(): Command {
   const program = new Command();
   program
     .name('qa')
-    .description('sf-qa-agent — autonomous Salesforce QA engineer (Phase 2: Salesforce intelligence)')
+    .description('sf-qa-agent — autonomous Salesforce QA engineer (Phase 4: generation & data)')
     .option('--root <path>', 'project root (default: nearest folder with config/policy.yaml)')
     .showHelpAfterError();
 
@@ -80,6 +81,7 @@ export function buildCli(): Command {
   registerLocators(program, rootOf, say);
   registerIngest(program, rootOf, say);
   registerDesign(program, rootOf, say);
+  registerData(program, rootOf, say);
 
   const mcp = program.command('mcp').description('MCP server utilities');
   mcp
@@ -299,7 +301,6 @@ export function buildCli(): Command {
   const later: [string, string, number][] = [
     ['run', 'Full run / regression sets', 5],
     ['explore', 'Goal-directed exploration', 7],
-    ['cleanup', 'Clean up + reconcile run-owned data', 4],
     ['report', 'Rebuild reports', 5],
     ['history', 'Past runs and trends', 9],
     ['learnings', 'Inspect learnings', 8],
