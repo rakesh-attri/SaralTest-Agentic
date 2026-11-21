@@ -6,6 +6,8 @@ export default defineConfig({
     exclude: ['tests/integration/**', 'tests/generated/**', 'node_modules/**'],
     environment: 'node',
     testTimeout: 30_000,
+    // Browser launches + fixture servers in beforeAll can exceed the 10 s default under parallel load.
+    hookTimeout: 60_000,
     pool: 'forks',
   },
 });
