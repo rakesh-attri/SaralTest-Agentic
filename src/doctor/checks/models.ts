@@ -7,7 +7,7 @@ import { MODEL_ROLES, isOpenAICompatible, type ChatProvider } from '../../config
 import { classifyError } from '../../core/classifyError.js';
 import { resolveEndpoint } from '../../models/endpoints.js';
 import { groupModels, listAvailableModels, suggestGeminiModels, type AvailableModel } from '../../models/listModels.js';
-import { ModelRouter } from '../../models/router.js';
+import { ModelRouter, type ChainModel } from '../../models/router.js';
 import { resolveJudgeChain } from '../../eval/judgeEndpoint.js';
 import type { ProviderSecrets } from '../../models/providers/index.js';
 import type { Check, CheckResult, DoctorContext } from '../types.js';
@@ -180,33 +180,39 @@ export const modelsCheck: Check = async (ctx) => {
 
   let liveFailures = 0;
   if (ctx.options.live && !ctx.options.offline) {
+    // Each distinct model once, all in parallel (big hosted models can take tens of seconds per call).
     const probe = tool(() => 'pong', { name: 'ping', description: 'Returns pong.', schema: z.object({}) });
-    for (const role of MODEL_ROLES) {
-      for (const c of router.chain(role)) {
-        const label = `live ${role}${c.index ? ` fallback ${c.index}` : ''} ${c.id}`;
+    const unique = new Map<string, ChainModel>();
+    for (const role of MODEL_ROLES) for (const c of router.chain(role)) if (!unique.has(c.id)) unique.set(c.id, c);
+    const results = new Map<string, string[]>();
+    await Promise.all(
+      [...unique.values()].map(async (c) => {
+        const lines: string[] = [];
+        const t0 = Date.now();
         try {
           const out = await c.model.invoke([new HumanMessage('Reply with the single word OK.')]);
           const text = typeof out.content === 'string' ? out.content : JSON.stringify(out.content);
-          details.push(`${label}: answered "${text.trim().slice(0, 20)}"`);
+          lines.push(`answered "${text.trim().slice(0, 20)}" in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
         } catch (err) {
-          details.push(`${label}: FAILED ${oneLine(err, 400)}`);
+          lines.push(`FAILED ${oneLine(err, 400)}`);
           liveFailures++;
           bump('red');
-          continue;
+          results.set(c.id, lines);
+          return;
         }
         if (c.model.supportsTools) {
           try {
             await c.model.bindTools([probe]).invoke([new HumanMessage('Call the ping tool.')]);
-            details.push(`${label}: tool calling accepted`);
+            lines.push('tool calling accepted');
           } catch (err) {
-            details.push(
-              `${label}: tool calling rejected (${oneLine(err, 160)}) → set tools: false for it in models.yaml`,
-            );
+            lines.push(`tool calling rejected (${oneLine(err, 160)}) → set tools: false for it in models.yaml`);
             bump('yellow');
           }
         }
-      }
-    }
+        results.set(c.id, lines);
+      }),
+    );
+    for (const [id, lines] of results) details.push(`live ${id}: ${lines.join('; ')}`);
     details.push(`live calls used ${router.totalTokens()} tokens`);
   }
 

@@ -35,7 +35,7 @@ const CHECKS: { name: string; check: Check; timeoutMs: number }[] = [
   { name: 'secrets', check: secretsCheck, timeoutMs: 15_000 },
   { name: 'skills', check: skillsCheck, timeoutMs: 10_000 },
   { name: 'browsers', check: browsersCheck, timeoutMs: 90_000 },
-  { name: 'models', check: modelsCheck, timeoutMs: 120_000 },
+  { name: 'models', check: modelsCheck, timeoutMs: 300_000 }, // --live probes big hosted models
   { name: 'mcp', check: mcpCheck, timeoutMs: 240_000 },
   { name: 'jira', check: jiraCheck, timeoutMs: 20_000 },
   { name: 'salesforce', check: salesforceCheck, timeoutMs: 90_000 },

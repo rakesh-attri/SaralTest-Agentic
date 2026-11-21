@@ -25,18 +25,37 @@ limits, and fail over automatically on 429. Guide: `docs/ai-embedding-config.md`
   - Telemetry is opted out.
 - `<think>…</think>` blocks are stripped before JSON parsing.
 
-## Role layout (local `config/models.yaml`)
+## Role layout (local `config/models.yaml`, picked 2026-11-21 from the `qa doctor` lists)
 
 | Role | Primary | Fallbacks |
 |---|---|---|
-| reasoning | nvidia-nim `<nim-reasoning-model-id>` | google `gemini-3.5-flash-lite` |
-| coder | nvidia-nim `<nim-coder-model-id>` | groq `<groq-coder-model-id>` → google `gemini-3.5-flash-lite` |
-| fast | groq `<groq-fast-model-id>` | google `gemini-3.5-flash-lite` |
-| judge | nvidia-nim `<nim-judge-model-id>` (family ≠ coder) | google `gemini-3.1-pro-preview` |
+| reasoning | nvidia-nim `nvidia/nemotron-3-ultra-550b-a55b` | google `gemini-3.5-flash-lite` |
+| coder | nvidia-nim `poolside/laguna-xs-2.1` | groq `openai/gpt-oss-120b` → google `gemini-3.5-flash-lite` |
+| fast | groq `openai/gpt-oss-20b` | google `gemini-3.5-flash-lite` |
+| judge | nvidia-nim `minimaxai/minimax-m3.1-flash` | google `gemini-3.1-flash-lite` |
 | embeddings | google `gemini-embedding-2` (unchanged, no re-index) | — |
 
-The NIM and Groq ids are placeholders: I don't invent model ids. Until they are filled in, each role runs on its
-Gemini fallback, which is the same Gemini models as before this change.
+The families are nemotron (reasoning), poolside (coder) and minimax (judge). The judge is independent of the coder,
+and also of the planner whose output the Test Reviewer checks.
+
+**How the ids were chosen.** All candidates came from what the keys list, filtered by a live probe on a short
+Salesforce JSON task (latency + valid JSON). Benchmark quality was not measured.
+
+| Candidate | Result |
+|---|---|
+| `moonshotai/kimi-k3.1-pro` | timed out (> 120 s in `--live`, > 90 s in the probe) |
+| `z-ai/glm-5.3-flash` | timed out (> 90 s) |
+| `stepfun-ai/step-5-preview` | timed out (> 90 s) |
+| `mistralai/mistral-large-4-1t-a52b` | answered, but in 25–67 s; too slow for a judge |
+| `poolside/laguna-xs-2.1` | 0.8 s, valid JSON |
+| `nemotron-3-ultra` | 3.3 s, valid JSON |
+| `minimax-m3.1-flash` | 5.4 s, valid JSON |
+| Groq `qwen/qwen3.8-27b` | 0.4 s, valid JSON (spare option) |
+
+`gemini-3.1-pro-preview` returned **HTTP 429** (the free tier has no Pro quota). The judge fallback is therefore
+`gemini-3.1-flash-lite`, which also keeps it different from the coder's Gemini model.
+The coder is not exercised before Phase 4. Watch `laguna-xs` (a small model) on real test generation; the Groq
+`gpt-oss-120b` fallback is there if it falls short.
 
 ## Decisions / deviations from the plan
 
@@ -59,9 +78,26 @@ Gemini fallback, which is the same Gemini models as before this change.
 - Manual: `pnpm qa doctor` on this machine (Windows) listed 66 Gemini models. It reported both NIM and Groq keys as
   not set (WARN) and showed every role running on its Gemini fallback.
 
-## Not verified / blocked
+## Live verification (2026-11-21, after the keys were added)
 
-- **No live NIM or Groq call yet:** `NVIDIA_API_KEY` and `GROQ_API_KEY` are not set. Add them, run `pnpm qa doctor`
-  to list the models, pick ids, then run `pnpm qa doctor --live`.
-- The forced-429 manual check against a real provider (NIM RPM 1, `maxWaitMs: 0`) waits on the keys. Failover is
-  covered by unit tests only.
+- `pnpm qa doctor` listed 33 NIM and 11 Groq models, grouped by namespace.
+- `pnpm qa doctor --live` was **green**: all 7 distinct chain models answered in 0.6–1.4 s and accepted tool calls.
+  - The first attempt exceeded doctor's 120 s per-check limit (11 sequential calls plus kimi's timeout). Live probes now
+    run once per distinct model, in parallel, with latency shown, and the models check limit is 300 s.
+  - The live run also hit a real provider 429 (Gemini Pro). It was tagged rate-limited and cooled down as designed.
+- `pnpm qa analyze --story SF-219 --no-input --run-id nim-live-1` was **COMPLETE / LIVE** with analysis model
+  `nvidia-nim/nvidia/nemotron-3-ultra-550b-a55b`: 8 requirements, 5 questions, 13 findings, no failover.
+- Forced failover: NIM was set to `requestsPerMinute: 1, maxWaitMs: 0` temporarily (since restored), and
+  `--run-id nim-failover-1` was run.
+  - Both reasoning calls (extract, analyze) logged `rateLimited: true … failing over to google/gemini-3.5-flash-lite`.
+  - The run was COMPLETE in 40 s, labelled `google/gemini-3.5-flash-lite`.
+- DeepEval judge chain resolves to `nvidia-nim/minimaxai/minimax-m3.1-flash → google/gemini-3.1-flash-lite`. The
+  Python judge has not called a real endpoint yet (runner is Phase 8).
+
+## Open / known gaps
+
+- **Budget not wired into `qa analyze` (pre-existing).** `run.json` reports `tokensUsed: 0` for every run,
+  including the Phase 3 runs, because the router built in `src/cli/analyze.ts` gets no `budget`. Token use is
+  counted in `router.usage`, but the run budget is never checked against it.
+- Quotas are conservative defaults, not your accounts' verified limits.
+- The NIM catalogue changes over time. Re-run `pnpm qa doctor` when a model starts failing.

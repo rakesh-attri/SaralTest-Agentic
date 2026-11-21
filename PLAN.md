@@ -422,7 +422,7 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
 ### Pre-Phase-4 — Model providers (operator request 2026-11-20; notes: `docs/pre-phase-4-notes.md`)
 - [x] `openai-compatible` provider with NVIDIA NIM + Groq presets; per-role fallback chains; per-provider RPM/TPM limits;
       failover on 429 (Retry-After cooldown); doctor lists models per provider; DeepEval judge over the judge chain
-- [ ] Live NIM / Groq: blocked on `NVIDIA_API_KEY` / `GROQ_API_KEY`; then pick ids from `qa doctor` and run `--live`
+- [x] Live NIM / Groq: ids picked from `qa doctor`, `--live` green, `qa analyze` on NIM, forced failover verified (2026-11-21)
 
 ### Phase 4 — Generation & data
 - [ ] Test Generator, page objects, Lightning helpers, locator ESLint rule + dry-run

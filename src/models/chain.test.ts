@@ -147,6 +147,9 @@ describe('models.yaml — providers, presets and chains', () => {
     expect(modelFamily('openai/gpt-oss-120b')).toBe('gpt-oss');
     expect(modelFamily('mistralai/mixtral-8x22b-instruct-v0.1')).toBe('mistral');
     expect(modelFamily('gemini-3.5-flash-lite')).toBe('gemini');
+    expect(modelFamily('poolside/laguna-xs-2.1')).toBe('poolside');
+    expect(modelFamily('minimaxai/minimax-m3.1-flash')).toBe('minimax');
+    expect(modelFamily('stepfun-ai/step-5-preview')).toBe('step');
     expect(modelFamily('some-unknown-model')).toBeUndefined();
   });
 });

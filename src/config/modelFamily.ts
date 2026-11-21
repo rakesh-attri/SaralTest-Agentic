@@ -18,6 +18,8 @@ const FAMILIES: readonly (readonly [RegExp, string])[] = [
   [/(^|\/)phi-?\d/i, 'phi'],
   [/granite/i, 'granite'],
   [/minimax/i, 'minimax'],
+  [/poolside|laguna/i, 'poolside'],
+  [/stepfun|(^|\/)step-\d/i, 'step'],
   [/claude/i, 'claude'],
   [/(^|\/)(gpt-|o\d)/i, 'gpt'],
 ];
