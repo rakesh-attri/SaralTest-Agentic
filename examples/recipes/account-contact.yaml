@@ -7,6 +7,9 @@ objects:
     fields:
       Name: "QA-{runId}-Acme {synthetic}"
       Industry: Technology        # must be a valid picklist value in the snapshot
+      BillingStreet: "12 MG Road"
+      BillingCity: Bengaluru
+      BillingPostalCode: "560001"
       BillingCountry: India
   - object: Contact
     parent: { field: AccountId, ref: Account }
