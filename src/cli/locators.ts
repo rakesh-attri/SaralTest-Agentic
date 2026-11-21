@@ -1,6 +1,9 @@
-import { join } from 'node:path';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import type { Command } from 'commander';
 import { PAGES, runExplorer } from '../agents/app-explorer/index.js';
+import { runDryRun } from '../agents/test-generator/dryRun.js';
+import { buildCatalog, CATALOG_FILE, PageCatalog, writePageObjects } from '../agents/test-generator/pageObjects.js';
 import { newRunId } from '../core/runFolder.js';
 import { LocatorRegistry } from '../knowledge/locatorRegistry.js';
 import { SnapshotStore } from '../knowledge/snapshotStore.js';
@@ -69,6 +72,96 @@ export function registerLocators(program: Command, rootOf: () => string, say: Sa
       say(`Evidence: ${join(ctx.run.dir, 'explorer')}`);
       process.exitCode = ok ? 0 : 1;
     });
+  loc
+    .command('page-objects')
+    .description('Generate tests/pages/*.ts + page-catalog.json from the registry (deterministic, no LLM)')
+    .option('--org <alias>', 'org alias (default QA_DEFAULT_ORG)')
+    .option('--persona <id>', 'persona (default from personas.yaml)')
+    .action(async (o: { org?: string; persona?: string }) => {
+      const root = rootOf();
+      const ctx = await createSfContext({
+        root,
+        runId: newRunId('pages'),
+        ...(o.org ? { orgAlias: o.org } : {}),
+        ...(o.persona ? { personaId: o.persona } : {}),
+      });
+      const registry = new LocatorRegistry(registryFile(root));
+      try {
+        const cat = buildCatalog({
+          entries: registry.list({ org: ctx.org.orgId }),
+          org: ctx.org.orgId,
+          orgAlias: ctx.org.alias,
+          environment: ctx.org.environment,
+          persona: ctx.persona.id,
+        });
+        const files = await writePageObjects(root, cat, (abs, text) => {
+          mkdirSync(dirname(abs), { recursive: true });
+          writeFileSync(abs, text, 'utf8');
+        });
+        for (const p of cat.pages) {
+          const rv = p.members.filter((m) => m.status === 'RE_VERIFY').length;
+          say(`  ${p.className}: ${p.members.length} members${rv ? ` (${rv} RE_VERIFY)` : ''}`);
+        }
+        say(`Wrote ${files.map((f) => f.path).join(', ')} (${ctx.org.environment}, persona ${ctx.persona.id}).`);
+      } finally {
+        registry.close();
+      }
+    });
+  loc
+    .command('dry-run')
+    .description('Resolve page-object locators in their page states as the persona (no test is run; observe only)')
+    .option('--org <alias>', 'org alias (default QA_DEFAULT_ORG)')
+    .option('--persona <id>', 'persona (default from personas.yaml)')
+    .option('--catalog <file>', 'page catalog', CATALOG_FILE)
+    .option('--refs <list>', 'comma-separated <pageId>.<member> refs (default: every member)')
+    .option('--manifest <file>', 'build manifest: check only the members the generated specs use')
+    .option('--out <file>', 'write the report here (default runs/<runId>/dry-run.json)')
+    .action(
+      async (o: {
+        org?: string;
+        persona?: string;
+        catalog: string;
+        refs?: string;
+        manifest?: string;
+        out?: string;
+      }) => {
+        const root = rootOf();
+        const ctx = await createSfContext({
+          root,
+          runId: newRunId('dryrun'),
+          ...(o.org ? { orgAlias: o.org } : {}),
+          ...(o.persona ? { personaId: o.persona } : {}),
+        });
+        const catalog = PageCatalog.parse(JSON.parse(readFileSync(join(root, o.catalog), 'utf8')));
+        if (catalog.org !== ctx.org.orgId) {
+          say(
+            `Catalog was generated for ${catalog.orgAlias}, not ${ctx.org.alias}: regenerate with qa locators page-objects.`,
+          );
+          process.exitCode = 2;
+          return;
+        }
+        let refs = o.refs?.split(',').map((x) => x.trim());
+        if (o.manifest) {
+          const m = JSON.parse(readFileSync(join(root, o.manifest), 'utf8')) as {
+            artifacts?: { locatorsUsed?: string[] }[];
+          };
+          refs = [...new Set((m.artifacts ?? []).flatMap((a) => a.locatorsUsed ?? []))].sort();
+        }
+        const sf = await ctx.connect();
+        say(
+          `Identity verified: ${sf.identity.orgId} as ${sf.identity.username}. Dry-run (observe only, nothing saved).`,
+        );
+        const out = o.out ? join(root, o.out) : join(ctx.run.dir, 'dry-run.json');
+        const r = await runDryRun({ ctx, sf, catalog, ...(refs ? { refs } : {}), out, log: say });
+        const bad = r.checks.filter((c) => !c.ok);
+        say(
+          `Dry-run ${r.ok ? 'OK' : 'FAILED'}: ${r.checks.length - bad.length}/${r.checks.length} resolved (${r.environment}, persona ${r.persona}).`,
+        );
+        for (const e of r.pageErrors) say(`  page ${e.page}: ${e.error}`);
+        say(`Report: ${out}`);
+        process.exitCode = r.ok ? 0 : 1;
+      },
+    );
   loc
     .command('list')
     .description('List registered locators')
