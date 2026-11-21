@@ -53,17 +53,54 @@ export interface StructuredResult<T> {
 }
 
 /** Pull the JSON value out of a model reply (fenced block, or the outermost object/array). */
+/** Escape raw control characters that appear inside JSON string literals (invalid JSON some models emit). */
+export function escapeControlCharsInStrings(json: string): string {
+  let out = '';
+  let inString = false;
+  let escaped = false;
+  for (const ch of json) {
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      else if (ch < ' ') {
+        out +=
+          ch === '\n'
+            ? '\\n'
+            : ch === '\r'
+              ? '\\r'
+              : ch === '\t'
+                ? '\\t'
+                : `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`;
+        continue;
+      }
+    } else if (ch === '"') inString = true;
+    out += ch;
+  }
+  return out;
+}
+
+function parseLenient(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    const fixed = escapeControlCharsInStrings(text);
+    if (fixed === text) throw err;
+    return JSON.parse(fixed);
+  }
+}
+
 export function extractJson(text: string): unknown {
   const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text)?.[1];
   const candidate = (fenced ?? text).trim();
   try {
-    return JSON.parse(candidate);
+    return parseLenient(candidate);
   } catch {
     const start = candidate.search(/[[{]/);
     const open = candidate.charAt(start);
     const end = candidate.lastIndexOf(open === '[' ? ']' : '}');
     if (start < 0 || end <= start) throw new Error('no JSON object found in the reply');
-    return JSON.parse(candidate.slice(start, end + 1));
+    return parseLenient(candidate.slice(start, end + 1));
   }
 }
 

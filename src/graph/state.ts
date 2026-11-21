@@ -46,6 +46,10 @@ export const QAGraphState = Annotation.Root({
   charter: last<S['charter']>(() => undefined),
   orgContext: last<S['orgContext']>(() => undefined),
   impact: last<S['impact']>(() => undefined),
+  risks: last<S['risks']>(() => []),
+  obligations: last<S['obligations']>(() => []),
+  reviewFindings: last<S['reviewFindings']>(() => []),
+  reviewRound: last<S['reviewRound']>(() => 0),
   testCases: last<S['testCases']>(() => []),
   rtm: last<S['rtm']>(() => []),
   generated: last<S['generated']>(() => []),
@@ -73,6 +77,13 @@ export const QAGraphState = Annotation.Root({
   /** Answering model environment of the analysis (MOCK must be labelled everywhere). */
   analysisEnvironment: last<'LIVE' | 'MOCK' | 'NONE'>(() => 'NONE'),
   analysisModels: last<string[]>(() => []),
+  /** Phase 3: who drafted / reviewed the design (MOCK and mechanical are labelled everywhere). */
+  designEnvironment: last<'LIVE' | 'MOCK' | 'NONE'>(() => 'NONE'),
+  designModels: last<string[]>(() => []),
+  /** Snapshot environment the design was built against (FIXTURE must be labelled). */
+  orgEnvironment: last<'LIVE' | 'FIXTURE' | 'NONE'>(() => 'NONE'),
+  /** Planner justifications for open Reviewer findings, consumed by the next review round. */
+  planJustifications: last<{ findingId: string; reason: string }[]>(() => []),
   /** Nodes that run in degraded mode after triage chose `degrade`. */
   degradedNodes: last<string[]>(() => []),
   /** `${node}:${kind}` → how often each policy response was applied. */

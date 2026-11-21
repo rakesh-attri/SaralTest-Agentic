@@ -44,6 +44,11 @@ function numberedHeading(line: string): RegExpExecArray | null {
   return title.split(/\s+/).length <= 3 && !/['"‘’“”]/.test(title) ? m : null;
 }
 
+/** `Acceptance criteria:` alone on a line (plain label, no markdown) — a heading when it names a section type. */
+const PLAIN_LABEL = /^\s*([A-Z][A-Za-z][A-Za-z -]{1,40}):\s*$/;
+/** `1. …` / `1) …` list item: an acceptance criterion when it sits under an acceptance-criteria heading. */
+const LIST_ITEM = /^\s*(\d{1,3})[.)]\s+\S/;
+
 /** `**Acceptance criteria**` alone, or `**Out of scope:** text`. */
 const BOLD_LABEL = /^\s*\*\*([^*]{2,60}?):?\*\*:?\s*(.*)$/;
 
@@ -116,6 +121,9 @@ export function sectionize(raw: string, opts: SectionizeOptions = {}): SourceSec
   let current: Draft | undefined;
   let textCount = 0;
   let afterBlank = false;
+  // Numbered list items become AC<n> under an acceptance-criteria heading — only when the document has no explicit
+  // `AC n` lines (otherwise numbered lines are steps inside those ACs).
+  const listAcs = !lines.some((l) => AC_LINE.test(l));
 
   const close = (): void => {
     if (current && current.lines.join('').trim()) drafts.push(current);
@@ -128,7 +136,8 @@ export function sectionize(raw: string, opts: SectionizeOptions = {}): SourceSec
 
   for (const line of lines) {
     const md = MD_HEADING.exec(line);
-    const num = md ? null : numberedHeading(line);
+    const acItem = listAcs && kindForHeading(heading) === 'ac' && LIST_ITEM.test(line);
+    const num = md || acItem ? null : numberedHeading(line);
     if (md || num) {
       close();
       heading = (md?.[1] ?? num?.[2] ?? '').replace(/\*\*/g, '').trim();
@@ -150,6 +159,21 @@ export function sectionize(raw: string, opts: SectionizeOptions = {}): SourceSec
       } else {
         heading = label;
       }
+      continue;
+    }
+
+    const plain = PLAIN_LABEL.exec(line);
+    if (plain && kindForHeading(plain[1]) !== 'text') {
+      close();
+      heading = (plain[1] ?? '').trim();
+      continue;
+    }
+
+    const item = listAcs && kindForHeading(heading) === 'ac' ? LIST_ITEM.exec(line) : null;
+    if (item) {
+      close();
+      afterBlank = false;
+      current = { ref: `AC${item[1] ?? ''}`, kind: 'ac', heading, lines: [line.trim()] };
       continue;
     }
 

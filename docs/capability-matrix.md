@@ -4,7 +4,7 @@ Status of every capability in PLAN.md. **implemented** = working code with tests
 stated limitation · **blocked** = needs an external prerequisite (exact blocker given) · **planned** = later phase.
 Updated at the end of each phase (CLAUDE.md rule 16).
 
-_Last updated: Phase 2 — 2026-11-20 (branch `main`)._
+_Last updated: Phase 3 — 2026-11-20 (branch `claude/phase-3-implementation-ce8175`)._
 
 ## Phase 0 — Foundation
 
@@ -18,7 +18,7 @@ _Last updated: Phase 2 — 2026-11-20 (branch `main`)._
 | ModelRouter: google (default), anthropic, openai, azure-openai, ollama, mock | implemented | `src/models/` | Only google + mock exercised in tests; other providers construct but are not live-tested (no keys) |
 | Router guards: secret-in-prompt hard stop, quotas, timeouts, token accounting, fallback | implemented | `src/models/guarded.ts`, `router.ts` | Fallback never triggers on HARD_STOP/BUDGET. A timeout frees the caller, but the Google SDK does not cancel the underlying HTTP request (it finishes in the background) |
 | Embeddings (Google default, OpenAI, Ollama, mock) | implemented | `src/models/providers/index.ts` | `voyage` → TOOL_UNAVAILABLE (planned with RAG, Phase 2) |
-| Real model ids configured | partial | `config/models.yaml` (local, git-ignored) | reasoning/coder/fast = `gemini-3.5-flash-lite`, judge + reasoning fallback = `gemini-3.1-flash-lite`, embeddings = `gemini-embedding-2`; all answered `qa doctor --live` on 2026-11-20. Judge is a **temporary** small model: the key is on the Gemini free tier (Pro quota 0) |
+| Real model ids configured | partial | `config/models.yaml` (local, git-ignored) | reasoning/coder/fast = `gemini-3.5-flash-lite`, embeddings = `gemini-embedding-2`. Phase 3: judge = `gemini-3.1-pro-preview` (operator decision) with fallback `gemini-3.1-flash-lite`; the Pro model answers 429 on the free tier, so every judge verdict so far came from the fallback (labelled). **Note:** another session has since changed the main checkout's `models.yaml` to NVIDIA NIM / Groq (uncommitted code), which this branch cannot parse — see phase-3-notes |
 | SkillLoader + `load_skill` tool | implemented | `src/skills/skillLoader.ts` | 16 skills (15 + vendored `langfuse`) |
 | Issue, classifyError, HardStopError, resilientNode, budgets, retry | implemented | `src/core/` | Phase 1: resilientNode passes LangGraph interrupts through; the report node also runs when BLOCKED |
 | pino logging, run folders `runs/<runId>/` | implemented | `src/core/logger.ts`, `runFolder.ts` | |
@@ -44,7 +44,7 @@ _Last updated: Phase 2 — 2026-11-20 (branch `main`)._
 | Azure DevOps work item adapter | blocked | `src/inputs/adapters/other.ts` | Unit-tested against the REST shape. **Blocker:** no ADO org (`ADO_ORG_URL` + `ADO_PAT`) |
 | Chat text, Markdown/TXT, Gherkin, JSON/YAML, PDF, DOCX adapters | implemented | `src/inputs/adapters/` | PDF: text layer only (no OCR; warning when empty). Tested on synthetic files generated at test time |
 | Manual test cases (xlsx/csv) → existing cases | implemented | `src/inputs/adapters/manualTests.ts` | Header aliases; skips "Read Me" tabs; live on the demo XLSX (10 cases) |
-| Defect history (JQL + past `results.json`) | implemented | `src/inputs/index.ts` | Stored for the Risk Analyzer (Phase 3); not yet in RAG (Phase 2) |
+| Defect history (JQL + past `results.json`) | implemented | `src/inputs/index.ts` | Used by the Phase 3 risk model (past-defect driver: ≥2 matching terms). The SF-219 demo had no defect history input |
 | Git diff → SFDX metadata components | implemented | `src/inputs/adapters/other.ts` | Common types mapped; others are `Unknown` |
 | Exploratory objective input | implemented | same | Stored for Phase 7 |
 | Agent runtime: Zod + reflect-retry ×2 + fallback model + `load_skill` | implemented | `src/agents/shared/structured.ts` | Recovered from malformed live JSON twice in the demo |
@@ -90,6 +90,27 @@ _Last updated: Phase 2 — 2026-11-20 (branch `main`)._
 | Embedding quota handling (empty vectors from swallowed 429 → TRANSIENT, retried) | implemented | `src/models/guarded.ts` `checkVectors` | Gemini free tier allows ~60 embedded chunks/min; ingest is rate-limited accordingly |
 | Run-tag field for data cleanup (`QA_Run_Id__c`) | blocked | `config/orgs.yaml` | **Blocker for Phase 4:** the field does not exist in qa-prod. Create it (admin) or set `runTagField: null` (name prefix) |
 
+## Phase 3 — Test planning
+
+| Capability | Status | Where | Notes / blocker |
+|---|---|---|---|
+| Design contracts (RiskItem, TestCharter, ImpactReport, CoverageObligation with allowed + must-cite evidence, ReviewFinding; TestCase/RtmRow extended) | implemented | `src/core/schemas/design.ts`, `testCase.ts` | Zod: APPROVED cases hold only assertable levels; non-UNKNOWN expectations cite evidence |
+| Expected-result oracles: evidence index, code-assigned levels, grounding check, case status | implemented | `src/oracles/` | `VERIFIED` is never assigned before executed runs (Phase 5). Grounding = quoted values / numbers in cited evidence, step text or observed UI labels |
+| Risk model (drivers → likelihood × impact; mandatory / recommended / optional; AC coverage never dropped) | implemented | `src/agents/impact-risk/risk.ts` | Live: 15 risks, 8 mandatory; a LOW AC risk (0.06) stays mandatory |
+| Coverage obligations (positive, negative per org check, boundary, deny / allow, bulk, nfr, regression from RE_VERIFY) | implemented | `src/agents/impact-risk/obligations.ts` | Boundaries: `N characters` / `N digits` only. Bulk only when the snapshot has an active trigger / flow on the object |
+| Persona resolution (requirement name → org profile → configured test user; else BLOCKED-NO-PERSONA) | implemented | `src/agents/impact-risk/personas.ts` | Live: read-only, sales-rep, sales-manager unavailable (no test users / no profile) |
+| Test Planner: obligation-bound drafting, reflect on deterministic problems, normalisation, code-assigned priority / levels / status, manual-test reuse, stable ids, revise step | implemented | `src/agents/test-planner/` | Live on Gemini flash-lite; in 3 of 6 runs with a model, 1–2 of 5 batches fell back to mechanical drafting (labelled) |
+| Mechanical degrade path (no model / invalid output) | implemented | same | Expected text = verbatim evidence; origin `mechanical` |
+| Test Reviewer pass 1: deterministic checklist (rechecked per round), judge findings + verification, ≤2 rounds | implemented | `src/agents/test-reviewer/` | Judge ran on the flash-lite **fallback** (Pro blocked by billing) |
+| QA Lead settlement (restore lost coverage, justify with recorded reasons, escalate the rest; nothing OPEN) | implemented | `settleFindings` | Escalated findings (5–7 per live run) need a human |
+| `plan ⇄ review` nodes in the main graph; seeded entry at `plan`; triage can degrade both | implemented | `src/graph/designNodes.ts`, `mainGraph.ts` | |
+| Design outputs: charter, test plan, test cases, RTM JSON + XLSX, risks, obligations, review findings, HTML test-design report, labels | implemented | `src/graph/designReport.ts` | XLSX: RTM / Test Cases / Risks / Review Findings sheets |
+| `qa design`, `qa review`, `qa analyze --org` → design | implemented | `src/cli/design.ts`, `src/cli/index.ts` | `qa analyze --org` end to end tested with mocks only (not run live, to save free-tier quota) |
+| Independent exit-criteria validator | implemented | `scripts/validate-design.ts` (`pnpm validate:design [--root]`) | |
+| Evidence ledger as SQLite `evidence.db` | partial | `runs/<id>/design/evidence.json` | The in-memory evidence index resolves every id; persistence across runs is not needed until Phase 7 |
+| Pro-class judge | blocked | `config/models.yaml` | **Blocker:** Gemini free tier — `gemini-2.5-pro` 404 for new keys, `gemini-3.1-pro-preview` 429 (quota 0). Enable billing |
+| Persona-based deny cases executable | blocked | `config/personas.yaml` | **Blocker:** no Read Only / Sales Rep test users (cases are BLOCKED-NO-PERSONA) |
+
 ## External prerequisites (open blockers)
 
 | Blocker | Needed for | Owner | How to clear |
@@ -102,12 +123,14 @@ _Last updated: Phase 2 — 2026-11-20 (branch `main`)._
 | Atlassian Rovo MCP on deprecated `/v1/mcp` in `.mcp.json` | JIRA via MCP (REST works and carried the demo) | Rakesh | Change to `https://mcp.atlassian.com/v2/mcp`, then `pnpm qa doctor --include-oauth` |
 | Azure DevOps organisation + PAT | ADO work items as input (optional) | Rakesh | Set `ADO_ORG_URL` and `ADO_PAT` (Credential Manager preferred) |
 | Small reasoning model on the Gemini free tier | stable cross-source conflict detection | Rakesh | Enable billing, move `reasoning` + `judge` to a Pro model, re-run the Phase 1 demo |
+| Gemini Pro judge returns 429 (free-tier quota 0) | a real Pro-class Test Reviewer (Phase 3), later Defect Judge | Rakesh | Enable billing; `judge: gemini-3.1-pro-preview` is already configured with a flash-lite fallback |
+| Main checkout `config/models.yaml` changed to NIM / Groq by another session (uncommitted code) | running this branch against the main checkout | Rakesh | Merge order: land the provider work and this branch, resolve the `src/agents/shared/structured.ts` conflict |
+| Q1–Q3 assumed; 4 org conflicts (Email / Phone required, duplicate rule inactive, Title list) | assertable cases for AC3–AC5, BR-03/04/06/08/10 | product owner + SF admin | Answer the questions (`qa resume` / new analyze) and fix or confirm the org config, then `qa design` again |
 
 ## Later phases
 
 | Capability | Status | Phase |
 |---|---|---|
-| Risk model, Test Planner, oracles, Reviewer pass 1, RTM/XLSX | planned | 3 |
 | Test Generator, locator ESLint rule, Reviewer pass 2, data engine | planned | 4 |
 | Runner, reporting-labs + Playwright HTML, JIRA comment, Account→Contact demo | planned | 5 |
 | Visual QA | planned | 6 |

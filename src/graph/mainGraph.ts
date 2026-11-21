@@ -16,13 +16,16 @@ import type { ModelRouter } from '../models/router.js';
 import type { Redactor } from '../security/redact.js';
 import type { SkillLoader } from '../skills/skillLoader.js';
 import { finalStatus, writeAnalysisReport } from './analysisReport.js';
+import { createPlanNode, type DesignHook } from './designNodes.js';
+import { writeDesignReport } from './designReport.js';
 import { QAGraphState, type QAGraphStateType, type QAGraphUpdate } from './state.js';
 
 /**
- * Main graph (PLAN.md §2), Phase 1 + 2:
- *   START → intake → understand ⇄ clarify(interrupt) → discover (if an org is set) → report → END, with QA Lead
- *   triage after every node.
- * Later phases insert plan/build/execute… between discover and report. Every path ends at `report`.
+ * Main graph (PLAN.md §2), Phases 1–3:
+ *   START → intake → understand ⇄ clarify(interrupt) → discover (if an org is set) → plan ⇄ review (pass 1, if a
+ *   design hook is set) → report → END, with QA Lead triage after every node. A run seeded with earlier analysis
+ *   output (`qa design`) enters at `plan`. Later phases insert build/execute… before report. Every path ends at
+ *   `report`.
  */
 
 export interface GraphDeps {
@@ -49,6 +52,8 @@ export interface GraphDeps {
    * skips `discover` (analysis-only runs, `--offline`).
    */
   discover?: DiscoverHook;
+  /** Phase 3 test design inputs (snapshot, cross-check, registry, personas). Absent → no plan/review. */
+  design?: DesignHook;
 }
 
 export interface DiscoverHookResult {
@@ -84,8 +89,13 @@ const CAPS: Record<string, NodeCapabilities> = {
   clarify: { retry: false, fallback: false, degrade: true, ask: false },
   // Discovery failing degrades to "no org context" (requirements stay as analysed); hard stops still block.
   discover: { retry: true, fallback: false, degrade: true, ask: false },
+  // Planner/Reviewer failing degrades to mechanical drafting / deterministic review; hard stops still block.
+  plan: { retry: true, fallback: false, degrade: true, ask: false },
+  review: { retry: true, fallback: false, degrade: true, ask: false },
   report: { retry: false, fallback: false, degrade: false, ask: false },
 };
+
+const DEGRADABLE = ['understand', 'discover', 'plan', 'review'];
 
 const SKIP_ANSWER = /^\s*(?:|skip|-|n\/a|idk|don'?t know|unknown)\s*$/i;
 
@@ -342,12 +352,28 @@ export function buildMainGraph(deps: GraphDeps) {
     return {
       org: r.org,
       orgContext: r.orgContext,
+      orgEnvironment: r.orgContext?.['environment'] === 'FIXTURE' ? 'FIXTURE' : 'LIVE',
       impact: r.impact,
       findings: [...s.findings, ...r.findings.filter((f) => !known.has(f.id))],
       evidence: r.evidence,
       notes: r.notes,
     };
   });
+
+  // ------------------------------------------------------------------ plan ⇄ review (Phase 3)
+  const design = deps.design
+    ? createPlanNode({
+        design: deps.design,
+        ...(deps.router ? { router: deps.router } : {}),
+        ...(deps.skills ? { skills: deps.skills } : {}),
+        ...(deps.redactor ? { redactor: deps.redactor } : {}),
+        logger: deps.logger,
+        memoryDir: deps.memoryDir,
+        say,
+      })
+    : undefined;
+  const plan = wrap('plan', 'test-planner', (s) => (design ? design.plan(s) : {}));
+  const review = wrap('review', 'test-reviewer', (s) => (design ? design.review(s) : {}));
 
   // ------------------------------------------------------------------ report
   const report = wrap(
@@ -358,6 +384,11 @@ export function buildMainGraph(deps: GraphDeps) {
       const paths = await ensureRunFolder(deps.root, s.runId);
       const outputs = await writeAnalysisReport(s, paths.dir, status);
       say(`Report written: ${outputs.find((o) => o.endsWith('.md')) ?? paths.dir}`);
+      if (s.testCases.length) {
+        const designOut = await writeDesignReport(s, paths.dir, status);
+        outputs.push(...designOut);
+        say(`Test design written: ${designOut.find((o) => o.endsWith('test-plan.md')) ?? paths.dir}`);
+      }
       return { status, outputs };
     },
     true,
@@ -383,7 +414,7 @@ export function buildMainGraph(deps: GraphDeps) {
       if (d.response !== 'report-only')
         applied[key] = { ...applied[key], [d.response]: (applied[key]?.[d.response] ?? 0) + 1 };
       updated.push({ ...issue, resolution: d.resolution, attempts: issue.attempts + (d.response === 'retry' ? 1 : 0) });
-      if (d.response === 'degrade' && (node === 'understand' || node === 'discover') && !degradedNodes.includes(node))
+      if (d.response === 'degrade' && DEGRADABLE.includes(node) && !degradedNodes.includes(node))
         degradedNodes = [...degradedNodes, node];
       say(`QA Lead: ${issue.kind} at ${node} → ${d.response} (${d.reason})`);
     }
@@ -416,9 +447,10 @@ export function buildMainGraph(deps: GraphDeps) {
     };
   };
 
-  /** After analysis: discover (when an org is configured for the run) → report. */
+  /** After analysis: discover (when an org is configured) → plan (when a design hook is set) → report. */
+  const toPlan = (s: QAGraphStateType): string => (deps.design && s.requirements.length ? 'plan' : 'report');
   const afterAnalysis = (s: QAGraphStateType): string =>
-    deps.discover && s.requirements.length && !s.degradedNodes.includes('discover') ? 'discover' : 'report';
+    deps.discover && s.requirements.length && !s.degradedNodes.includes('discover') ? 'discover' : toPlan(s);
 
   function nextAfter(node: string, s: QAGraphStateType): string {
     switch (node) {
@@ -430,24 +462,37 @@ export function buildMainGraph(deps: GraphDeps) {
         const newAnswers = s.clarifications.some((c) => c.status === 'ANSWERED' && c.round === s.clarifyRound);
         return newAnswers && s.clarifyRound < maxRounds ? 'understand' : afterAnalysis(s);
       }
+      case 'discover':
+        return toPlan(s);
+      case 'plan':
+        return s.testCases.length ? 'review' : 'report';
+      case 'review':
+        return s.reviewFindings.some((f) => f.status === 'OPEN') ? 'plan' : 'report';
       default:
         return 'report';
     }
   }
 
-  const routes = ['intake', 'understand', 'clarify', 'discover', 'report'] as const;
+  const routes = ['intake', 'understand', 'clarify', 'discover', 'plan', 'review', 'report'] as const;
+  /** `qa design`: a run seeded with earlier analysis (requirements, no inputs) starts at plan. */
+  const entry = (s: QAGraphStateType): 'intake' | 'plan' =>
+    !s.inputs.length && s.requirements.length && deps.design ? 'plan' : 'intake';
   const graph = new StateGraph(QAGraphState)
     .addNode('intake', intake)
     .addNode('understand', understand)
     .addNode('clarify', clarify)
     .addNode('discover', discover)
+    .addNode('plan', plan)
+    .addNode('review', review)
     .addNode('report', report)
     .addNode('triage', triage)
-    .addEdge(START, 'intake')
+    .addConditionalEdges(START, entry, ['intake', 'plan'])
     .addEdge('intake', 'triage')
     .addEdge('understand', 'triage')
     .addEdge('clarify', 'triage')
     .addEdge('discover', 'triage')
+    .addEdge('plan', 'triage')
+    .addEdge('review', 'triage')
     .addConditionalEdges(
       'triage',
       (s) => ((routes as readonly string[]).includes(s.route) ? (s.route as (typeof routes)[number]) : 'report'),

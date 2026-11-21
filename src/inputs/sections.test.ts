@@ -64,4 +64,30 @@ describe('sectionize', () => {
     expect(findRefs('Covers AC 3, BR-04 and NFR-01; see AC-7').sort()).toEqual(['AC3', 'AC7', 'BR-04', 'NFR-01']);
     expect(sha256(normalizeText('a\r\nb  \n\n\n\nc'))).toBe(sha256('a\nb\n\nc'));
   });
+
+  it('numbered items under a plain "Acceptance criteria:" label become AC1..ACn (only without explicit AC lines)', () => {
+    const plain = sectionize(
+      [
+        '# Story X',
+        '',
+        'As a rep I want things.',
+        '',
+        'Acceptance criteria:',
+        '1. First thing works.',
+        '2. Second thing; saving without it shows an error.',
+        '',
+        'Out of scope:',
+        '1. Contact import and merge.',
+      ].join('\n'),
+    );
+    expect(plain.filter((x) => x.kind === 'ac').map((x) => [x.ref, x.text])).toEqual([
+      ['AC1', '1. First thing works.'],
+      ['AC2', '2. Second thing; saving without it shows an error.'],
+    ]);
+    expect(plain.find((x) => x.kind === 'out-of-scope')?.text).toBe('1. Contact import and merge.');
+    const explicit = sectionize(
+      ['**Acceptance criteria**', '', 'AC1 – Create', 'Given x', '1. click New', '2. Save'].join('\n'),
+    );
+    expect(explicit.filter((x) => x.kind === 'ac').map((x) => x.ref)).toEqual(['AC1']);
+  });
 });

@@ -410,10 +410,14 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
   because sf CLI redacts tokens.
 
 ### Phase 3 — Test planning
-- [ ] Risk model (mandatory / recommended / optional regression; never drop AC coverage for low risk)
-- [ ] Test Planner (all categories incl. e2e, integration, relationship, permission, visual); oracles with evidence levels
-- [ ] Test Reviewer pass 1; test plan, cases, RTM, XLSX, test-design report
+- [x] Risk model (mandatory / recommended / optional regression; never drop AC coverage for low risk)
+- [x] Test Planner (all categories incl. e2e, integration, relationship, permission, visual); oracles with evidence levels
+- [x] Test Reviewer pass 1; test plan, cases, RTM, XLSX, test-design report
 - **Exit:** every AC covered; every expectation evidence-labelled; Reviewer findings resolved or justified.
+- **Status (2026-11-20):** exit criteria met live on qa-prod for SF-219 (`run-p3-live-5`: AC 7/7, 33/33 expectations
+  labelled, 10 findings → 0 open; `run-p3-live-7` on the final code) and on the fixture (`run-p3-fixture-3`); all pass
+  `pnpm validate:design`. See `docs/phase-3-notes.md`. The Pro judge is blocked by billing (verdicts came from the
+  flash-lite fallback); persona deny cases are BLOCKED-NO-PERSONA (no test users).
 
 ### Phase 4 — Generation & data
 - [ ] Test Generator, page objects, Lightning helpers, locator ESLint rule + dry-run

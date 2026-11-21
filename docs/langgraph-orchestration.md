@@ -22,6 +22,15 @@ START → intake → triage → understand → triage ⇄ clarify (interrupt) �
 Every working node is wrapped in `resilientNode()` (CLAUDE.md rule 3). Exceptions become Issues, `HardStopError`
 becomes status BLOCKED, and LangGraph's own control flow (`interrupt`) passes through untouched.
 
+### Phase 3: plan ⇄ review
+
+`discover` (or analysis, when no org is set) routes to `plan` when a **design hook** is configured (`qa design`,
+`qa analyze --org`). A run seeded with earlier analysis output and no inputs starts at `plan` directly (conditional
+START edge). `plan` builds risks, obligations and cases; `review` runs Reviewer pass 1. Open findings go back to `plan`
+(revise) once; after round 2 the QA Lead settles them, and the run goes to `report`, which also writes
+`runs/<id>/design/`. Triage can degrade `plan` (mechanical drafting) and `review` (deterministic checks only). See
+`docs/test-design-guide.md`.
+
 ## State
 
 `QAGraphState` (`src/graph/state.ts`) is `QARunState` (PLAN.md §4) as `Annotation.Root` channels, plus control fields.

@@ -51,6 +51,8 @@ export interface RuntimeOptions {
   logLevel?: 'info' | 'warn' | 'error' | 'debug';
   /** Phase 2: discover the org + cross-check requirements after analysis (`qa analyze --org`). */
   discover?: GraphDeps['discover'];
+  /** Phase 3: test design inputs (`qa design`, `qa analyze --org`). Local reads, so it also works offline. */
+  design?: GraphDeps['design'];
 }
 
 export interface Runtime {
@@ -125,6 +127,7 @@ export async function createRuntime(o: RuntimeOptions): Promise<Runtime> {
     policy,
     logger,
     ...(o.discover && !o.offline ? { discover: o.discover } : {}),
+    ...(o.design ? { design: o.design } : {}),
     ...(router ? { router } : {}),
     skills: SkillLoader.forProject(o.root),
     redactor,
