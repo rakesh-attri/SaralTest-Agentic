@@ -1,0 +1,190 @@
+import { z } from 'zod';
+import { IsoDate } from './common.js';
+import { ReviewStatus } from './testCase.js';
+
+/**
+ * Test IR (Phase 4): the Test Generator's model fills this structure; code renders the Playwright spec from it.
+ * The model never writes TypeScript. Elements are page-object members (`<pageId>.<member>`) generated from the
+ * locator registry; values are references to recipe data, grounded literals or generated lengths.
+ */
+
+/** `<pageId>.<member>`, e.g. `contact-new.lastName`. */
+export const ElementRef = z.string().regex(/^[a-z][a-z0-9-]*\.[a-zA-Z][a-zA-Z0-9]*$/, '<pageId>.<member>');
+
+export const ValueRef = z.discriminatedUnion('kind', [
+  /** A field value of a record from the data plan (recipe step alias + field). */
+  z.object({ kind: z.literal('data'), ref: z.string().min(1), field: z.string().min(1) }),
+  /** The record id of a data-plan record or of a record the test created through the UI. */
+  z.object({ kind: z.literal('recordId'), ref: z.string().min(1) }),
+  /** A literal value; must be grounded in the cited evidence (src/oracles/grounding.ts). */
+  z.object({ kind: z.literal('literal'), value: z.string(), evidenceIds: z.array(z.string()).min(1) }),
+  /** A run-unique string of exactly `length` characters (boundary values), length cited from evidence. */
+  z.object({
+    kind: z.literal('length'),
+    length: z.number().int().min(0).max(100_000),
+    evidenceIds: z.array(z.string()).min(1),
+  }),
+  /** A run-unique synthetic value for data the test types itself (e.g. a Contact last name created via the UI). */
+  z.object({ kind: z.literal('unique'), label: z.string().regex(/^[a-z][a-z0-9-]*$/) }),
+]);
+export type ValueRef = z.infer<typeof ValueRef>;
+
+export const IrAction = z.discriminatedUnion('do', [
+  z.object({ do: z.literal('openRecord'), ref: z.string().min(1), object: z.string().min(1) }),
+  z.object({ do: z.literal('openNewFromRelatedList'), parentRef: z.string().min(1), relatedList: z.string().min(1) }),
+  z.object({ do: z.literal('fill'), element: ElementRef, value: ValueRef }),
+  z.object({ do: z.literal('clear'), element: ElementRef }),
+  z.object({ do: z.literal('click'), element: ElementRef }),
+  z.object({ do: z.literal('selectTab'), element: ElementRef }),
+  /** Update a data-plan record through the guarded API (e.g. to produce field history). */
+  z.object({ do: z.literal('apiUpdate'), ref: z.string().min(1), fields: z.record(z.string(), ValueRef) }),
+  /**
+   * Register a record the test created through the UI (found by a unique field value), tag it with the run and
+   * add it to the ledger so it is cleaned up.
+   */
+  z.object({
+    do: z.literal('adopt'),
+    as: z.string().min(1),
+    object: z.string().min(1),
+    field: z.string(),
+    value: ValueRef,
+  }),
+]);
+export type IrAction = z.infer<typeof IrAction>;
+
+/** Which expected result of the case an assertion implements (index into TestCase.steps, 0-based). */
+export const ExpectationRef = z.object({
+  caseStep: z.number().int().nonnegative(),
+  evidenceIds: z.array(z.string()).min(1),
+});
+
+export const IrAssertion = z.discriminatedUnion('check', [
+  z.object({ check: z.literal('visible'), element: ElementRef, expect: ExpectationRef }),
+  z.object({ check: z.literal('hidden'), element: ElementRef, expect: ExpectationRef }),
+  z.object({ check: z.literal('inputValue'), element: ElementRef, equals: ValueRef, expect: ExpectationRef }),
+  z.object({ check: z.literal('fieldError'), element: ElementRef, expect: ExpectationRef }),
+  z.object({ check: z.literal('toast'), contains: ValueRef.optional(), expect: ExpectationRef }),
+  z.object({ check: z.literal('recordView'), object: z.string().min(1), expect: ExpectationRef }),
+  z.object({
+    check: z.literal('relatedListHasRecord'),
+    parentRef: z.string().min(1),
+    relatedList: z.string().min(1),
+    name: ValueRef,
+    expect: ExpectationRef,
+  }),
+  /** Independent API oracle: SOQL field value of a record (by ref). */
+  z.object({
+    check: z.literal('soqlField'),
+    ref: z.string().min(1),
+    object: z.string().min(1),
+    field: z.string().min(1),
+    equals: ValueRef,
+    expect: ExpectationRef,
+  }),
+  /** SOQL: no record of `object` with `field = value` exists (a rejected save). */
+  z.object({
+    check: z.literal('soqlNoRecord'),
+    object: z.string().min(1),
+    field: z.string().min(1),
+    value: ValueRef,
+    expect: ExpectationRef,
+  }),
+  /** API create with this field value is rejected with one of the error codes (metadata-derived). */
+  z.object({
+    check: z.literal('apiRejects'),
+    object: z.string().min(1),
+    basedOn: z.string().min(1),
+    fields: z.record(z.string(), ValueRef),
+    errorCodes: z.array(z.string()).min(1),
+    expect: ExpectationRef,
+  }),
+  /** `<Object>History` rows exist for each field after an update of record `ref`. */
+  z.object({
+    check: z.literal('historyTracked'),
+    ref: z.string().min(1),
+    object: z.string().min(1),
+    fields: z.array(z.string()).min(1),
+    expect: ExpectationRef,
+  }),
+  /** axe scan scoped to a dialog/region element; only custom-namespace violations fail (operator rule). */
+  z.object({ check: z.literal('a11yScan'), scope: ElementRef, expect: ExpectationRef }),
+  /** Keyboard: every listed element reachable by Tab, focus stays in scope, visual reading order. */
+  z.object({
+    check: z.literal('tabOrder'),
+    scope: ElementRef,
+    elements: z.array(ElementRef).min(2),
+    expect: ExpectationRef,
+  }),
+]);
+export type IrAssertion = z.infer<typeof IrAssertion>;
+
+export const IrStep = z.object({
+  /** Case step index this test.step implements (0-based). */
+  caseStep: z.number().int().nonnegative(),
+  title: z.string().min(3),
+  actions: z.array(IrAction).default([]),
+  assertions: z.array(IrAssertion).default([]),
+});
+export type IrStep = z.infer<typeof IrStep>;
+
+export const TestIR = z.object({
+  caseId: z.string(),
+  /** Data-plan step aliases created through the API before the test (from the bound recipe). */
+  data: z.array(z.string()).default([]),
+  steps: z.array(IrStep).min(1),
+  /** Free-text notes for the reviewer (substitutions, scope rules). Never used as an oracle. */
+  notes: z.array(z.string()).default([]),
+});
+export type TestIR = z.infer<typeof TestIR>;
+
+// ------------------------------------------------------------------ generated artifacts
+
+export const ArtifactKind = z.enum(['spec', 'page-object', 'api-test', 'fixture', 'support']);
+
+export const GeneratedArtifact = z.object({
+  kind: ArtifactKind,
+  /** Repo-relative path with forward slashes. */
+  path: z.string(),
+  hash: z.string(),
+  testCaseIds: z.array(z.string()),
+  /** Hash of the source TestCase (lineage: spec ↔ case version). */
+  caseHash: z.string().optional(),
+  irHash: z.string().optional(),
+  snapshotId: z.string().optional(),
+  /** `<pageId>.<member>` elements the spec uses (checked by the locator dry-run). */
+  locatorsUsed: z.array(z.string()).default([]),
+  /** Recipe names the spec's data comes from. */
+  dataBindings: z.array(z.string()).default([]),
+  /** generated = model IR; mechanical = test.fixme skeleton (degrade); deterministic = code only (page objects). */
+  origin: z.enum(['generated', 'mechanical', 'deterministic']).default('deterministic'),
+  /** Test Reviewer pass 2 verdict (specs only). */
+  reviewStatus: ReviewStatus.optional(),
+  reviewReasons: z.array(z.string()).default([]),
+});
+export type GeneratedArtifact = z.infer<typeof GeneratedArtifact>;
+
+/** One locator dry-run check: resolved in its page state as the persona, without running any test. */
+export const LocatorCheck = z.object({
+  element: z.string(),
+  page: z.string(),
+  persona: z.string(),
+  expression: z.string(),
+  count: z.number().int().nonnegative(),
+  visible: z.boolean(),
+  enabled: z.boolean(),
+  ok: z.boolean(),
+  note: z.string().optional(),
+});
+export type LocatorCheck = z.infer<typeof LocatorCheck>;
+
+export const DryRunReport = z.object({
+  orgAlias: z.string(),
+  environment: z.enum(['LIVE', 'FIXTURE']),
+  persona: z.string(),
+  at: IsoDate,
+  checks: z.array(LocatorCheck),
+  /** Pages that could not be opened (with the reason); their elements are not counted as resolved. */
+  pageErrors: z.array(z.object({ page: z.string(), error: z.string() })).default([]),
+  ok: z.boolean(),
+});
+export type DryRunReport = z.infer<typeof DryRunReport>;

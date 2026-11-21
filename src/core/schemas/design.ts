@@ -137,6 +137,24 @@ export const ReviewRule = z.enum([
   'duplicate',
   'ungrounded-expectation',
   'judge',
+  // Test Reviewer pass 2 (generated code, Phase 4)
+  'spec-missing',
+  'step-missing',
+  'assertion-missing',
+  'assertion-unreferenced',
+  'assertion-not-assertable',
+  'ungrounded-value',
+  'meta-incomplete',
+  'raw-locator',
+  'locator-not-active',
+  'locator-unresolved',
+  'data-binding',
+  'persona-unavailable',
+  'ast-violation',
+  'typecheck',
+  'lint',
+  'not-listed',
+  'mechanical',
 ]);
 export type ReviewRule = z.infer<typeof ReviewRule>;
 
@@ -159,5 +177,9 @@ export const ReviewFinding = z.object({
   resolvedBy: z.enum(['planner', 'qa-lead', 'recheck', 'judge']).optional(),
   /** Settled by the QA Lead without a fix: the affected cases were set to REVIEW_REQUIRED for a human. */
   escalated: z.boolean().default(false),
+  /** 1 (or absent) = test design (Phase 3), 2 = generated code (Phase 4). */
+  pass: z.union([z.literal(1), z.literal(2)]).optional(),
+  /** Pass 2: repo-relative spec paths the finding is about. */
+  paths: z.array(z.string()).optional(),
 });
 export type ReviewFinding = z.infer<typeof ReviewFinding>;
