@@ -129,12 +129,17 @@ export function renderSpec(i: RenderInput): string {
   };
   const objectOf = (ref: string): string => i.recipe?.plan.steps.find((s) => s.stepId === ref)?.object ?? ref;
 
+  // Ref opened by the immediately preceding openRecord (an openNewFromRelatedList right after it skips the re-open).
+  let lastOpened: string | undefined;
   const action = (a: IrAction): string[] => {
+    const justOpened = lastOpened;
+    lastOpened = undefined;
     switch (a.do) {
       case 'openRecord': {
         const p = recordPageOf(cat, a.object);
         if (!p) throw new Error(`no record page for ${a.object}`);
         imp.pages.set(p.className, p);
+        lastOpened = a.ref;
         return [`await ${varOf(p)}.open(${recordIdExpr(a.ref)});`];
       }
       case 'openNewFromRelatedList': {
@@ -148,7 +153,7 @@ export function renderSpec(i: RenderInput): string {
         imp.lightning.add('showRelatedList');
         const tab = p.members.find((m) => m.role === 'tab' && m.accessibleName === 'Related');
         return [
-          `await ${varOf(p)}.open(${recordIdExpr(a.parentRef)});`,
+          ...(justOpened === a.parentRef ? [] : [`await ${varOf(p)}.open(${recordIdExpr(a.parentRef)});`]),
           `await showRelatedList(${varOf(p)}.${list}${tab ? `, ${varOf(p)}.${tab.name}` : ''});`,
           `await ${varOf(p)}.${btn.name}.click();`,
           `await expect(${varOf(dlg)}.root).toBeVisible();`,

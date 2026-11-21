@@ -316,3 +316,21 @@ describe('Test Generator: page context of the flow (fixture run-p4-fixture-2, TC
     expect(irProblems(CASE, GOOD_IR, ctx, recipe)).toEqual([]);
   });
 });
+
+describe('Test Generator: rendering details', () => {
+  it('does not open the same record twice when openNewFromRelatedList directly follows openRecord', () => {
+    const ctx = generationContext();
+    const ir = structuredClone(GOOD_IR);
+    ir.steps[0]!.actions.unshift({ do: 'openRecord', ref: 'Account', object: 'Account' });
+    const text = renderSpec({
+      tc: CASE,
+      ir,
+      ctx,
+      recipe: bindRecipe(CASE, ctx),
+      caseHash: 'h',
+      irHash: 'h',
+      model: 'm',
+    });
+    expect(text.match(/accountRecordPage\.open\(/g)).toHaveLength(1);
+  });
+});
