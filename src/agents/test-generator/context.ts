@@ -187,6 +187,7 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         recordRef(v.ref, where);
         break;
       case 'literal':
+        if (!v.evidenceIds.length) p.push(`${where}: literal "${v.value}" cites no evidence`);
         if (!corpus.includes(norm(v.value))) {
           p.push(`${where}: literal "${v.value}" is not in the case text, recipe or UI labels (never invent values)`);
         }
@@ -208,6 +209,7 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
   };
 
   const typedUniques = new Set<string>();
+  const apiUpdated = new Set<string>(); // recipe records the test changed itself through the API
   const covered = new Set<number>();
   ir.steps.forEach((st, si) => {
     const where = `step ${si + 1}`;
@@ -218,6 +220,7 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
     for (const a of st.assertions) {
       assertion(a, `${where} ${a.check}`);
       if (a.expect.caseStep !== st.caseStep) p.push(`${where} ${a.check}: expect.caseStep must be ${st.caseStep}`);
+      if (!a.expect.evidenceIds.length) p.push(`${where} ${a.check}: expect cites no evidence`);
       const exp = tc.steps[a.expect.caseStep]?.expected;
       if (exp) {
         if (!isAssertable(exp.evidenceLevel))
@@ -280,10 +283,17 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         break;
       case 'apiUpdate': {
         recordRef(a.ref, where);
+        apiUpdated.add(a.ref);
         const obj = steps.find((s) => s.stepId === a.ref)?.object;
         for (const [f, v] of Object.entries(a.fields)) {
           const fact = obj ? ctx.facts.field(obj, f) : undefined;
-          if (!fact) p.push(`${where}: ${obj ?? '?'}.${f} is not in the snapshot`);
+          if (!fact) {
+            p.push(
+              obj
+                ? `${where}: ${obj}.${f} is not in the snapshot`
+                : `${where}: ${a.ref} is not a recipe step (use one of: ${steps.map((x) => x.stepId).join(', ')})`,
+            );
+          }
           if (v.kind === 'unique' && v.format === 'phone' && fact && fact.type !== 'phone')
             p.push(`${where}: ${f} is not a phone field`);
           if (v.kind === 'unique' && v.format === 'email' && fact && fact.type !== 'email')
@@ -344,10 +354,28 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         recordRef(a.ref, where);
         if (!ctx.facts.field(a.object, a.field)) p.push(`${where}: ${a.object}.${a.field} is not in the snapshot`);
         value(a.equals, where, cs);
+        // A value the test typed (unique / length) lives on the record the test created in the UI, not on a recipe
+        // record the data factory created (run-p4-coder-nim-4, TC-004: the check read the recipe Contact).
+        if (
+          (a.equals.kind === 'unique' || a.equals.kind === 'length') &&
+          steps.some((x) => x.stepId === a.ref) &&
+          !apiUpdated.has(a.ref)
+        ) {
+          p.push(
+            `${where}: ${a.ref} is a recipe record; the value the test typed is on the record it created — capture it with {"check":"recordView","as":"<name>"} (or adopt) and query that name`,
+          );
+        }
         break;
       case 'soqlNoRecord':
         if (!ctx.facts.field(a.object, a.field)) p.push(`${where}: ${a.object}.${a.field} is not in the snapshot`);
         value(a.value, where, cs);
+        // Only a run-unique value the test typed can prove "not saved": recipe / literal values may already exist
+        // (run-p4-coder-nim-4, TC-003: FirstName of the recipe Contact always counted 1).
+        if (a.value.kind !== 'unique' || !typedUniques.has(a.value.label)) {
+          p.push(
+            `${where}: soqlNoRecord must look for a unique value this test typed into the form (fill {"kind":"unique","label":"…"} first, then use the same label)`,
+          );
+        }
         break;
       case 'apiRejects': {
         const base = steps.find((s) => s.stepId === a.basedOn);
@@ -400,9 +428,11 @@ function labels(cat: PageCatalog): string[] {
  * Meaning-preserving clean-up of a parsed IR before the checks (seen with the NIM coder, run-p4-coder-nim-1): record
  * refs given as a page id / page ref / class / object name (`account-record.root`, `AccountRecordPage`, `account`)
  * become the recipe step id of that object (`Account`) — only when exactly one recipe step has that object.
+ * Omitted evidence ids (a literal / length value or an assertion's `expect`) are filled with the evidence the case
+ * step itself cites — the same rule the Test Planner uses for omitted evidence; nothing new is cited.
  * Anything ambiguous is left as is, so the checks still reject it.
  */
-export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeView | undefined): TestIR {
+export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeView | undefined, tc?: TestCase): TestIR {
   const steps = recipe?.plan.steps ?? [];
   const named = new Set<string>(); // names the IR itself introduces (adopt / recordView `as`)
   for (const st of ir.steps) {
@@ -421,7 +451,14 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
     const matches = obj ? steps.filter((s) => s.object === obj) : [];
     return matches.length === 1 && matches[0] ? matches[0].stepId : v;
   };
-  const val = (x: ValueRef): ValueRef => (x.kind === 'data' || x.kind === 'recordId' ? { ...x, ref: ref(x.ref) } : x);
+  let caseStep = 0; // the IR step being normalised (for omitted evidence ids)
+  const stepEvidence = (): string[] => tc?.steps[caseStep]?.expected.evidenceIds ?? [];
+  const val = (x: ValueRef): ValueRef => {
+    if (x.kind === 'data' || x.kind === 'recordId') return { ...x, ref: ref(x.ref) };
+    if ((x.kind === 'literal' || x.kind === 'length') && !x.evidenceIds.length)
+      return { ...x, evidenceIds: stepEvidence() };
+    return x;
+  };
   const fields = (f: Record<string, ValueRef>): Record<string, ValueRef> =>
     Object.fromEntries(Object.entries(f).map(([k, x]) => [k, val(x)]));
   const action = (a: IrAction): IrAction => {
@@ -440,7 +477,9 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
         return a;
     }
   };
-  const assertion = (a: IrAssertion): IrAssertion => {
+  const assertion = (a0: IrAssertion): IrAssertion => {
+    const ev = tc?.steps[a0.expect.caseStep]?.expected.evidenceIds ?? [];
+    const a = a0.expect.evidenceIds.length ? a0 : { ...a0, expect: { ...a0.expect, evidenceIds: ev } };
     switch (a.check) {
       case 'inputValue':
         return { ...a, equals: val(a.equals) };
@@ -471,6 +510,9 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
   return {
     ...ir,
     data,
-    steps: ir.steps.map((st) => ({ ...st, actions: st.actions.map(action), assertions: st.assertions.map(assertion) })),
+    steps: ir.steps.map((st) => {
+      caseStep = st.caseStep;
+      return { ...st, actions: st.actions.map(action), assertions: st.assertions.map(assertion) };
+    }),
   };
 }

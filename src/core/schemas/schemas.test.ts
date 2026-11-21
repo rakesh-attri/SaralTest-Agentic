@@ -269,8 +269,9 @@ describe('Phase 4 generation + data contracts', () => {
       steps: [{ caseStep: 0, title: 'raw', actions: [{ do: 'click', element: "page.locator('//div')" }] }],
     });
     expect(raw.success).toBe(false);
-    const noEvidence = IrAssertion.safeParse({ check: 'toast', expect: { caseStep: 0, evidenceIds: [] } });
-    expect(noEvidence.success).toBe(false);
+    // Omitted evidence parses; normalizeIr fills it from the case step and irProblems rejects an empty list.
+    const noEvidence = IrAssertion.safeParse({ check: 'toast', expect: { caseStep: 0 } });
+    expect(noEvidence.success && noEvidence.data.expect.evidenceIds).toEqual([]);
   });
 
   it('generated artifacts carry lineage and review status; old pass-1 findings stay valid', () => {

@@ -189,7 +189,7 @@ export async function generateTests(
         ...generatorPrompt(ctx, tc, recipe, prior),
         contract: IR_CONTRACT,
         ...(deps.skills ? { skills: { loader: deps.skills, names: TEST_GENERATOR_SKILLS } } : {}),
-        normalize: (ir) => normalizeIr(ir, ctx, recipe),
+        normalize: (ir) => normalizeIr(ir, ctx, recipe, tc),
         check: (ir) => irProblems(tc, ir, ctx, recipe),
         ...(deps.redactor ? { redactor: deps.redactor } : {}),
         ...(deps.logger ? { logger: deps.logger } : {}),

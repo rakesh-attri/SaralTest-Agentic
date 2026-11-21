@@ -89,9 +89,27 @@ async function validateBuild(runId: string): Promise<void> {
   const cases = designRun
     ? parse(join(root, 'runs', designRun, 'design', 'test-cases.json'), z.array(TestCase))
     : undefined;
-  const specs = manifest.artifacts.filter((a) => a.kind === 'spec');
+  const runSpecs = manifest.artifacts.filter((a) => a.kind === 'spec');
+  // A partial rebuild (`qa build --cases`) holds only the rebuilt specs: coverage, hashes, lint and listing are then
+  // checked on the merged story manifest the build wrote next to the specs (tests/generated/<story>/manifest.json).
+  const approved = cases?.filter((c) => c.reviewStatus === 'APPROVED') ?? [];
+  const partial = cases !== undefined && runSpecs.length < approved.length;
+  let specs = runSpecs;
+  if (partial) {
+    const story = parse(
+      join(root, 'tests', 'generated', manifest.storyKey ?? info.storyKey ?? '', 'manifest.json'),
+      z.object({ artifacts: z.array(GeneratedArtifact) }),
+    );
+    specs = story?.artifacts.filter((a) => a.kind === 'spec') ?? [];
+    for (const r of runSpecs) {
+      const merged = specs.find((x) => x.path === r.path);
+      if (!merged || merged.hash !== r.hash) fail(`partial rebuild: ${r.path} is not the merged manifest's entry`);
+    }
+    ok(
+      `partial rebuild of ${runSpecs.map((x) => x.testCaseIds.join(',')).join(', ')}; merged story manifest has ${specs.length} spec(s)`,
+    );
+  }
   if (cases) {
-    const approved = cases.filter((c) => c.reviewStatus === 'APPROVED');
     const missing = approved.filter((c) => specs.filter((s) => s.testCaseIds.includes(c.id)).length !== 1);
     if (missing.length) fail(`APPROVED cases without exactly one spec: ${missing.map((c) => c.id).join(', ')}`);
     else ok(`${approved.length}/${approved.length} APPROVED cases of ${designRun} have one spec each`);
@@ -133,7 +151,7 @@ async function validateBuild(runId: string): Promise<void> {
   else ok('tsc: no errors in the generated specs at build time (run `pnpm typecheck` for the whole project)');
 
   // 4. Locator dry-run covers every member the specs use, all resolved.
-  const used = [...new Set(specs.flatMap((s) => s.locatorsUsed))];
+  const used = [...new Set(runSpecs.flatMap((s) => s.locatorsUsed))];
   if (!dry) fail('no locator dry-run recorded');
   else {
     const missingChecks = used.filter((u) => !dry.checks.some((c) => c.element === u && c.ok));

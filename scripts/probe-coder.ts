@@ -249,7 +249,7 @@ for (const m of models) {
                   .join('; ')
           })`
         : (() => {
-            const p = irProblems(tc, normalizeIr(ir.data, ctx, recipe), ctx, recipe);
+            const p = irProblems(tc, normalizeIr(ir.data, ctx, recipe, tc), ctx, recipe);
             return p.length
               ? `valid TestIR, ${p.length} deterministic problem(s): ${p.slice(0, 3).join(' | ')}`
               : 'valid TestIR, 0 problems';

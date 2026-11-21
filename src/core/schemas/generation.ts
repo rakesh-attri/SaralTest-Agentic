@@ -27,12 +27,14 @@ export const ValueRef = z.discriminatedUnion('kind', [
   /** The record id of a data-plan record or of a record the test created through the UI. */
   z.object({ kind: z.literal('recordId'), ref: z.string().min(1) }),
   /** A literal value; must be grounded in the cited evidence (src/oracles/grounding.ts). */
-  z.object({ kind: z.literal('literal'), value: z.string(), evidenceIds: z.array(z.string()).min(1) }),
+  // evidenceIds may be omitted by the model: normalizeIr fills them with the case step's own evidence, and the
+  // checks require a non-empty list afterwards.
+  z.object({ kind: z.literal('literal'), value: z.string(), evidenceIds: z.array(z.string()).default([]) }),
   /** A run-unique string of exactly `length` characters (boundary values), length cited from evidence. */
   z.object({
     kind: z.literal('length'),
     length: z.number().int().min(0).max(100_000),
-    evidenceIds: z.array(z.string()).min(1),
+    evidenceIds: z.array(z.string()).default([]),
   }),
   /**
    * A run-unique synthetic value for data the test types itself (e.g. a Contact last name created via the UI).
@@ -77,7 +79,7 @@ export type IrAction = z.infer<typeof IrAction>;
 /** Which expected result of the case an assertion implements (index into TestCase.steps, 0-based). */
 export const ExpectationRef = z.object({
   caseStep: z.number().int().nonnegative(),
-  evidenceIds: z.array(z.string()).min(1),
+  evidenceIds: z.array(z.string()).default([]),
 });
 
 export const IrAssertion = z.discriminatedUnion('check', [

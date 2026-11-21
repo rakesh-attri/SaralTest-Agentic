@@ -19,6 +19,7 @@ roles:
   coder:       # Test Generator, Application Explorer, Self-Healer
     provider: nvidia-nim
     model: <nim-coder-model-id>
+    responseFormat: json_object   # OpenAI-compatible JSON mode; check with: pnpm tsx scripts/probe-coder.ts (not for Groq gpt-oss)
     temperature: 0
     fallback:
       - { provider: groq, model: <groq-coder-model-id> }
