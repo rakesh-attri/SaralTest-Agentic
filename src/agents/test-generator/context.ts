@@ -124,7 +124,10 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
   );
   const caseEvidence = new Set(tc.steps.flatMap((s) => s.expected.evidenceIds));
 
-  const member = (ref: string, roles?: Set<string>): CatalogPage | undefined => {
+  // Page context of the flow: which page objects are on screen at this point (CLAUDE.md: tests must be runnable,
+  // not only resolvable — the dry-run checks each locator in its own page state, this checks the order of use).
+  let onScreen: string[] = [];
+  const member = (ref: string, roles?: Set<string>, interact = false): CatalogPage | undefined => {
     const m = findMember(ctx.catalog, ref);
     if (!m) {
       p.push(`element ${ref} is not a page-object member (use only refs from the catalog)`);
@@ -132,6 +135,21 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
     }
     if (roles && (!m.member.role || !roles.has(m.member.role))) {
       p.push(`element ${ref} has role ${m.member.role ?? '?'}; this action needs ${[...roles].join('/')}`);
+    }
+    if (!onScreen.includes(m.page.id)) {
+      p.push(
+        `element ${ref} is on ${m.page.className}, which is not open at this point (open it first with openRecord / openNewFromRelatedList / recordView; on screen: ${onScreen.join(', ') || 'nothing'})`,
+      );
+    }
+    const scope = m.member.scopeName;
+    if (
+      interact &&
+      scope &&
+      m.page.members.some((x) => x.kind === 'region' && x.role === 'article' && x.accessibleName === scope)
+    ) {
+      p.push(
+        `element ${ref} is inside the "${scope}" related list: use openNewFromRelatedList (it brings the list into view)`,
+      );
     }
     return m.page;
   };
@@ -204,10 +222,13 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
 
   function action(a: IrAction, where: string, caseStep: number): void {
     switch (a.do) {
-      case 'openRecord':
+      case 'openRecord': {
         recordRef(a.ref, where);
-        if (!recordPageOf(ctx.catalog, a.object)) p.push(`${where}: no record page object for ${a.object}`);
+        const page = recordPageOf(ctx.catalog, a.object);
+        if (!page) p.push(`${where}: no record page object for ${a.object}`);
+        onScreen = page ? [page.id] : [];
         break;
+      }
       case 'openNewFromRelatedList': {
         recordRef(a.parentRef, where);
         const parent = steps.find((s) => s.stepId === a.parentRef)?.object;
@@ -220,23 +241,24 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
             p.push(`${where}: no New button for "${a.relatedList}"`);
           }
         }
-        if (!dialogForList(ctx.catalog, a.relatedList))
-          p.push(`${where}: no dialog page object for "${a.relatedList}"`);
+        const dialog = dialogForList(ctx.catalog, a.relatedList);
+        if (!dialog) p.push(`${where}: no dialog page object for "${a.relatedList}"`);
+        onScreen = [...(dialog ? [dialog.id] : []), ...(page ? [page.id] : [])];
         break;
       }
       case 'fill':
-        member(a.element, FILLABLE);
+        member(a.element, FILLABLE, true);
         value(a.value, where, caseStep);
         if (a.value.kind === 'unique') typedUniques.add(a.value.label);
         break;
       case 'clear':
-        member(a.element, FILLABLE);
+        member(a.element, FILLABLE, true);
         break;
       case 'click':
-        member(a.element, CLICKABLE);
+        member(a.element, CLICKABLE, true);
         break;
       case 'selectTab':
-        member(a.element, new Set(['tab']));
+        member(a.element, new Set(['tab']), true);
         break;
       case 'apiUpdate': {
         recordRef(a.ref, where);
@@ -281,10 +303,13 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
       case 'toast':
         if (a.contains) value(a.contains, where, cs);
         break;
-      case 'recordView':
-        if (!recordPageOf(ctx.catalog, a.object)) p.push(`${where}: no record page for ${a.object}`);
+      case 'recordView': {
+        const page = recordPageOf(ctx.catalog, a.object);
+        if (!page) p.push(`${where}: no record page for ${a.object}`);
         if (a.as) created.add(a.as);
+        onScreen = page ? [page.id] : [];
         break;
+      }
       case 'recordTitle':
         value(a.contains, where, cs);
         break;

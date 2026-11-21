@@ -260,3 +260,59 @@ describe('Test Generator: fixes from the fixture demo (run-p4-fixture-1)', () =>
     );
   });
 });
+
+describe('Test Generator: page context of the flow (fixture run-p4-fixture-2, TC-002)', () => {
+  const ctx = generationContext();
+  const recipe = bindRecipe(CASE, ctx);
+
+  it('rejects dialog fields used when the dialog is not open, and related-list buttons clicked directly', () => {
+    const ir: TestIR = {
+      caseId: CASE.id,
+      data: ['Account', 'Contact'],
+      steps: [
+        {
+          caseStep: 0,
+          title: 'Open New from the list without bringing it into view',
+          actions: [
+            { do: 'openRecord', ref: 'Account', object: 'Account' },
+            { do: 'click', element: 'account-record.contactsNewButton' },
+          ],
+          assertions: [
+            { check: 'visible', element: 'contact-new.root', expect: { caseStep: 0, evidenceIds: ['SF-219#AC2'] } },
+          ],
+        },
+        {
+          caseStep: 1,
+          title: 'Edit on the record page, then type into the New Contact dialog',
+          actions: [
+            { do: 'openRecord', ref: 'Contact', object: 'Contact' },
+            {
+              do: 'fill',
+              element: 'contact-new.mailingCountry',
+              value: { kind: 'unique', label: 'country', format: 'text' },
+            },
+          ],
+          assertions: [
+            {
+              check: 'apiRejects',
+              object: 'Contact',
+              basedOn: 'Contact',
+              fields: {},
+              remove: ['LastName'],
+              errorCodes: ['REQUIRED_FIELD_MISSING'],
+              expect: { caseStep: 1, evidenceIds: ['OC-002'] },
+            },
+          ],
+        },
+      ],
+      notes: [],
+    };
+    const p = irProblems(CASE, ir, ctx, recipe).join('\n');
+    expect(p).toMatch(/contactsNewButton is inside the "Contacts" related list: use openNewFromRelatedList/);
+    expect(p).toMatch(/contact-new\.root is on NewContactDialog, which is not open at this point/);
+    expect(p).toMatch(
+      /contact-new\.mailingCountry is on NewContactDialog, which is not open at this point \(.*on screen: contact-record\)/,
+    );
+    expect(irProblems(CASE, GOOD_IR, ctx, recipe)).toEqual([]);
+  });
+});
