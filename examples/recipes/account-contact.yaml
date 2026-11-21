@@ -1,12 +1,15 @@
 # Approved business recipe: Account -> Contact. Values marked {synthetic} are generated; others are business-approved.
 recipe: account-contact
-approvedBy: "<name>"
+approvedBy: "Rakesh Sharma"
 objects:
   - object: Account
     recordType: null              # resolved from snapshot if required
     fields:
       Name: "QA-{runId}-Acme {synthetic}"
       Industry: Technology        # must be a valid picklist value in the snapshot
+      BillingStreet: "12 MG Road"
+      BillingCity: Bengaluru
+      BillingPostalCode: "560001"
       BillingCountry: India
   - object: Contact
     parent: { field: AccountId, ref: Account }

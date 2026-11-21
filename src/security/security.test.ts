@@ -190,6 +190,20 @@ describe('idempotency', () => {
     expect(l.canSend(w.idempotencyKey)).toBe(false);
   });
 
+  it('a rejected write is FAILED (final, nothing to clean) and keeps its step metadata and error', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'qa ledger '));
+    const file = join(dir, 'writes.jsonl');
+    const l = new WriteLedger(file);
+    const w = l.plan({ runId: 'r', object: 'Contact', step: 'Contact', fields: {}, order: 1, parentRef: 'Account' });
+    l.transition(w.idempotencyKey, 'SENT');
+    l.transition(w.idempotencyKey, 'FAILED', undefined, 'REQUIRED_FIELD_MISSING');
+    expect(() => l.transition(w.idempotencyKey, 'CLEANED')).toThrow();
+    const replayed = new WriteLedger(file).get(w.idempotencyKey);
+    expect(replayed).toMatchObject({ state: 'FAILED', step: 'Contact', order: 1, parentRef: 'Account' });
+    expect(replayed?.error).toBe('REQUIRED_FIELD_MISSING');
+    await rm(dir, { recursive: true, force: true });
+  });
+
   it('replays the ledger after a crash; in-flight SENT writes become UNCERTAIN', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'qa ledger '));
     const file = join(dir, 'writes.jsonl');

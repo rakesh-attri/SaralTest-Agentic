@@ -111,6 +111,9 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
     devDependencies:
+      '@axe-core/playwright':
+        specifier: 4.14.0
+        version: 4.14.0(playwright-core@1.65.1)
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.15.0(supports-color@7.2.0))
@@ -144,6 +147,9 @@ importers:
       prettier:
         specifier: ^3.10.1
         version: 3.10.1
+      reporting-labs:
+        specifier: 0.6.24
+        version: 0.6.24(@playwright/test@1.65.1)
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -178,6 +184,12 @@ packages:
 
   '@arizeai/openinference-semantic-conventions@2.17.0':
     resolution: {integrity: sha512-W/0V8e1iFIqr6iK10BWhCzbAUZ5Rf9NY2bsfCfrH3vFk0W5HaeGHAj58frJZJ24bu7Y5aJOxq4+hF6hiRWtEbQ==}
+
+  '@axe-core/playwright@4.14.0':
+    resolution: {integrity: sha512-SGUhG5PIHd2eMdpgBF2PyQLOhX+qyDR2PT4cmoS4Qk2ak+jX/rrSvst9l0PGv5WTHolKpUMvVmoHpr4cZgf1RQ==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      playwright-core: '>= 1.0.0'
 
   '@babel/helper-string-parser@7.29.14':
     resolution: {integrity: sha512-CXvKMFvM80ihI7Vox9jb+kQjnyjESQNPM+vB7U0Zz6TWuZA+Z/FL0QPMH300h33qJtIx+REeBhXqWOPW48TcAQ==}
@@ -1425,6 +1437,10 @@ packages:
   available-typed-arrays@1.0.7:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
+
+  axe-core@4.14.1:
+    resolution: {integrity: sha512-FHfa+lmNjQZfJz1q8wKqIDwC6DExcHt/pkjNQb09a3NPjCKg2rhu5qb2S4r76ASyFNNtuFooJpZe37OgudVGtQ==}
+    engines: {node: '>=4'}
 
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
@@ -2859,6 +2875,16 @@ packages:
     resolution: {integrity: sha512-dYqgNSZbDwkaJ2ceRd9ojCGjBq+mOm9LmtXnAnEGyHhN/5R7iDW2TRw3h+o/jCFxus3P2LfWIIiwowAjANm7IA==}
     engines: {node: '>= 0.4'}
 
+  reporting-labs@0.6.24:
+    resolution: {integrity: sha512-AmtRgkKyezT5VgtEzxgF/wmt8ejuSu46u1wVEMXiv0NJq4dpYU/BX4+TPW1VHPkTIzBN/sJL8DiPXd9dZLmKbw==}
+    engines: {node: '>=18'}
+    hasBin: true
+    peerDependencies:
+      '@playwright/test': '>=1.40.0'
+    peerDependenciesMeta:
+      '@playwright/test':
+        optional: true
+
   require-from-string@2.0.2:
     resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
     engines: {node: '>=0.10.0'}
@@ -3444,6 +3470,11 @@ snapshots:
       - supports-color
 
   '@arizeai/openinference-semantic-conventions@2.17.0': {}
+
+  '@axe-core/playwright@4.14.0(playwright-core@1.65.1)':
+    dependencies:
+      axe-core: 4.14.1
+      playwright-core: 1.65.1
 
   '@babel/helper-string-parser@7.29.14': {}
 
@@ -4544,6 +4575,8 @@ snapshots:
   available-typed-arrays@1.0.7:
     dependencies:
       possible-typed-array-names: 1.1.0
+
+  axe-core@4.14.1: {}
 
   balanced-match@1.0.2: {}
 
@@ -6102,6 +6135,10 @@ snapshots:
       get-proto: 1.0.1
       gopd: 1.2.0
       set-function-name: 2.0.2
+
+  reporting-labs@0.6.24(@playwright/test@1.65.1):
+    optionalDependencies:
+      '@playwright/test': 1.65.1
 
   require-from-string@2.0.2: {}
 

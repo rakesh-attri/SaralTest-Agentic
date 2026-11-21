@@ -16,12 +16,14 @@ import type { ModelRouter } from '../models/router.js';
 import type { Redactor } from '../security/redact.js';
 import type { SkillLoader } from '../skills/skillLoader.js';
 import { finalStatus, writeAnalysisReport } from './analysisReport.js';
+import { createBuildNode, type BuildDeps } from './buildNodes.js';
+import { writeBuildReport } from './buildReport.js';
 import { createPlanNode, type DesignHook } from './designNodes.js';
 import { writeDesignReport } from './designReport.js';
 import { QAGraphState, type QAGraphStateType, type QAGraphUpdate } from './state.js';
 
 /**
- * Main graph (PLAN.md §2), Phases 1–3:
+ * Main graph (PLAN.md §2), Phases 1–4 (build <-> review2 after the design; `qa build` enters at build):
  *   START → intake → understand ⇄ clarify(interrupt) → discover (if an org is set) → plan ⇄ review (pass 1, if a
  *   design hook is set) → report → END, with QA Lead triage after every node. A run seeded with earlier analysis
  *   output (`qa design`) enters at `plan`. Later phases insert build/execute… before report. Every path ends at
@@ -54,6 +56,11 @@ export interface GraphDeps {
   discover?: DiscoverHook;
   /** Phase 3 test design inputs (snapshot, cross-check, registry, personas). Absent → no plan/review. */
   design?: DesignHook;
+  /**
+   * Phase 4 generation inputs (catalog, recipes, facts) + file checks. Absent → no build/review2. A run seeded with
+   * reviewed cases (`qa build`) enters at `build`.
+   */
+  build?: Omit<BuildDeps, 'root' | 'router' | 'skills' | 'redactor' | 'logger' | 'say'>;
 }
 
 export interface DiscoverHookResult {
@@ -92,10 +99,13 @@ const CAPS: Record<string, NodeCapabilities> = {
   // Planner/Reviewer failing degrades to mechanical drafting / deterministic review; hard stops still block.
   plan: { retry: true, fallback: false, degrade: true, ask: false },
   review: { retry: true, fallback: false, degrade: true, ask: false },
+  // Generator / Reviewer pass 2 failing degrades to mechanical skeletons / deterministic review.
+  build: { retry: true, fallback: false, degrade: true, ask: false },
+  review2: { retry: true, fallback: false, degrade: true, ask: false },
   report: { retry: false, fallback: false, degrade: false, ask: false },
 };
 
-const DEGRADABLE = ['understand', 'discover', 'plan', 'review'];
+const DEGRADABLE = ['understand', 'discover', 'plan', 'review', 'build', 'review2'];
 
 const SKIP_ANSWER = /^\s*(?:|skip|-|n\/a|idk|don'?t know|unknown)\s*$/i;
 
@@ -375,6 +385,21 @@ export function buildMainGraph(deps: GraphDeps) {
   const plan = wrap('plan', 'test-planner', (s) => (design ? design.plan(s) : {}));
   const review = wrap('review', 'test-reviewer', (s) => (design ? design.review(s) : {}));
 
+  // ------------------------------------------------------------------ build <-> review2 (Phase 4)
+  const builder = deps.build
+    ? createBuildNode({
+        ...deps.build,
+        root: deps.root,
+        ...(deps.router ? { router: deps.router } : {}),
+        ...(deps.skills ? { skills: deps.skills } : {}),
+        ...(deps.redactor ? { redactor: deps.redactor } : {}),
+        logger: deps.logger,
+        say,
+      })
+    : undefined;
+  const build = wrap('build', 'test-generator', (s) => (builder ? builder.build(s) : {}));
+  const review2 = wrap('review2', 'test-reviewer', (s) => (builder ? builder.review2(s) : {}));
+
   // ------------------------------------------------------------------ report
   const report = wrap(
     'report',
@@ -382,12 +407,19 @@ export function buildMainGraph(deps: GraphDeps) {
     async (s) => {
       const status = finalStatus(s);
       const paths = await ensureRunFolder(deps.root, s.runId);
-      const outputs = await writeAnalysisReport(s, paths.dir, status);
-      say(`Report written: ${outputs.find((o) => o.endsWith('.md')) ?? paths.dir}`);
-      if (s.testCases.length) {
+      // A build-only run (`qa build`, seeded with reviewed cases) has no analysis of its own to report.
+      const buildOnly = !s.requirements.length && s.buildSpecs.length > 0;
+      const outputs = buildOnly ? [] : await writeAnalysisReport(s, paths.dir, status);
+      if (!buildOnly) say(`Report written: ${outputs.find((o) => o.endsWith('.md')) ?? paths.dir}`);
+      if (s.testCases.length && s.charter) {
         const designOut = await writeDesignReport(s, paths.dir, status);
         outputs.push(...designOut);
         say(`Test design written: ${designOut.find((o) => o.endsWith('test-plan.md')) ?? paths.dir}`);
+      }
+      if (s.buildSpecs.length || s.generated.length) {
+        const buildOut = await writeBuildReport(s, paths.dir, status);
+        outputs.push(...buildOut);
+        say(`Build report written: ${buildOut.find((o) => o.endsWith('build-report.md')) ?? paths.dir}`);
       }
       return { status, outputs };
     },
@@ -447,6 +479,9 @@ export function buildMainGraph(deps: GraphDeps) {
     };
   };
 
+  /** After the design: build (when a build hook is set and a case is APPROVED) → report. */
+  const toBuild = (s: QAGraphStateType): string =>
+    deps.build && s.testCases.some((c) => c.reviewStatus === 'APPROVED') ? 'build' : 'report';
   /** After analysis: discover (when an org is configured) → plan (when a design hook is set) → report. */
   const toPlan = (s: QAGraphStateType): string => (deps.design && s.requirements.length ? 'plan' : 'report');
   const afterAnalysis = (s: QAGraphStateType): string =>
@@ -467,16 +502,37 @@ export function buildMainGraph(deps: GraphDeps) {
       case 'plan':
         return s.testCases.length ? 'review' : 'report';
       case 'review':
-        return s.reviewFindings.some((f) => f.status === 'OPEN') ? 'plan' : 'report';
+        return s.reviewFindings.some((f) => f.status === 'OPEN') ? 'plan' : toBuild(s);
+      case 'build':
+        return s.buildSpecs.length ? 'review2' : 'report';
+      case 'review2':
+        return Object.keys(s.buildFeedback).length ? 'build' : 'report';
       default:
         return 'report';
     }
   }
 
-  const routes = ['intake', 'understand', 'clarify', 'discover', 'plan', 'review', 'report'] as const;
-  /** `qa design`: a run seeded with earlier analysis (requirements, no inputs) starts at plan. */
-  const entry = (s: QAGraphStateType): 'intake' | 'plan' =>
-    !s.inputs.length && s.requirements.length && deps.design ? 'plan' : 'intake';
+  const routes = [
+    'intake',
+    'understand',
+    'clarify',
+    'discover',
+    'plan',
+    'review',
+    'build',
+    'review2',
+    'report',
+  ] as const;
+  /**
+   * `qa design`: a run seeded with earlier analysis (requirements, no inputs) starts at plan.
+   * `qa build`: a run seeded with reviewed test cases (no inputs, no requirements) starts at build.
+   */
+  const entry = (s: QAGraphStateType): 'intake' | 'plan' | 'build' =>
+    !s.inputs.length && s.testCases.length && !s.requirements.length && deps.build
+      ? 'build'
+      : !s.inputs.length && s.requirements.length && deps.design
+        ? 'plan'
+        : 'intake';
   const graph = new StateGraph(QAGraphState)
     .addNode('intake', intake)
     .addNode('understand', understand)
@@ -484,15 +540,19 @@ export function buildMainGraph(deps: GraphDeps) {
     .addNode('discover', discover)
     .addNode('plan', plan)
     .addNode('review', review)
+    .addNode('build', build)
+    .addNode('review2', review2)
     .addNode('report', report)
     .addNode('triage', triage)
-    .addConditionalEdges(START, entry, ['intake', 'plan'])
+    .addConditionalEdges(START, entry, ['intake', 'plan', 'build'])
     .addEdge('intake', 'triage')
     .addEdge('understand', 'triage')
     .addEdge('clarify', 'triage')
     .addEdge('discover', 'triage')
     .addEdge('plan', 'triage')
     .addEdge('review', 'triage')
+    .addEdge('build', 'triage')
+    .addEdge('review2', 'triage')
     .addConditionalEdges(
       'triage',
       (s) => ((routes as readonly string[]).includes(s.route) ? (s.route as (typeof routes)[number]) : 'report'),

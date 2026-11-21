@@ -171,7 +171,7 @@ describe('qa doctor', () => {
     expect(text).toContain('1 non-chat ids hidden');
     expect(text).toContain('groq at api.groq.com: key accepted, 2 models');
     expect(text).toContain('  Meta: llama-3.1-8b-instant');
-    expect(text).toMatch(/quotas: .*groq 30 req\/min, 6000 tokens\/min/);
+    expect(text).toMatch(/quotas: .*groq 30 req\/min, 8000 tokens\/min/);
     expect(text).not.toContain(NVIDIA_KEY);
     expect(byId(report, 'models')?.status).toBe('yellow'); // placeholders, nothing red
 

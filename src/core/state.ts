@@ -5,6 +5,8 @@ import {
   Clarification,
   CreatedRecord,
   CoverageObligation,
+  DataPlan,
+  GeneratedArtifact,
   ImpactReport,
   ReviewFinding,
   RiskItem,
@@ -55,13 +57,8 @@ export const StorySnapshot = z.looseObject({
 export const OrgContext = z.looseObject({ snapshotId: z.string(), components: z.array(z.string()) });
 /** Charter + impact contracts were tightened in Phase 3 (src/core/schemas/design.ts). */
 export { TestCharter, ImpactReport } from './schemas/index.js';
-export const GeneratedArtifact = z.object({
-  kind: z.enum(['spec', 'page-object', 'api-test', 'fixture']),
-  path: z.string(),
-  hash: z.string(),
-  testCaseIds: z.array(z.string()),
-});
-export const DataPlan = z.looseObject({ recipe: z.string(), steps: z.array(z.unknown()) });
+/** Generation + data contracts were tightened in Phase 4 (src/core/schemas/generation.ts, data.ts). */
+export { GeneratedArtifact, DataPlan };
 
 export const RunStatus = z.enum(['RUNNING', 'COMPLETE', 'PARTIAL', 'BLOCKED']);
 export type RunStatus = z.infer<typeof RunStatus>;

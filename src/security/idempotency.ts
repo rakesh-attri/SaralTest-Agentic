@@ -26,9 +26,10 @@ export function idempotencyKey(
 
 const ALLOWED: Record<DataWriteState, readonly DataWriteState[]> = {
   PLANNED: ['SENT'],
-  SENT: ['CONFIRMED', 'UNCERTAIN'],
+  SENT: ['CONFIRMED', 'UNCERTAIN', 'FAILED'],
   UNCERTAIN: ['CONFIRMED', 'PLANNED'], // only via reconcile()
   CONFIRMED: ['CLEANED'],
+  FAILED: [], // Salesforce rejected the write: nothing exists, nothing to clean
   CLEANED: [],
 };
 
@@ -38,13 +39,15 @@ const LedgerEvent = z.object({
   state: DataWriteState,
   write: DataWrite.optional(),
   recordId: z.string().optional(),
+  error: z.string().optional(),
 });
 type LedgerEvent = z.infer<typeof LedgerEvent>;
 
 /**
  * Write ledger with the DataWrite state machine (safety skill §Writes):
  * PLANNED → SENT → CONFIRMED | UNCERTAIN; UNCERTAIN → reconcile() → CONFIRMED (found) | PLANNED (safe to retry);
- * CONFIRMED → CLEANED. A write may only be sent from PLANNED — never blind-retry an uncertain write.
+ * CONFIRMED → CLEANED; SENT → FAILED when Salesforce rejected it (nothing exists). A write may only be sent from
+ * PLANNED — never blind-retry an uncertain write.
  * Events are persisted as JSONL so a crashed run can resume.
  */
 export class WriteLedger {
@@ -62,7 +65,14 @@ export class WriteLedger {
       const ev = LedgerEvent.parse(JSON.parse(line));
       if (ev.write) this.writes.set(ev.key, ev.write);
       const w = this.writes.get(ev.key);
-      if (w) this.writes.set(ev.key, { ...w, state: ev.state, ...(ev.recordId ? { recordId: ev.recordId } : {}) });
+      if (w) {
+        this.writes.set(ev.key, {
+          ...w,
+          state: ev.state,
+          ...(ev.recordId ? { recordId: ev.recordId } : {}),
+          ...(ev.error ? { error: ev.error } : {}),
+        });
+      }
     }
     // A write that was SENT when the process died has an unknown outcome.
     for (const [k, w] of this.writes) if (w.state === 'SENT') this.writes.set(k, { ...w, state: 'UNCERTAIN' });
@@ -72,8 +82,17 @@ export class WriteLedger {
     if (this.file) appendFileSync(this.file, `${JSON.stringify({ at: new Date().toISOString(), ...ev })}\n`, 'utf8');
   }
 
-  plan(input: { runId: string; object: string; step: string; fields: Record<string, unknown> }): DataWrite {
-    const key = idempotencyKey(input.runId, input.object, input.step, input.fields);
+  plan(input: {
+    runId: string;
+    object: string;
+    step: string;
+    fields: Record<string, unknown>;
+    /** Precomputed key (the data plan computes it once); defaults to idempotencyKey(runId, object, step, fields). */
+    key?: string;
+    order?: number;
+    parentRef?: string;
+  }): DataWrite {
+    const key = input.key ?? idempotencyKey(input.runId, input.object, input.step, input.fields);
     const existing = this.writes.get(key);
     if (existing) return existing;
     const write = DataWrite.parse({
@@ -82,6 +101,9 @@ export class WriteLedger {
       object: input.object,
       plannedFields: input.fields,
       state: 'PLANNED',
+      step: input.step,
+      ...(input.order !== undefined ? { order: input.order } : {}),
+      ...(input.parentRef ? { parentRef: input.parentRef } : {}),
     });
     this.writes.set(key, write);
     this.persist({ key, state: 'PLANNED', write });
@@ -100,15 +122,15 @@ export class WriteLedger {
     return this.writes.get(key)?.state === 'PLANNED';
   }
 
-  transition(key: string, to: DataWriteState, recordId?: string): DataWrite {
+  transition(key: string, to: DataWriteState, recordId?: string, error?: string): DataWrite {
     const w = this.writes.get(key);
     if (!w) throw new QAError('DATA', `unknown write ${key}`);
     if (!ALLOWED[w.state].includes(to)) {
       throw new QAError('DATA', `illegal write transition ${w.state} → ${to} for ${key}`, { from: w.state, to });
     }
-    const next: DataWrite = { ...w, state: to, ...(recordId ? { recordId } : {}) };
+    const next: DataWrite = { ...w, state: to, ...(recordId ? { recordId } : {}), ...(error ? { error } : {}) };
     this.writes.set(key, next);
-    this.persist({ key, state: to, ...(recordId ? { recordId } : {}) });
+    this.persist({ key, state: to, ...(recordId ? { recordId } : {}), ...(error ? { error } : {}) });
     return next;
   }
 

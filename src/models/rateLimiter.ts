@@ -110,10 +110,12 @@ export class RateLimiter {
     }
     const tpm = this.tokensPerMinute;
     if (tpm !== undefined && estTokens > tpm) {
-      throw rateLimitedError(
-        this.name,
-        `${this.name}: request needs ~${estTokens} tokens, more than its ${tpm} tokens/minute quota`,
-        WINDOW_MS,
+      // Can never succeed on this provider (waiting does not help): not TRANSIENT. The chain moves to the next model;
+      // with none left the caller degrades instead of retrying the node (seen 2026-11-21, run-p4-coder-groq-1).
+      throw new QAError(
+        'TOOL_UNAVAILABLE',
+        `${this.name}: request needs ~${estTokens} tokens, more than its ${tpm} tokens/minute quota (does not fit; shrink the prompt or raise the tier)`,
+        { provider: this.name, oversize: true, estTokens, tokensPerMinute: tpm },
       );
     }
     for (;;) {

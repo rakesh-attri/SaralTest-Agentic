@@ -22,3 +22,6 @@ coverage/
 eval/.deepeval/
 .pytest_cache/
 __pycache__/
+
+# reporting-labs run history (written next to the config when the reporter runs)
+reporting-labs.history.json

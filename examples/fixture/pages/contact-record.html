@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{Contact.Name}} | Contact | Salesforce (OFFLINE FIXTURE)</title>
+    <link rel="stylesheet" href="/fixture/static/lightning-like.css" />
+  </head>
+  <body data-qa-environment="FIXTURE">
+    <!-- Static, Lightning-LIKE Contact record page for offline locator work. Not Salesforce markup. -->
+    <div class="fixture-banner" role="note" aria-label="Environment">
+      OFFLINE FIXTURE — not Salesforce. Results from this page are labelled FIXTURE.
+    </div>
+
+    <header class="global-header">
+      <nav aria-label="Global">
+        <a href="/lightning/page/home">Home</a>
+        <a href="/lightning/o/Account/list">Accounts</a>
+        <a href="/lightning/o/Contact/list" aria-current="page">Contacts</a>
+      </nav>
+      <span class="user">Logged in as {{User.Name}}</span>
+    </header>
+
+    <main class="record-page" id="main-{{rand}}">
+      <section class="record-header" aria-label="Record header">
+        <p class="entity">Contact</p>
+        <h1><span class="record-title">{{Contact.Name}}</span></h1>
+        <ul class="actions" aria-label="Record actions">
+          <li><button type="button" name="Edit" {{writeDisabled}}>Edit</button></li>
+          <li><button type="button" name="Delete" {{writeDisabled}}>Delete</button></li>
+        </ul>
+      </section>
+
+      <div role="tablist" aria-label="Record tabs">
+        <button role="tab" aria-selected="true" aria-controls="details-{{rand}}" id="tab-details-{{rand}}">Details</button>
+        <button role="tab" aria-selected="false" aria-controls="related-{{rand}}" id="tab-related-{{rand}}">Related</button>
+      </div>
+
+      <section role="tabpanel" id="details-{{rand}}" aria-labelledby="tab-details-{{rand}}">
+        <dl class="fields">
+          <div class="field"><dt>Name</dt><dd>{{Contact.Name}}</dd></div>
+          <div class="field">
+            <dt>Account Name</dt>
+            <dd><a href="/lightning/r/Account/{{Account.Id}}/view">{{Account.Name}}</a></dd>
+          </div>
+          <div class="field"><dt>Email</dt><dd>{{Contact.Email}}</dd></div>
+          <div class="field"><dt>Phone</dt><dd>{{Contact.Phone}}</dd></div>
+          <div class="field"><dt>Mailing Country</dt><dd>{{Contact.MailingCountry}}</dd></div>
+        </dl>
+      </section>
+
+      <section role="tabpanel" id="related-{{rand}}" aria-labelledby="tab-related-{{rand}}" hidden>
+        <article class="related-list" aria-label="Cases">
+          <header><h2>Cases (0)</h2></header>
+        </article>
+      </section>
+    </main>
+
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title-{{rand}}" hidden>
+      <form novalidate data-account-id="" data-account-name="" data-billing-country="">
+        <h2 id="modal-title-{{rand}}">Edit Contact</h2>
+        <div class="page-error" role="alert" hidden><p class="page-error-detail"></p></div>
+        <div class="form-element"><label for="input-{{rand}}-1">First Name</label><input id="input-{{rand}}-1" name="firstName" type="text" /></div>
+        <div class="form-element"><label for="input-{{rand}}-2">Last Name</label><input id="input-{{rand}}-2" name="lastName" type="text" /><div class="field-error" hidden></div></div>
+        <div class="form-element"><label for="input-{{rand}}-3">Email</label><input id="input-{{rand}}-3" name="email" type="email" /></div>
+        <div class="form-element"><label for="input-{{rand}}-5">Phone</label><input id="input-{{rand}}-5" name="phone" type="tel" /></div>
+        <div class="form-element"><label for="input-{{rand}}-6">Mailing Country</label><input id="input-{{rand}}-6" name="mailingCountry" type="text" /></div>
+        <div class="form-element"><label for="input-{{rand}}-4">Account Name</label><input id="input-{{rand}}-4" name="account" type="text" readonly /></div>
+        <footer>
+          <button type="button" name="CancelEdit">Cancel</button>
+          <button type="submit" name="SaveEdit" class="brand" disabled>Save</button>
+        </footer>
+      </form>
+    </section>
+
+    <div class="spinner" role="status" aria-label="Loading" hidden></div>
+    <div class="toast" role="status" aria-live="polite" hidden></div>
+
+    <script src="/fixture/static/record-page.js"></script>
+  </body>
+</html>

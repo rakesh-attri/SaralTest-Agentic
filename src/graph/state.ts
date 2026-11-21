@@ -1,4 +1,8 @@
 import { Annotation } from '@langchain/langgraph';
+import type { GeneratedSpec } from '../agents/test-generator/graph.js';
+import type { ToolchainResult } from '../agents/test-generator/toolchain.js';
+import type { DryRunReport } from '../core/schemas/generation.js';
+import type { ReviewFinding } from '../core/schemas/design.js';
 import type { PolicyResponse } from '../config/schemas.js';
 import type { Issue } from '../core/schemas/index.js';
 import type { QARunState } from '../core/state.js';
@@ -84,6 +88,16 @@ export const QAGraphState = Annotation.Root({
   orgEnvironment: last<'LIVE' | 'FIXTURE' | 'NONE'>(() => 'NONE'),
   /** Planner justifications for open Reviewer findings, consumed by the next review round. */
   planJustifications: last<{ findingId: string; reason: string }[]>(() => []),
+  /** Phase 4: build <-> review2 (Test Generator + Test Reviewer pass 2). */
+  designRunId: last<string | undefined>(() => undefined),
+  buildSpecs: last<GeneratedSpec[]>(() => []),
+  buildChecks: last<{ toolchain?: ToolchainResult; dryRun?: DryRunReport }>(() => ({})),
+  buildEnvironment: last<'LIVE' | 'MOCK' | 'NONE'>(() => 'NONE'),
+  buildModels: last<string[]>(() => []),
+  buildRound: last<number>(() => 0),
+  buildFeedback: last<Record<string, string[]>>(() => ({})),
+  pass2Findings: last<ReviewFinding[]>(() => []),
+  pass2Round: last<number>(() => 0),
   /** Nodes that run in degraded mode after triage chose `degrade`. */
   degradedNodes: last<string[]>(() => []),
   /** `${node}:${kind}` → how often each policy response was applied. */

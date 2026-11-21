@@ -261,11 +261,12 @@ describe('RateLimiter — requests, tokens, cooldown', () => {
     };
   };
 
-  it('a request larger than the token quota fails over immediately', async () => {
+  it('a request larger than the token quota fails over immediately and is not transient (it can never fit)', async () => {
     const f = fakeTime();
     const l = new RateLimiter(undefined, f.now, f.sleep, { tokensPerMinute: 100, name: 'groq' });
     const err = await l.acquire(150).catch((e: unknown) => e);
-    expect(isRateLimited(err)).toBe(true);
+    expect(classifyError(err).kind).toBe('TOOL_UNAVAILABLE');
+    expect(isRateLimited(err)).toBe(false);
     expect((err as Error).message).toMatch(/groq: request needs ~150 tokens, more than its 100 tokens\/minute/);
     expect(f.slept).toEqual([]);
   });

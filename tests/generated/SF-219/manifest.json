@@ -1,0 +1,206 @@
+{
+  "storyKey": "SF-219",
+  "designRun": "run-p3-live-5",
+  "buildRun": "run-p4-tc004-3",
+  "org": "qa-prod",
+  "environment": "LIVE",
+  "artifacts": [
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-002-mailing-address-defaults-from-account-billing-addr.spec.ts",
+      "hash": "df943d3e649acf8f",
+      "testCaseIds": [
+        "TC-SF-219-002"
+      ],
+      "caseHash": "deb523b99b01bfdd",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "locatorsUsed": [],
+      "dataBindings": [],
+      "origin": "mechanical",
+      "reviewReasons": [
+        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
+        "RF-001 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-coder-nim-8"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-003-last-name-is-required-when-creating-a-contact.spec.ts",
+      "hash": "ce48b255f9f58127",
+      "testCaseIds": [
+        "TC-SF-219-003"
+      ],
+      "caseHash": "bfbd355eea31feb8",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "locatorsUsed": [],
+      "dataBindings": [],
+      "origin": "mechanical",
+      "reviewReasons": [
+        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
+        "RF-004 judge: Missing Last Name field error assertion: Step 1 expects that an error is shown on the Last Name field, but the test only asserts `expect(newContactDialog.lastName).toBeVisible()`, which is true whether or not a validation error is displayed. The field-level error (e.g. the 'Complete this field' message/alert on Last Name) is never asserted, so the expected error result is unverified; add an assertion on the Last Name field error message/alert in the dialog.",
+        "RF-006 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-coder-nim-8"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-004-last-name-maximum-length-boundary-values-79-80-81.spec.ts",
+      "hash": "66ecddf72e9a8c0a",
+      "testCaseIds": [
+        "TC-SF-219-004"
+      ],
+      "caseHash": "1f22dda463ef26df",
+      "irHash": "39ddffbae6f36da1",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.lastName",
+        "contact-new.root",
+        "contact-new.saveButton"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p4-tc004-3"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-012-system-administrator-can-create-contact.spec.ts",
+      "hash": "e7648af92d2080c2",
+      "testCaseIds": [
+        "TC-SF-219-012"
+      ],
+      "caseHash": "16fcc0497bfc9049",
+      "irHash": "c4156c029f7fdd84",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.root"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p4-coder-nim-8"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-013-contact-appears-in-related-list-after-creation.spec.ts",
+      "hash": "14a71778824101d8",
+      "testCaseIds": [
+        "TC-SF-219-013"
+      ],
+      "caseHash": "c2c03a47a4396bb2",
+      "irHash": "18ef0fe07c3e36d0",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.email",
+        "contact-new.firstName",
+        "contact-new.lastName",
+        "contact-new.root",
+        "contact-new.saveButton"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p4-coder-nim-8"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-022-contact-pages-accessibility.spec.ts",
+      "hash": "b8ae553ab4a4dec1",
+      "testCaseIds": [
+        "TC-SF-219-022"
+      ],
+      "caseHash": "91e73d7983f09a1e",
+      "irHash": "32b38af30117f5d8",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.accountId",
+        "contact-new.assistant",
+        "contact-new.assistantPhone",
+        "contact-new.birthdate",
+        "contact-new.cancelButton",
+        "contact-new.department",
+        "contact-new.description",
+        "contact-new.email",
+        "contact-new.fax",
+        "contact-new.firstName",
+        "contact-new.homePhone",
+        "contact-new.lastName",
+        "contact-new.leadSource",
+        "contact-new.mailingAddressAddressSearch",
+        "contact-new.mailingCity",
+        "contact-new.mailingCountry",
+        "contact-new.mailingPostalCode",
+        "contact-new.mailingState",
+        "contact-new.mailingStreet",
+        "contact-new.mobile",
+        "contact-new.otherAddressAddressSearch",
+        "contact-new.otherCity",
+        "contact-new.otherCountry",
+        "contact-new.otherPhone",
+        "contact-new.otherPostalCode",
+        "contact-new.otherState",
+        "contact-new.otherStreet",
+        "contact-new.phone",
+        "contact-new.reportsToId",
+        "contact-new.root",
+        "contact-new.salutation",
+        "contact-new.saveButton",
+        "contact-new.title"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "RF-001 assertion-missing: step 1 tabOrder: the keyboard check must cover every field of contact-new.root; missing contact-new.qARunId"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-coder-nim-8",
+      "reviewedBy": "review2-20261121-153613-91da"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-023-field-history-tracking-for-email-and-phone.spec.ts",
+      "hash": "ee8d9bf3f6cecc1e",
+      "testCaseIds": [
+        "TC-SF-219-023"
+      ],
+      "caseHash": "23e1d2f0f86fe4f7",
+      "irHash": "121a34f8682f631b",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "locatorsUsed": [],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "RF-005 judge: History assertion weaker than expected result: The case expects the Contact History related list to show entries for the Email and Phone changes. The test performs the update through the API (the opened Contact record page is never used to edit/save) and only asserts that `historyFields(...)` contains 'Email' and 'Phone'. That can be satisfied by creation-time history entries and does not verify entries for the values changed in this step, nor that the Contact History related list displays them. Assert the history entries for this update (new values present in the history rows / related list rows)."
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-coder-nim-8"
+    }
+  ]
+}
