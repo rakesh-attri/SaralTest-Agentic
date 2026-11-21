@@ -96,8 +96,14 @@ The coder is not exercised before Phase 4. Watch `laguna-xs` (a small model) on 
 
 ## Open / known gaps
 
-- **Budget not wired into `qa analyze` (pre-existing).** `run.json` reports `tokensUsed: 0` for every run,
-  including the Phase 3 runs, because the router built in `src/cli/analyze.ts` gets no `budget`. Token use is
-  counted in `router.usage`, but the run budget is never checked against it.
+- **Fixed 2026-11-21: run budget now receives model tokens.**
+  - Before: `run.json` reported `tokensUsed: 0` for every run, including Phase 3, because the router (built in the
+    CLI before the graph) had no budget.
+  - Now: `resilientNode` runs each node inside its run's `BudgetTracker` (`runWithBudget`, AsyncLocalStorage),
+    and the router charges `currentBudget()` by default. This covers `qa analyze`, `qa discover`, `qa chat` and
+    concurrent runs.
+  - Over the token limit → BUDGET issue → run PARTIAL. Tested in `src/models/budget.test.ts` and `mainGraph.test.ts`.
+  - Live: `--run-id nim-budget-1` recorded `tokensUsed: 35928`.
+  - Embedding calls (RAG ingest) are still not charged to a run budget.
 - Quotas are conservative defaults, not your accounts' verified limits.
 - The NIM catalogue changes over time. Re-run `pnpm qa doctor` when a model starts failing.

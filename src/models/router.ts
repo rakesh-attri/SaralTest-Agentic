@@ -2,7 +2,7 @@ import type { BaseLanguageModelInput } from '@langchain/core/language_models/bas
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { AIMessageChunk } from '@langchain/core/messages';
 import { RunnableLambda, type Runnable } from '@langchain/core/runnables';
-import type { BudgetTracker } from '../core/budget.js';
+import { currentBudget, type BudgetTracker } from '../core/budget.js';
 import { classifyError } from '../core/classifyError.js';
 import { QAError } from '../core/errors.js';
 import type { Logger } from '../core/logger.js';
@@ -59,7 +59,7 @@ export interface RouterOptions {
   secrets: ProviderSecrets;
   /** Known secret values for the prompt guard (rule 4: a secret in a prompt is a hard stop). */
   secretValues: () => readonly string[];
-  /** Budget of the active run, if any. */
+  /** Budget of the active run, if any. Default: the run whose graph node is executing (`currentBudget`). */
   budget?: () => BudgetTracker | undefined;
   logger?: Logger;
   /** Scripting for the `mock` provider (tests, offline fixture runs). */
@@ -206,7 +206,7 @@ export class ModelRouter {
         lastInChain: last,
         maxOutputTokens: cfg.maxOutputTokens,
         tools: ref.tools !== false,
-        ...(this.opts.budget ? { budget: this.opts.budget } : {}),
+        budget: this.opts.budget ?? currentBudget,
         onUsage: (u) => this.usage.push(u),
       };
       return { model: new GuardedChatModel(inner, guard) };

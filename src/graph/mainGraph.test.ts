@@ -164,6 +164,7 @@ describe('main graph (intake → understand ⇄ clarify → report, triage after
     expect(r2?.reviewReasons).toContain('relies on unconfirmed assumption Q1');
     expect(r2?.assumptions.known.join(' ')).toContain('ASSUMPTION (unconfirmed, Q1)');
     expect(v.triageLog.map((d) => `${d.node}:${d.kind}→${d.response}`)).toEqual(['understand:AMBIGUOUS_SPEC→ask']);
+    expect(v.budget.tokensUsed).toBeGreaterThan(0); // model tokens reach the run budget
     const report = join(s.root, 'runs', s.runId, 'analysis', 'analysis-report.md');
     expect(readFileSync(report, 'utf8')).toMatch(/\*\*MOCK\*\*/);
     expect(existsSync(join(s.root, 'runs', s.runId, 'analysis', 'requirements.json'))).toBe(true);

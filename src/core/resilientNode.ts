@@ -1,6 +1,6 @@
 import { isGraphBubbleUp } from '@langchain/langgraph';
 import { SpanStatusCode, trace, type Tracer } from '@opentelemetry/api';
-import type { BudgetTracker } from './budget.js';
+import { runWithBudget, type BudgetTracker } from './budget.js';
 import { classifyError } from './classifyError.js';
 import { createIssue } from './issues.js';
 import type { Logger } from './logger.js';
@@ -55,7 +55,8 @@ export function resilientNode<S extends ResilientState>(
         } else {
           if (state.status !== 'BLOCKED') ctx.budget.assertWithin();
           log.debug('start');
-          const result = await fn(state, ctx);
+          // Model calls inside the node are charged to this run's budget (ModelRouter reads the active budget).
+          const result = await runWithBudget(ctx.budget, () => fn(state, ctx));
           update = { ...result };
           span.setStatus({ code: SpanStatusCode.OK });
         }
