@@ -1,0 +1,214 @@
+{
+  "storyKey": "SF-219",
+  "designRun": "run-p3-live-5",
+  "buildRun": "run-p4-live-1",
+  "org": "qa-prod",
+  "environment": "LIVE",
+  "artifacts": [
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-002-mailing-address-defaults-from-account-billing-addr.spec.ts",
+      "hash": "495b37fac76ebf8f",
+      "testCaseIds": [
+        "TC-SF-219-002"
+      ],
+      "caseHash": "deb523b99b01bfdd",
+      "irHash": "1a852348167b0a43",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.firstName",
+        "contact-new.lastName",
+        "contact-new.root",
+        "contact-new.saveButton",
+        "contact-record.editMailingAddressButton"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "RF-003 judge: Step 2 edits the creation dialog instead of the saved Contact: The case requires modifying the Mailing Address on the already-created Contact record and clicking Save. The test instead fills Mailing Country in the still-open New Contact dialog and performs the first save, so the 'can be changed afterwards' behavior is never exercised.",
+        "RF-004 judge: No actual Mailing Address change is made: Step 2 fills MailingCountry with data.value('Account','BillingCountry'), the same value already asserted as the default, so the value is unchanged. The subsequent SOQL assertion only re-checks the default and would still pass if edits were never persisted.",
+        "RF-005 judge: Only Mailing Country is checked for the default: The case expects the Mailing Address fields to default from the Account's Billing Address, but the test asserts only MailingCountry and never checks street, city, state or postal code, so the defaulting expectation is only partially verified."
+      ],
+      "reviewStatus": "REVIEW_REQUIRED"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-003-last-name-is-required-when-creating-a-contact.spec.ts",
+      "hash": "91f1194a3a18b152",
+      "testCaseIds": [
+        "TC-SF-219-003"
+      ],
+      "caseHash": "bfbd355eea31feb8",
+      "irHash": "9386268818b39949",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.firstName",
+        "contact-new.lastName",
+        "contact-new.root",
+        "contact-new.saveButton"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-004-last-name-maximum-length-boundary-values-79-80-81.spec.ts",
+      "hash": "4a7b8716311cbabb",
+      "testCaseIds": [
+        "TC-SF-219-004"
+      ],
+      "caseHash": "1f22dda463ef26df",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "locatorsUsed": [],
+      "dataBindings": [],
+      "origin": "mechanical",
+      "reviewReasons": [
+        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
+        "RF-001 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-012-system-administrator-can-create-contact.spec.ts",
+      "hash": "08d2c48fd6d63e6d",
+      "testCaseIds": [
+        "TC-SF-219-012"
+      ],
+      "caseHash": "16fcc0497bfc9049",
+      "irHash": "67d195d63e3bd6c4",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.root"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-013-contact-appears-in-related-list-after-creation.spec.ts",
+      "hash": "8bc871266a5b9259",
+      "testCaseIds": [
+        "TC-SF-219-013"
+      ],
+      "caseHash": "c2c03a47a4396bb2",
+      "irHash": "7dfb7de71594ab70",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.lastName",
+        "contact-new.root",
+        "contact-new.saveButton"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-022-contact-pages-accessibility.spec.ts",
+      "hash": "ca56c1ea0a71e658",
+      "testCaseIds": [
+        "TC-SF-219-022"
+      ],
+      "caseHash": "91e73d7983f09a1e",
+      "irHash": "6a63286076b9ca85",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.accountId",
+        "contact-new.assistant",
+        "contact-new.assistantPhone",
+        "contact-new.birthdate",
+        "contact-new.cancelButton",
+        "contact-new.department",
+        "contact-new.description",
+        "contact-new.email",
+        "contact-new.fax",
+        "contact-new.firstName",
+        "contact-new.homePhone",
+        "contact-new.lastName",
+        "contact-new.leadSource",
+        "contact-new.mailingAddressAddressSearch",
+        "contact-new.mailingCity",
+        "contact-new.mailingCountry",
+        "contact-new.mailingPostalCode",
+        "contact-new.mailingState",
+        "contact-new.mailingStreet",
+        "contact-new.mobile",
+        "contact-new.otherAddressAddressSearch",
+        "contact-new.otherCity",
+        "contact-new.otherCountry",
+        "contact-new.otherPhone",
+        "contact-new.otherPostalCode",
+        "contact-new.otherState",
+        "contact-new.otherStreet",
+        "contact-new.phone",
+        "contact-new.reportsToId",
+        "contact-new.root",
+        "contact-new.salutation",
+        "contact-new.saveButton",
+        "contact-new.title"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "RF-002 locator-not-active: contact-new.phone is RE_VERIFY in the registry (the org changed since it was verified)"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-023-field-history-tracking-for-email-and-phone.spec.ts",
+      "hash": "7f5d3d311100a356",
+      "testCaseIds": [
+        "TC-SF-219-023"
+      ],
+      "caseHash": "23e1d2f0f86fe4f7",
+      "irHash": "39ffe95e0a222c1a",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "locatorsUsed": [
+        "contact-record.editEmailButton",
+        "contact-record.editPhoneButton"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "RF-007 judge: Email and Phone are never updated: The case step is to update the Email and Phone fields on an existing Contact and save. The test only clicks the Edit button and then polls history; no field is changed and no save is performed, so the action differs from the case.",
+        "RF-008 judge: History assertion is not tied to the changes: The expected result is history entries for the changes to Email and Phone. The assertion only checks that the strings 'Email' and 'Phone' appear in the field history, which can be satisfied by the record's creation history and does not verify entries for the new values.",
+        "RF-009 locator-not-active: contact-record.editPhoneButton is RE_VERIFY in the registry (the org changed since it was verified)"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED"
+    }
+  ]
+}

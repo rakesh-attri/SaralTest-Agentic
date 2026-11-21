@@ -15,6 +15,15 @@
       "rootExpr": "getByRole('main')",
       "members": [
         {
+          "name": "root",
+          "ref": "account-record.root",
+          "kind": "region",
+          "role": "main",
+          "expression": "getByRole('main')",
+          "strategyRank": 1,
+          "status": "ACTIVE"
+        },
+        {
           "name": "detailsPanel",
           "ref": "account-record.detailsPanel",
           "kind": "region",
@@ -490,6 +499,15 @@
       "title": "Contact record page",
       "rootExpr": "getByRole('main')",
       "members": [
+        {
+          "name": "root",
+          "ref": "contact-record.root",
+          "kind": "region",
+          "role": "main",
+          "expression": "getByRole('main')",
+          "strategyRank": 1,
+          "status": "ACTIVE"
+        },
         {
           "name": "detailsPanel",
           "ref": "contact-record.detailsPanel",
@@ -1079,6 +1097,16 @@
       "title": "New Contact dialog (from the Account Contacts related list)",
       "rootExpr": "getByRole('dialog', { name: 'New Contact' })",
       "members": [
+        {
+          "name": "root",
+          "ref": "contact-new.root",
+          "kind": "region",
+          "role": "dialog",
+          "accessibleName": "New Contact",
+          "expression": "getByRole('dialog', { name: 'New Contact' })",
+          "strategyRank": 1,
+          "status": "ACTIVE"
+        },
         {
           "name": "mailingAddressGroup",
           "ref": "contact-new.mailingAddressGroup",
