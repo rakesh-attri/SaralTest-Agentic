@@ -1,8 +1,8 @@
 import { join } from 'node:path';
 import { loadEnv, secretValues, type Env } from '../config/env.js';
 import { loadConfigFile, projectPaths, requireConfig } from '../config/loader.js';
+import { ExecutionConfig } from '../config/schemas.js';
 import type {
-  ExecutionConfig,
   McpToolsConfig,
   OrgEntry,
   OrgsConfig,
@@ -63,12 +63,12 @@ export async function createSfContext(o: SfContextOptions): Promise<SfContext> {
   const executionFile = await loadConfigFile('execution', paths);
   const execution: ExecutionConfig = executionFile.ok
     ? executionFile.value
-    : {
+    : ExecutionConfig.parse({
         browser: 'chromium',
         headless: true,
         viewports: [{ name: 'desktop', width: 1440, height: 900 }],
         visual: { maxDiffPixelRatio: 0.01, mask: [], allowExternalUpload: false },
-      };
+      });
   const mcpToolsFile = await loadConfigFile('mcp-tools', paths);
   const mcpTools: McpToolsConfig = mcpToolsFile.ok ? mcpToolsFile.value : {};
 

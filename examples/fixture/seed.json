@@ -124,6 +124,12 @@
           "length": 40
         },
         {
+          "name": "MailingCountry",
+          "label": "Mailing Country",
+          "type": "string",
+          "length": 80
+        },
+        {
           "name": "AccountId",
           "label": "Account Name",
           "type": "reference",

@@ -326,6 +326,23 @@ export const ExecutionConfig = z.object({
     mask: z.array(z.string()),
     allowExternalUpload: z.boolean(),
   }),
+  /** Playwright `testIdAttribute` for custom LWCs that carry test ids (PLAN.md §12: open for custom LWCs). */
+  testIdAttribute: z.string().min(1).default('data-testid'),
+  /**
+   * Accessibility scans (operator rule 2026-11-21): violations whose target path only holds Salesforce-owned
+   * namespaces are known baseline findings; violations in our own custom namespaces fail the test.
+   */
+  a11y: z
+    .object({
+      customNamespaces: z.array(z.string().regex(/^[a-z][a-z0-9_]*$/)).min(1).default(['c']),
+      standardNamespaces: z
+        .array(z.string().min(1))
+        .default(['lightning', 'force', 'records', 'one', 'forcegenerated', 'runtime_', 'flexipage', 'slds']),
+    })
+    .default({
+      customNamespaces: ['c'],
+      standardNamespaces: ['lightning', 'force', 'records', 'one', 'forcegenerated', 'runtime_', 'flexipage', 'slds'],
+    }),
 });
 export type ExecutionConfig = z.infer<typeof ExecutionConfig>;
 

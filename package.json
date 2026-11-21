@@ -24,6 +24,7 @@
     "validate:design": "tsx scripts/validate-design.ts"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.65.1",
     "@types/cross-spawn": "^6.0.6",
@@ -35,6 +36,7 @@
     "globals": "^17.14.0",
     "jszip": "^3.10.2",
     "prettier": "^3.10.1",
+    "reporting-labs": "0.6.24",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.73.0",

@@ -98,6 +98,7 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
   const store = new FixtureStore(seed);
   let metadata = loadFixtureMetadata(opts.metadataFile ?? join(fixtureDir, 'metadata.json'));
   const template = await readFile(join(fixtureDir, 'pages', 'account-record.html'), 'utf8');
+  const contactTemplate = await readFile(join(fixtureDir, 'pages', 'contact-record.html'), 'utf8');
   const staticDir = join(fixtureDir, 'static');
 
   const userFor = (req: IncomingMessage): (typeof seed.users)[number] | undefined => {
@@ -131,6 +132,23 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
       newContactButton: canWrite ? '<button type="button" name="NewContact">New</button>' : '',
     };
     return template.replace(/\{\{([A-Za-z.]+)\}\}/g, (_m, k: string) => values[k] ?? '');
+  };
+
+  const renderContact = (contact: SObject, user: (typeof seed.users)[number]): string => {
+    const accountId = typeof contact['AccountId'] === 'string' ? contact['AccountId'] : undefined;
+    const account = accountId ? store.get('Account', accountId) : undefined;
+    const values: Record<string, string> = {
+      'Contact.Name': esc([contact['FirstName'], contact['LastName']].filter(Boolean).join(' ')),
+      'Contact.Email': esc(contact['Email']),
+      'Contact.Phone': esc(contact['Phone']),
+      'Contact.MailingCountry': esc(contact['MailingCountry']),
+      'Account.Id': esc(account?.Id),
+      'Account.Name': esc(account?.['Name']),
+      'User.Name': esc(user['Name']),
+      rand: randomBytes(3).toString('hex'),
+      writeDisabled: user['canWrite'] === true ? '' : 'disabled',
+    };
+    return contactTemplate.replace(/\{\{([A-Za-z.]+)\}\}/g, (_m, k: string) => values[k] ?? '');
   };
 
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
@@ -205,6 +223,13 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
     const page = /^\/lightning\/r\/Account\/([A-Za-z0-9]{15,18})\/view$/.exec(path);
     if (page?.[1] && method === 'GET') {
       send(res, 200, renderAccount(store.get('Account', page[1]), user), {
+        'content-type': 'text/html; charset=utf-8',
+      });
+      return;
+    }
+    const contactPage = /^\/lightning\/r\/Contact\/([A-Za-z0-9]{15,18})\/view$/.exec(path);
+    if (contactPage?.[1] && method === 'GET') {
+      send(res, 200, renderContact(store.get('Contact', contactPage[1]), user), {
         'content-type': 'text/html; charset=utf-8',
       });
       return;
