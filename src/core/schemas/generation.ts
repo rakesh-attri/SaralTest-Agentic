@@ -21,7 +21,28 @@ export function toLabel(raw: string): string {
   return /^[a-z]/.test(k) ? k : `v-${k || 'value'}`;
 }
 
-export const ValueRef = z.discriminatedUnion('kind', [
+/**
+ * Shorthand value objects some models emit without `kind` (NIM coder, run-p4-coder-nim-7: `{"data":"Contact",
+ * "field":"FirstName"}`) are mapped to the canonical form when the mapping is unambiguous; anything else is left for
+ * the schema to reject.
+ */
+function canonicalValue(v: unknown): unknown {
+  if (typeof v !== 'object' || v === null || 'kind' in v) return v;
+  const o = v as Record<string, unknown>;
+  const keys = Object.keys(o);
+  if (typeof o['data'] === 'string' && typeof o['field'] === 'string')
+    return { kind: 'data', ref: o['data'], field: o['field'] };
+  if (typeof o['recordId'] === 'string' && keys.length === 1) return { kind: 'recordId', ref: o['recordId'] };
+  if (typeof o['unique'] === 'string')
+    return { kind: 'unique', label: o['unique'], ...(o['format'] ? { format: o['format'] } : {}) };
+  if (typeof o['length'] === 'number')
+    return { kind: 'length', length: o['length'], evidenceIds: o['evidenceIds'] ?? [] };
+  if (typeof o['literal'] === 'string')
+    return { kind: 'literal', value: o['literal'], evidenceIds: o['evidenceIds'] ?? [] };
+  return v;
+}
+
+export const ValueRefUnion = z.discriminatedUnion('kind', [
   /** A field value of a record from the data plan (recipe step alias + field). */
   z.object({ kind: z.literal('data'), ref: z.string().min(1), field: z.string().min(1) }),
   /** The record id of a data-plan record or of a record the test created through the UI. */
@@ -51,6 +72,7 @@ export const ValueRef = z.discriminatedUnion('kind', [
     format: z.enum(['text', 'email', 'phone']).default('text'),
   }),
 ]);
+export const ValueRef = z.preprocess(canonicalValue, ValueRefUnion);
 export type ValueRef = z.infer<typeof ValueRef>;
 
 export const IrAction = z.discriminatedUnion('do', [

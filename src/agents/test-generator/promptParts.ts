@@ -29,7 +29,8 @@ type Action =
   | { do: "click"; element: Ref }
   | { do: "selectTab"; element: Ref }
   | { do: "apiUpdate"; ref: StepId; fields: Record<string, Value> }
-  | { do: "adopt"; as: string; object: string; field: string; value: Value /* the unique value typed */ };
+  | { do: "adopt"; as: string; object: string; field: string; value: Value /* the unique (or 40+ char length) value typed */ };
+// Every record the test creates in the UI must be adopted in the same step (cleanup), including boundary records.
 type Assertion =
   | { check: "visible" | "hidden" | "fieldError"; element: Ref; expect: Expect }
   | { check: "inputValue"; element: Ref; equals: Value; expect: Expect }

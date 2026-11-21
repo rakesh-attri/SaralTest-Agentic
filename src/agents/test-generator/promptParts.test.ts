@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { IrAction, IrAssertion, TestIR, ValueRef } from '../../core/schemas/generation.js';
+import { IrAction, IrAssertion, TestIR, ValueRefUnion } from '../../core/schemas/generation.js';
 import { CASE, GOOD_IR, generationContext } from '../../../tests/helpers/generationFixtures.js';
 import { bindRecipe, irProblems, normalizeIr } from './context.js';
 import { generatorPrompt } from './graph.js';
@@ -13,7 +13,7 @@ describe('compact IR contract (prompt size, run-p4-coder-groq-1: 9.6k tokens > G
   it('names every action, assertion and value kind the schema accepts (kept in sync with the Zod schema)', () => {
     for (const k of literals(IrAction, 'do')) expect(IR_CONTRACT).toContain(`do: "${k}"`);
     for (const k of literals(IrAssertion, 'check')) expect(IR_CONTRACT).toContain(`"${k}"`);
-    for (const k of literals(ValueRef, 'kind')) expect(IR_CONTRACT).toContain(`kind: "${k}"`);
+    for (const k of literals(ValueRefUnion, 'kind')) expect(IR_CONTRACT).toContain(`kind: "${k}"`);
     expect(IR_CONTRACT.length).toBeLessThan(4000);
   });
 
@@ -121,7 +121,7 @@ describe('oracle checks from run-p4-coder-nim-4 (judge findings made determinist
       expect: ev,
     });
     expect(irProblems(CASE, ir, ctx, recipe).join('\n')).toMatch(
-      /soqlNoRecord must look for a unique value this test typed/,
+      /soqlNoRecord must look for a run-unique value this test typed/,
     );
     const ok = structuredClone(GOOD_IR);
     ok.steps[0]!.actions.splice(1, 0, {
@@ -137,6 +137,24 @@ describe('oracle checks from run-p4-coder-nim-4 (judge findings made determinist
       expect: ev,
     });
     expect(irProblems(CASE, ok, ctx, recipe)).toEqual([]);
+  });
+
+  it('a typed boundary-length value (run-unique) also proves "not saved" (run-p4-coder-nim-6, TC-004)', () => {
+    const ir = structuredClone(GOOD_IR);
+    const v81 = { kind: 'length' as const, length: 81, evidenceIds: ['SF-219#AC2'] };
+    ir.steps[0]!.actions.splice(1, 0, { do: 'fill', element: 'contact-new.lastName', value: v81 });
+    ir.steps[0]!.assertions.push({
+      check: 'soqlNoRecord',
+      object: 'Contact',
+      field: 'LastName',
+      value: v81,
+      expect: ev,
+    });
+    const tc = {
+      ...CASE,
+      steps: [{ ...CASE.steps[0]!, action: 'Enter a Last Name with 81 characters and click Save' }, CASE.steps[1]!],
+    };
+    expect(irProblems(tc, ir, ctx, recipe)).toEqual([]);
   });
 
   it('a typed value is checked on the record the test created, not on a recipe record', () => {
@@ -182,5 +200,101 @@ describe('oracle checks from run-p4-coder-nim-4 (judge findings made determinist
     expect(renderSpec({ tc: CASE, ir: apiOnly, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' })).toContain(
       "import { test } from '../../fixtures/index.js';",
     );
+  });
+});
+
+describe('UI-created records must be adopted (run-p4-tc004-1: boundary Contacts were not cleaned up)', () => {
+  it('rejects a captured UI record without adopt; accepts adopt by the typed boundary value', () => {
+    const ctx = generationContext();
+    const recipe = bindRecipe(CASE, ctx);
+    const v79 = { kind: 'length' as const, length: 79, evidenceIds: ['SF-219#AC2'] };
+    const tc = {
+      ...CASE,
+      steps: [
+        { ...CASE.steps[0]!, action: 'Enter a Last Name with exactly 79 characters and click Save' },
+        CASE.steps[1]!,
+      ],
+    };
+    const ir = structuredClone(GOOD_IR);
+    ir.steps[0] = {
+      caseStep: 0,
+      title: 'Save a 79-character Last Name',
+      actions: [
+        { do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' },
+        { do: 'fill', element: 'contact-new.lastName', value: v79 },
+        { do: 'click', element: 'contact-new.saveButton' },
+      ],
+      assertions: [
+        { check: 'recordView', object: 'Contact', as: 'c79', expect: { caseStep: 0, evidenceIds: ['SF-219#AC2'] } },
+      ],
+    };
+    expect(irProblems(tc, ir, ctx, recipe).join('\n')).toMatch(/the record this step creates in the UI is not adopted/);
+    ir.steps[0].actions.push({ do: 'adopt', as: 'c79', object: 'Contact', field: 'LastName', value: v79 });
+    expect(irProblems(tc, ir, ctx, recipe)).toEqual([]);
+  });
+});
+
+describe('value shorthand without kind (run-p4-coder-nim-7, TC-003)', () => {
+  it('maps {data, field} / {unique} / {length} to the canonical value; leaves unknown shapes to the schema', () => {
+    const step = (value: unknown) => ({
+      caseStep: 0,
+      title: 'x step',
+      actions: [{ do: 'fill', element: 'contact-new.firstName', value }],
+    });
+    const parse = (value: unknown) => TestIR.safeParse({ caseId: 'TC', steps: [step(value)] });
+    const v = (value: unknown) => {
+      const r = parse(value);
+      const a = r.success ? r.data.steps[0]!.actions[0] : undefined;
+      return a?.do === 'fill' ? a.value : undefined;
+    };
+    expect(v({ data: 'Contact', field: 'FirstName' })).toEqual({ kind: 'data', ref: 'Contact', field: 'FirstName' });
+    expect(v({ unique: 'firstName' })).toEqual({ kind: 'unique', label: 'first-name', format: 'text' });
+    expect(v({ length: 81 })).toEqual({ kind: 'length', length: 81, evidenceIds: [] });
+    expect(parse({ text: 'Acme' }).success).toBe(false);
+  });
+});
+
+describe('cleanup bookkeeping added by code (run-p4-tc004-2)', () => {
+  it('adds the missing adopt for the one run-unique value typed into the created record; never when ambiguous', () => {
+    const ctx = generationContext();
+    const recipe = bindRecipe(CASE, ctx);
+    const v79 = { kind: 'length' as const, length: 79, evidenceIds: ['SF-219#AC2'] };
+    const ev = { caseStep: 0, evidenceIds: ['SF-219#AC2'] };
+    const tc = {
+      ...CASE,
+      steps: [
+        { ...CASE.steps[0]!, action: 'Enter a Last Name with exactly 79 characters and click Save' },
+        CASE.steps[1]!,
+      ],
+    };
+    const ir = structuredClone(GOOD_IR);
+    ir.steps[0] = {
+      caseStep: 0,
+      title: 'Save a 79-character Last Name',
+      actions: [
+        { do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' },
+        { do: 'fill', element: 'contact-new.lastName', value: v79 },
+        { do: 'click', element: 'contact-new.saveButton' },
+      ],
+      assertions: [{ check: 'recordView', object: 'Contact', as: 'c79', expect: ev }],
+    };
+    const n = normalizeIr(ir, ctx, recipe, tc);
+    expect(n.steps[0]!.actions.at(-1)).toEqual({
+      do: 'adopt',
+      as: 'c79',
+      object: 'Contact',
+      field: 'LastName',
+      value: v79,
+    });
+    expect(n.notes.join(' ')).toMatch(/adopted by its typed LastName \(added by code\)/);
+    expect(irProblems(tc, n, ctx, recipe)).toEqual([]);
+    // Two run-unique values typed: which one identifies the record is ambiguous → left to the check.
+    const two = structuredClone(ir);
+    two.steps[0]!.actions.splice(2, 0, {
+      do: 'fill',
+      element: 'contact-new.firstName',
+      value: { kind: 'unique', label: 'f', format: 'text' },
+    });
+    expect(irProblems(tc, normalizeIr(two, ctx, recipe, tc), ctx, recipe).join('\n')).toMatch(/not adopted/);
   });
 });
