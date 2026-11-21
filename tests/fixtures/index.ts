@@ -26,8 +26,17 @@ export interface TestData {
   id(stepId: string): string;
   /** A planned field value of a created step (comes from the approved recipe / synthetic values). */
   value(stepId: string, field: string): string;
-  /** A run-unique value for data the test types itself (contains the run id). */
-  unique(label: string): string;
+  /**
+   * A run-unique value for data the test types itself. `text` contains the run id; `email` is at example.invalid;
+   * `phone` is 10 digits (the org's phone format rule).
+   */
+  unique(label: string, format?: 'text' | 'email' | 'phone'): string;
+  /** API oracle: create a variant of a step (fields set/removed); returns whether it was saved and the error codes. */
+  attempt(
+    stepId: string,
+    set?: Record<string, unknown>,
+    remove?: string[],
+  ): Promise<{ saved: boolean; errorCodes: string[]; message?: string }>;
   /** A run-unique string of exactly `length` characters (boundary values). */
   ofLength(length: number): string;
   /** Guarded update of a run-owned record. */
@@ -44,6 +53,8 @@ interface WorkerFixtures {
 interface TestFixtures {
   persona: Persona;
   data: TestData;
+  /** a11y namespaces from config/execution.yaml (custom = fails, standard = baseline). */
+  a11y: RunSettings['execution']['a11y'];
 }
 
 const personaId = (meta: Record<string, unknown>): string =>
@@ -78,6 +89,9 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   persona: async ({ sfContext }, use) => {
     await use(sfContext.persona);
   },
+  a11y: async ({ settings }, use) => {
+    await use(settings.execution.a11y);
+  },
   data: async ({ sfContext, sf }, use, testInfo) => {
     const hash = createHash('sha256').update(testInfo.testId).digest('hex').slice(0, 6);
     const runId = `${sfContext.run.runId}-${hash}`.slice(-50);
@@ -109,10 +123,9 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         if (status.required && !status.approval) {
           throw new QAError('DATA', `recipe ${recipe} is not approved for ${sfContext.org.alias}: ${status.command}`);
         }
-        const selected = steps ? { ...plan, steps: plan.steps.filter((s) => steps.includes(s.stepId)) } : plan;
-        const engine = new DataEngine({ sf, plan: { ...selected, negatives: [] }, ledger, org: sfContext.org });
+        const engine = new DataEngine({ sf, plan: { ...plan, negatives: [] }, ledger, org: sfContext.org });
         engines.push(engine);
-        await engine.create();
+        await engine.create(steps);
       },
       id: (stepId) => find(stepId).recordId(stepId),
       value(stepId, field) {
@@ -120,7 +133,13 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         if (typeof v !== 'string') throw new QAError('DATA', `no planned string value for ${stepId}.${field}`);
         return v;
       },
-      unique: (label) => `QA-${runId}-${label}-${randomBytes(3).toString('hex')}`,
+      unique(label, format = 'text') {
+        const token = randomBytes(3).toString('hex');
+        if (format === 'email') return `qa+${runId}-${label}-${token}@example.invalid`.toLowerCase();
+        if (format === 'phone') return `55${String(parseInt(token, 16) % 100_000_000).padStart(8, '0')}`;
+        return `QA-${runId}-${label}-${token}`;
+      },
+      attempt: (stepId, set, remove) => find(stepId).attempt(stepId, set, remove),
       ofLength(length) {
         const seed = `QA-${runId}-`;
         if (length < seed.length)

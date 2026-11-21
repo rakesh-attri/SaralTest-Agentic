@@ -24,8 +24,15 @@ export const ValueRef = z.discriminatedUnion('kind', [
     length: z.number().int().min(0).max(100_000),
     evidenceIds: z.array(z.string()).min(1),
   }),
-  /** A run-unique synthetic value for data the test types itself (e.g. a Contact last name created via the UI). */
-  z.object({ kind: z.literal('unique'), label: z.string().regex(/^[a-z][a-z0-9-]*$/) }),
+  /**
+   * A run-unique synthetic value for data the test types itself (e.g. a Contact last name created via the UI).
+   * `phone` = 10 digits (valid for the org's phone format rule), `email` = an address at example.invalid.
+   */
+  z.object({
+    kind: z.literal('unique'),
+    label: z.string().regex(/^[a-z][a-z0-9-]*$/),
+    format: z.enum(['text', 'email', 'phone']).default('text'),
+  }),
 ]);
 export type ValueRef = z.infer<typeof ValueRef>;
 
@@ -64,7 +71,10 @@ export const IrAssertion = z.discriminatedUnion('check', [
   z.object({ check: z.literal('inputValue'), element: ElementRef, equals: ValueRef, expect: ExpectationRef }),
   z.object({ check: z.literal('fieldError'), element: ElementRef, expect: ExpectationRef }),
   z.object({ check: z.literal('toast'), contains: ValueRef.optional(), expect: ExpectationRef }),
-  z.object({ check: z.literal('recordView'), object: z.string().min(1), expect: ExpectationRef }),
+  /** The record view of `object` is shown; the new record id is kept under `as` (for later SOQL checks/adopt). */
+  z.object({ check: z.literal('recordView'), object: z.string().min(1), as: z.string().optional(), expect: ExpectationRef }),
+  /** The record page header (h1) shows the value. */
+  z.object({ check: z.literal('recordTitle'), contains: ValueRef, expect: ExpectationRef }),
   z.object({
     check: z.literal('relatedListHasRecord'),
     parentRef: z.string().min(1),
@@ -94,7 +104,8 @@ export const IrAssertion = z.discriminatedUnion('check', [
     check: z.literal('apiRejects'),
     object: z.string().min(1),
     basedOn: z.string().min(1),
-    fields: z.record(z.string(), ValueRef),
+    fields: z.record(z.string(), ValueRef).default({}),
+    remove: z.array(z.string()).default([]),
     errorCodes: z.array(z.string()).min(1),
     expect: ExpectationRef,
   }),

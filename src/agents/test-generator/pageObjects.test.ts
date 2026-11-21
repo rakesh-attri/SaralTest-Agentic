@@ -86,13 +86,14 @@ describe('page objects from the registry', () => {
     const cat = catalog();
     const acc = cat.pages.find((p) => p.id === 'account-record')!;
     expect(acc.members.map((m) => m.name).sort()).toEqual(
-      ['contactsNewButton', 'contactsRelatedList', 'detailsTab', 'editButton', 'relatedTab'].sort(),
+      ['contactsNewButton', 'contactsRelatedList', 'detailsTab', 'editButton', 'relatedTab', 'root'].sort(),
     );
     expect(relatedListNewButton(acc, 'Contacts')?.name).toBe('contactsNewButton');
     const dlg = cat.pages.find((p) => p.id === 'contact-new')!;
     expect(findMember(cat, 'contact-new.lastName')?.member.fieldApiName).toBe('Contact.LastName');
     expect(findMember(cat, 'contact-new.phone')?.member.status).toBe('RE_VERIFY');
     expect(dlg.members.find((m) => m.name === 'saveButton')).toBeDefined();
+    expect(findMember(cat, 'contact-new.root')?.member.expression).toBe(DIALOG);
     expect(cat.pages.find((p) => p.id === 'contact-record')!.members.map((m) => m.name)).not.toContain('goneButton');
   });
 

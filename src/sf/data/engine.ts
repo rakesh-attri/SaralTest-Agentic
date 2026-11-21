@@ -73,6 +73,7 @@ export class DataEngine {
   private readonly now: () => Date;
   private readonly uncertain: (err: unknown) => boolean;
   private adopted = 0;
+  private attempts = 0;
 
   constructor(private readonly o: DataEngineOptions) {
     this.log = o.log ?? (() => undefined);
@@ -150,10 +151,20 @@ export class DataEngine {
     }
   }
 
-  /** Create every plan step in dependency order. Already-confirmed steps (resume) are reused, never re-sent. */
-  async create(): Promise<CreatedRecord[]> {
+  /**
+   * Create plan steps in dependency order (all, or `only` these step ids). Already-confirmed steps (resume) are
+   * reused, never re-sent.
+   */
+  async create(only?: readonly string[]): Promise<CreatedRecord[]> {
     if (!this.o.plan.valid) throw new QAError('DATA', 'the data plan has errors; it cannot be executed');
+    const wanted = only ? new Set(only) : undefined;
+    for (const p of only ?? []) {
+      const parent = this.o.plan.steps.find((s) => s.stepId === p)?.parent?.stepId;
+      if (parent && !wanted?.has(parent))
+        throw new QAError('DATA', `step ${p} needs its parent ${parent} in the same create`);
+    }
     for (const step of [...this.o.plan.steps].sort((a, b) => a.order - b.order)) {
+      if (wanted && !wanted.has(step.stepId)) continue;
       let w = this.o.ledger.plan({
         runId: this.o.plan.runId,
         object: step.object,
@@ -262,6 +273,42 @@ export class DataEngine {
       }
     }
     return out;
+  }
+
+  /**
+   * API oracle: try to create a variant of a plan step (some fields set / removed) and report whether Salesforce
+   * saved it. Rejection is the expected outcome of a negative check; a saved record is adopted and cleaned up.
+   */
+  async attempt(
+    stepId: string,
+    set: Record<string, unknown> = {},
+    remove: string[] = [],
+  ): Promise<{ saved: boolean; errorCodes: string[]; message?: string }> {
+    const step = this.o.plan.steps.find((s) => s.stepId === stepId);
+    if (!step) throw new QAError('DATA', `unknown data step ${stepId}`);
+    const fields: DataPlanStep['fields'] = Object.fromEntries(
+      Object.entries({ ...step.fields, ...set }).filter(([k]) => !remove.includes(k)),
+    ) as DataPlanStep['fields'];
+    const body = this.body({ fields, ...(step.parent ? { parent: step.parent } : {}) });
+    const w = this.o.ledger.plan({
+      runId: this.o.plan.runId,
+      object: step.object,
+      step: `${stepId}:attempt-${this.attempts}`,
+      fields,
+      order: 900 + 50 + this.attempts++,
+      ...(step.parent ? { parentRef: step.parent.stepId } : {}),
+    });
+    this.o.ledger.transition(w.idempotencyKey, 'SENT');
+    try {
+      const id = await this.o.sf.create(step.object, body, { emailDomains: emailDomains(body) });
+      this.o.ledger.transition(w.idempotencyKey, 'CONFIRMED', id);
+      return { saved: true, errorCodes: [] };
+    } catch (err) {
+      if (err instanceof HardStopError) throw err;
+      const codes = sfErrorCodes(err);
+      this.o.ledger.transition(w.idempotencyKey, 'FAILED', undefined, codes.join(',') || errText(err));
+      return { saved: false, errorCodes: codes, message: errText(err) };
+    }
   }
 
   /** Guarded update of a run-owned record (e.g. to produce field history). */

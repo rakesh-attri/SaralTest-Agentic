@@ -176,6 +176,19 @@ export function buildCatalog(input: {
       }
     }
     const isRoot = (s: string): boolean => s === nameOfCall(def.rootExpr);
+    // The page's root region (record `main` / the dialog): what a11y scans and "dialog opens" checks scope to.
+    members.push(
+      CatalogMember.parse({
+        name: 'root',
+        ref: `${def.id}.root`,
+        kind: 'region',
+        ...(roleOfCall(def.rootExpr) ? { role: roleOfCall(def.rootExpr) } : {}),
+        ...(nameOfCall(def.rootExpr) ? { accessibleName: nameOfCall(def.rootExpr) } : {}),
+        expression: def.rootExpr,
+        strategyRank: 1,
+        status: 'ACTIVE',
+      }),
+    );
     for (const [expr] of regions) {
       const role = roleOfCall(expr);
       const name = nameOfCall(expr);
@@ -258,6 +271,7 @@ export function renderPageObject(p: CatalogPage, cat: PageCatalog): string {
     );
   }
   for (const m of p.members) {
+    if (m.name === 'root') continue; // the constructor's `root`
     const meta = [
       m.kind === 'region' ? 'region' : (m.fieldApiName ?? m.registryElement ?? ''),
       m.role ? `${m.role} "${m.accessibleName ?? ''}"` : '',

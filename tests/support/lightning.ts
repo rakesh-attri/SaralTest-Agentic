@@ -35,6 +35,21 @@ export async function selectTab(tab: Locator): Promise<void> {
   await expect(tab).toHaveAttribute('aria-selected', 'true');
 }
 
+/** The record page header (h1) shows the text (e.g. the new Contact's name). */
+export async function expectRecordTitle(page: Page, text: string): Promise<void> {
+  await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText(text);
+}
+
+/**
+ * Bring a related list into view: Lightning shows related lists on the default tab or on a "Related" tab,
+ * depending on the page layout. Navigation only — the list itself is asserted by the caller.
+ */
+export async function showRelatedList(list: Locator, relatedTab?: Locator): Promise<void> {
+  await waitForSpinners(list.page());
+  if (!(await list.isVisible()) && relatedTab) await selectTab(relatedTab);
+  await expect(list).toBeVisible();
+}
+
 /** A related-list card (`article` named like the list, e.g. "Contacts"). */
 export function relatedList(scope: Scope, name: string): Locator {
   return scope.getByRole('article', { name, exact: true });
