@@ -25,6 +25,18 @@ Rules (from the playwright-standards, salesforce-lightning-locators and salesfor
   (REQUIRED_FIELD_MISSING for a removed required field, STRING_TOO_LONG for a value over the field length,
   FIELD_CUSTOM_VALIDATION_EXCEPTION when an active validation rule references the field).
 - Accessibility cases: an `a11yScan` scoped to the dialog root plus a `tabOrder` check over its fields and buttons.
+- Names: `openRecord.object` is the Salesforce object API name (e.g. "Account"); `relatedList` is the related list's
+  label (e.g. "Contacts"). Element refs are exactly the catalog refs.
+- Typical mappings (use them; never weaken):
+  - "the record page opens / shows X" → `recordView` (with `as`) AND `recordTitle` contains X.
+  - "is not saved" in the UI → type a `unique` value into another field of the same form (e.g. First Name) before
+    saving, then assert `soqlNoRecord` on that field AND the field error / page error / dialog still visible.
+  - a schema / length / validation-rule expectation (DECLARED_CONFIG) → `apiRejects` (`remove` the field, or a
+    `length` value over the limit) with the metadata error code; never query an existing record for it.
+  - "appears in the related list" → `relatedListHasRecord` with the same value the test typed.
+  - a record created through the UI → `adopt` it with the SAME `unique` value the test typed into it.
+  - "all fields reachable by keyboard" → `tabOrder` over EVERY field of the dialog (all textbox/combobox/checkbox
+    members of that page) plus its Save/Cancel buttons.
 - Use `notes` for substitutions and assumptions a reviewer must see. Do not restate the case.
 
 Story {{storyKey}}. Bound recipe: {{recipe}}.

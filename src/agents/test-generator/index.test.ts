@@ -204,3 +204,59 @@ describe('Test Generator: model loop (mock coder, MOCK)', () => {
     expect(r.specs[0]?.text).toContain('MECHANICAL skeleton');
   });
 });
+
+describe('Test Generator: fixes from the fixture demo (run-p4-fixture-1)', () => {
+  const ctx = generationContext();
+  const recipe = bindRecipe(CASE, ctx);
+
+  it('an API-only test does not request the page fixture (unused args fail lint)', () => {
+    const apiOnly: TestIR = {
+      caseId: CASE.id,
+      data: ['Account'],
+      steps: [clone(GOOD_IR.steps[1]!), { ...clone(GOOD_IR.steps[1]!), caseStep: 0 }],
+      notes: [],
+    };
+    const text = renderSpec({ tc: CASE, ir: apiOnly, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
+    expect(text).toMatch(/async \(\{ data \}\) =>/);
+  });
+
+  it('accepts a page class name for openRecord and a region member name for a related list', () => {
+    const ir = clone(GOOD_IR);
+    ir.steps[0]!.actions[0] = {
+      do: 'openNewFromRelatedList',
+      parentRef: 'Account',
+      relatedList: 'contactsRelatedList',
+    };
+    ir.steps[0]!.actions.unshift({ do: 'openRecord', ref: 'Account', object: 'AccountRecordPage' });
+    expect(irProblems(CASE, ir, ctx, recipe)).toEqual([]);
+    expect(renderSpec({ tc: CASE, ir, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' })).toContain(
+      'await accountRecordPage.contactsNewButton.click();',
+    );
+  });
+
+  it('adopt must use the unique value the test typed; a keyboard check must cover every field of its scope', () => {
+    const ir = clone(GOOD_IR);
+    ir.steps[0]!.actions.push(
+      { do: 'fill', element: 'contact-new.lastName', value: { kind: 'unique', label: 'typed', format: 'text' } },
+      {
+        do: 'adopt',
+        as: 'uiContact',
+        object: 'Contact',
+        field: 'LastName',
+        value: { kind: 'unique', label: 'other', format: 'text' },
+      },
+    );
+    expect(irProblems(CASE, ir, ctx, recipe).join('\n')).toMatch(/same unique value the test typed/);
+
+    const kb = clone(GOOD_IR);
+    kb.steps[0]!.assertions.push({
+      check: 'tabOrder',
+      scope: 'contact-new.root',
+      elements: ['contact-new.lastName', 'contact-new.saveButton'],
+      expect: { caseStep: 0, evidenceIds: ['SF-219#AC2'] },
+    });
+    expect(irProblems(CASE, kb, ctx, recipe).join('\n')).toMatch(
+      /must cover every field of contact-new\.root; missing contact-new\.firstName/,
+    );
+  });
+});

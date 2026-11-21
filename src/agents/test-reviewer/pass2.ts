@@ -13,6 +13,7 @@ import type { SkillLoader } from '../../skills/skillLoader.js';
 import { irProblems, type GenerationContext } from '../test-generator/context.js';
 import type { GeneratedSpec } from '../test-generator/graph.js';
 import { findMember } from '../test-generator/pageObjects.js';
+import { A11Y_SCOPE_NOTE } from '../test-generator/render.js';
 import type { ToolchainResult } from '../test-generator/toolchain.js';
 import { runStructured } from '../shared/structured.js';
 import type { FindingDraft } from './rules.js';
@@ -333,7 +334,9 @@ export async function reviewPass2Round(i: Pass2Input, deps: Pass2Deps): Promise<
             'Report only real problems: an expected result not asserted, an assertion weaker than the expectation, an ' +
             'assertion the case does not expect, a step whose action differs from the case, data that does not match the ' +
             "case's preconditions. Deterministic checks (lint, types, locators, evidence) are done by code: do not repeat them. " +
-            'Return an empty list when the tests match their cases.',
+            'Return an empty list when the tests match their cases.\n\nOperator scope rules (accepted decisions — never report them as findings): ' +
+            A11Y_SCOPE_NOTE +
+            ' The keyboard check (every field reachable by Tab, focus stays in the dialog, visual reading order) is the operator-mandated implementation of "reachable by keyboard".',
           user: generated
             .map((s) => {
               const tc = i.cases.find((c) => c.id === s.caseId);

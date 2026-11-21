@@ -52,18 +52,35 @@ export function featureOf(tc: TestCase, ctx: Pick<GenerationContext, 'catalog' |
   return objs.find((o) => new RegExp(`\\b${o}\\b`, 'i').test(tc.title)) ?? objs[0] ?? ctx.storyKey;
 }
 
+/** Record page of an object; also accepts the page's class name or id (models use either). */
 export const recordPageOf = (cat: PageCatalog, object: string): CatalogPage | undefined =>
-  cat.pages.find((p) => p.kind === 'record' && p.object === object);
+  cat.pages.find((p) => p.kind === 'record' && (p.object === object || p.className === object || p.id === object));
+
+/** A related list's accessible name ("Contacts"); also accepts its region member name or ref (contactsRelatedList). */
+export function canonicalList(cat: PageCatalog, list: string): string {
+  const name = list.includes('.') ? list.slice(list.indexOf('.') + 1) : list;
+  for (const p of cat.pages) {
+    const m = p.members.find((x) => x.kind === 'region' && x.role === 'article' && x.name === name);
+    if (m?.accessibleName) return m.accessibleName;
+  }
+  return list;
+}
 
 /** The "New <Object>" dialog for a related list named like "Contacts". */
 export function dialogForList(cat: PageCatalog, list: string): CatalogPage | undefined {
-  const child = list.replace(/ies$/, 'y').replace(/s$/, '');
+  const child = canonicalList(cat, list).replace(/ies$/, 'y').replace(/s$/, '');
   return cat.pages.find((p) => p.kind === 'dialog' && p.object === child);
 }
 
 export function listRegion(page: CatalogPage, list: string): string | undefined {
-  return page.members.find((m) => m.kind === 'region' && m.role === 'article' && m.accessibleName === list)?.name;
+  const name = list.includes('.') ? list.slice(list.indexOf('.') + 1) : list;
+  return page.members.find(
+    (m) => m.kind === 'region' && m.role === 'article' && (m.accessibleName === list || m.name === name),
+  )?.name;
 }
+
+/** Field-like roles a keyboard check must reach ("all fields are reachable by keyboard"). */
+export const FIELD_ROLES = new Set(['textbox', 'combobox', 'spinbutton', 'checkbox', 'searchbox']);
 
 /** Error codes Salesforce can return for an API variant, derived only from metadata (never guessed). */
 export function derivableErrorCodes(
@@ -154,6 +171,7 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
     }
   };
 
+  const typedUniques = new Set<string>();
   const covered = new Set<number>();
   ir.steps.forEach((st, si) => {
     const where = `step ${si + 1}`;
@@ -198,7 +216,9 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         else {
           if (!listRegion(page, a.relatedList))
             p.push(`${where}: ${page.className} has no related list "${a.relatedList}"`);
-          if (!relatedListNewButton(page, a.relatedList)) p.push(`${where}: no New button for "${a.relatedList}"`);
+          if (!relatedListNewButton(page, canonicalList(ctx.catalog, a.relatedList))) {
+            p.push(`${where}: no New button for "${a.relatedList}"`);
+          }
         }
         if (!dialogForList(ctx.catalog, a.relatedList))
           p.push(`${where}: no dialog page object for "${a.relatedList}"`);
@@ -207,6 +227,7 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
       case 'fill':
         member(a.element, FILLABLE);
         value(a.value, where, caseStep);
+        if (a.value.kind === 'unique') typedUniques.add(a.value.label);
         break;
       case 'clear':
         member(a.element, FILLABLE);
@@ -234,6 +255,10 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
       case 'adopt':
         if (a.value.kind !== 'unique' || a.value.format !== 'text') {
           p.push(`${where}: adopt needs a run-unique text value (kind unique, format text) — never foreign data`);
+        } else if (!typedUniques.has(a.value.label)) {
+          p.push(
+            `${where}: adopt must use the same unique value the test typed into the record (a fill with unique label "${a.value.label}" before it)`,
+          );
         }
         if (!ctx.facts.field(a.object, a.field)) p.push(`${where}: ${a.object}.${a.field} is not in the snapshot`);
         created.add(a.as);
@@ -311,10 +336,15 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
       case 'a11yScan':
         member(a.scope);
         break;
-      case 'tabOrder':
-        member(a.scope);
+      case 'tabOrder': {
+        const scope = member(a.scope);
         for (const e of a.elements) member(e);
+        const fields = scope?.members.filter((m) => m.kind === 'element' && m.role && FIELD_ROLES.has(m.role)) ?? [];
+        const missing = fields.filter((m) => !a.elements.includes(m.ref)).map((m) => m.ref);
+        if (missing.length)
+          p.push(`${where}: the keyboard check must cover every field of ${a.scope}; missing ${missing.join(', ')}`);
         break;
+      }
     }
   }
 }

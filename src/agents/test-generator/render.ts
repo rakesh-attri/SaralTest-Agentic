@@ -3,6 +3,7 @@
 import type { IrAction, IrAssertion, TestIR, ValueRef } from '../../core/schemas/generation.js';
 import type { TestCase } from '../../core/schemas/testCase.js';
 import {
+  canonicalList,
   dialogForList,
   featureOf,
   listRegion,
@@ -65,7 +66,7 @@ export function locatorsUsed(ir: TestIR, cat: PageCatalog, recipe: RecipeView | 
         const dlg = dialogForList(cat, a.relatedList);
         if (page) {
           const list = listRegion(page, a.relatedList);
-          const btn = relatedListNewButton(page, a.relatedList);
+          const btn = relatedListNewButton(page, canonicalList(cat, a.relatedList));
           const tab = page.members.find((m) => m.role === 'tab' && m.accessibleName === 'Related');
           for (const m of [list, btn?.name, tab?.name]) if (m) out.add(`${page.id}.${m}`);
         }
@@ -93,7 +94,7 @@ export function renderSpec(i: RenderInput): string {
   const consts = new Map<string, string>(); // name → initializer
   const viewed = new Set<string>();
   const usesTestInfo = ir.steps.some((s) => s.assertions.some((a) => a.check === 'a11yScan'));
-  const fixtures = new Set<string>(['page', 'data']);
+  const fixtures = new Set<string>();
 
   const page = (ref: string): { v: string; member: string } => {
     const m = findMember(cat, ref);
@@ -140,7 +141,7 @@ export function renderSpec(i: RenderInput): string {
         const p = recordPageOf(cat, objectOf(a.parentRef));
         const dlg = dialogForList(cat, a.relatedList);
         const list = p ? listRegion(p, a.relatedList) : undefined;
-        const btn = p ? relatedListNewButton(p, a.relatedList) : undefined;
+        const btn = p ? relatedListNewButton(p, canonicalList(cat, a.relatedList)) : undefined;
         if (!p || !dlg || !list || !btn) throw new Error(`cannot open New from ${a.relatedList}`);
         imp.pages.set(p.className, p);
         imp.pages.set(dlg.className, dlg);
@@ -312,6 +313,10 @@ export function renderSpec(i: RenderInput): string {
     '',
   );
   const tags = [...new Set([...tc.tags, `@${tc.type}`, `@persona:${tc.persona}`])];
+  // Request only the fixtures the test uses (an unused `page` / `data` would fail lint).
+  const code = [...body, ...consts.values()].join(' ');
+  if (imp.pages.size || /\bpage\b/.test(code)) fixtures.add('page');
+  if (/\bdata\./.test(code)) fixtures.add('data');
   const args = [...fixtures].sort((a, b) => (a === 'page' ? -1 : b === 'page' ? 1 : a.localeCompare(b)));
   L.push(
     `  test(${q(`${tc.id} ${tc.title}`)}, { tag: [${tags.map(q).join(', ')}] }, async ({ ${args.join(', ')} }${usesTestInfo ? ', testInfo' : ''}) => {`,
