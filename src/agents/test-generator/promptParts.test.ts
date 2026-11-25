@@ -298,3 +298,116 @@ describe('cleanup bookkeeping added by code (run-p4-tc004-2)', () => {
     expect(irProblems(tc, normalizeIr(two, ctx, recipe, tc), ctx, recipe).join('\n')).toMatch(/not adopted/);
   });
 });
+
+describe('navigation shorthand rewritten by code (run-p4-build-decided-1)', () => {
+  const ctx = generationContext();
+  const recipe = bindRecipe(CASE, ctx);
+  const withActions = (actions: IrAction[]): TestIR => {
+    const ir = structuredClone(GOOD_IR);
+    ir.steps[0]!.actions = actions;
+    return ir;
+  };
+
+  it('click on the related list New button after opening the parent = openNewFromRelatedList; parent lookup fill dropped', () => {
+    const n = normalizeIr(
+      withActions([
+        { do: 'openRecord', ref: 'Account', object: 'Account' },
+        { do: 'click', element: 'account-record.contactsNewButton' },
+        { do: 'fill', element: 'contact-new.accountId', value: { kind: 'data', ref: 'Account', field: 'Name' } },
+        { do: 'click', element: 'contact-new.saveButton' },
+      ]),
+      ctx,
+      recipe,
+      CASE,
+    );
+    expect(n.steps[0]!.actions).toEqual([
+      { do: 'openRecord', ref: 'Account', object: 'Account' },
+      { do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' },
+      { do: 'click', element: 'contact-new.saveButton' },
+    ]);
+    expect(n.notes.join(' ')).toMatch(/pre-fills it/);
+    expect(irProblems(CASE, n, ctx, recipe)).toEqual([]);
+  });
+
+  it('leaves anything else to the checks: a New click with no record opened, a lookup filled with another record', () => {
+    const lone = normalizeIr(withActions([{ do: 'click', element: 'account-record.contactsNewButton' }]), ctx, recipe);
+    expect(lone.steps[0]!.actions).toEqual([{ do: 'click', element: 'account-record.contactsNewButton' }]);
+    const other = normalizeIr(
+      withActions([
+        { do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' },
+        { do: 'fill', element: 'contact-new.accountId', value: { kind: 'data', ref: 'OtherAccount', field: 'Name' } },
+      ]),
+      ctx,
+      recipe,
+    );
+    expect(other.steps[0]!.actions).toHaveLength(2);
+  });
+});
+
+describe('picklists: select (run-p4-build-decided-2: Lead Source = Web could not be expressed)', () => {
+  const ctx = generationContext();
+  const recipe = bindRecipe(CASE, ctx);
+  const withActions = (actions: IrAction[]): TestIR => {
+    const ir = structuredClone(GOOD_IR);
+    ir.steps[0]!.actions = [
+      { do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' },
+      ...actions,
+    ];
+    return ir;
+  };
+  const web = { kind: 'literal' as const, value: 'Web', evidenceIds: [] };
+
+  it('fill on a picklist combobox becomes select; an active snapshot value is grounded by the org; renders selectPicklist', () => {
+    const n = normalizeIr(
+      withActions([
+        { do: 'fill', element: 'contact-new.leadSource', value: web },
+        { do: 'click', element: 'contact-new.saveButton' },
+      ]),
+      ctx,
+      recipe,
+      CASE,
+    );
+    expect(n.steps[0]!.actions[1]).toMatchObject({ do: 'select', element: 'contact-new.leadSource' });
+    expect(irProblems(CASE, n, ctx, recipe)).toEqual([]);
+    const spec = renderSpec({ tc: CASE, ir: n, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
+    expect(spec).toContain("await selectPicklist(page, newContactDialog.leadSource, 'Web');");
+    expect(spec).toMatch(/import \{[^}]*selectPicklist[^}]*\} from/);
+  });
+
+  it('rejects a value the picklist does not have and select on a non-picklist field', () => {
+    const bad = withActions([
+      { do: 'select', element: 'contact-new.leadSource', value: { ...web, value: 'Partner' } },
+      { do: 'select', element: 'contact-new.lastName', value: web },
+    ]);
+    const problems = irProblems(CASE, normalizeIr(bad, ctx, recipe, CASE), ctx, recipe).join(' | ');
+    expect(problems).toMatch(/"Partner" is not an active value of Contact\.LeadSource \(values: Web, Phone Inquiry\)/);
+    expect(problems).toMatch(/contact-new\.lastName is not a picklist field/);
+  });
+});
+
+describe('run-specific recipe values written as literals (run-p4-build-decided-3: TC-012, TC-051)', () => {
+  it('a literal equal to a synthetic recipe value becomes a data ref; a plain literal is kept', () => {
+    const ctx = generationContext();
+    const recipe = bindRecipe(CASE, ctx);
+    const name = String(recipe?.plan.steps.find((s) => s.stepId === 'Account')?.fields['Name']);
+    expect(name).toContain(recipe?.plan.runId);
+    const ir = structuredClone(GOOD_IR);
+    ir.steps[0]!.assertions = [
+      {
+        check: 'relatedListHasRecord',
+        parentRef: 'Account',
+        relatedList: 'Contacts',
+        name: { kind: 'literal', value: name, evidenceIds: [] },
+        expect: { caseStep: 0, evidenceIds: ['SF-219#AC2'] },
+      },
+      {
+        check: 'toast',
+        contains: { kind: 'literal', value: 'Contact', evidenceIds: [] },
+        expect: { caseStep: 0, evidenceIds: ['SF-219#AC2'] },
+      },
+    ];
+    const n = normalizeIr(ir, ctx, recipe, CASE);
+    expect(n.steps[0]!.assertions[0]).toMatchObject({ name: { kind: 'data', ref: 'Account', field: 'Name' } });
+    expect(n.steps[0]!.assertions[1]).toMatchObject({ contains: { kind: 'literal', value: 'Contact' } });
+  });
+});

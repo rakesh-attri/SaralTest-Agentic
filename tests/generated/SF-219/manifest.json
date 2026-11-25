@@ -1,19 +1,307 @@
 {
   "storyKey": "SF-219",
-  "designRun": "run-p3-live-5",
-  "buildRun": "run-p4-tc004-3",
+  "designRun": "run-p4-design-decided-1",
+  "buildRun": "run-p4-build-decided-3",
   "org": "qa-prod",
   "environment": "LIVE",
   "artifacts": [
     {
       "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-002-mailing-address-defaults-from-account-billing-addr.spec.ts",
-      "hash": "df943d3e649acf8f",
+      "path": "tests/generated/SF-219/TC-SF-219-004-create-contact-with-last-name-boundary-values-79-8.spec.ts",
+      "hash": "1fd411f3e775371a",
       "testCaseIds": [
-        "TC-SF-219-002"
+        "TC-SF-219-004"
       ],
-      "caseHash": "deb523b99b01bfdd",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "caseHash": "43403159cec09c17",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [],
+      "dataBindings": [],
+      "origin": "mechanical",
+      "reviewReasons": [
+        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
+        "RF-004 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-007-create-contact-with-valid-10-digit-phone-and-non-w.spec.ts",
+      "hash": "44aaa59c1cc758fb",
+      "testCaseIds": [
+        "TC-SF-219-007"
+      ],
+      "caseHash": "97f1c3c5e7c70c76",
+      "irHash": "69f4c2b5a54e66b1",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.lastName",
+        "contact-new.leadSource",
+        "contact-new.phone",
+        "contact-new.root",
+        "contact-new.saveButton"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-008-create-contact-with-lead-source-web-and-blank-phon.spec.ts",
+      "hash": "5da3bdef60d1d1a9",
+      "testCaseIds": [
+        "TC-SF-219-008"
+      ],
+      "caseHash": "add925ad4aa92798",
+      "irHash": "1301951f8241013f",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.lastName",
+        "contact-new.leadSource",
+        "contact-new.phone",
+        "contact-new.root",
+        "contact-new.saveButton"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-009-create-contact-with-invalid-phone-format-not-10-di.spec.ts",
+      "hash": "a5d7072a9da50ed5",
+      "testCaseIds": [
+        "TC-SF-219-009"
+      ],
+      "caseHash": "519c1caf28908405",
+      "irHash": "de12afaf0295f494",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.lastName",
+        "contact-new.leadSource",
+        "contact-new.phone",
+        "contact-new.root",
+        "contact-new.saveButton"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-010-boundary-value-test-for-phone-field-9-10-and-11-di.spec.ts",
+      "hash": "d04b7ec4620366bc",
+      "testCaseIds": [
+        "TC-SF-219-010"
+      ],
+      "caseHash": "926d711a88efc279",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [],
+      "dataBindings": [],
+      "origin": "mechanical",
+      "reviewReasons": [
+        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
+        "RF-007 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-012-system-administrator-can-create-and-edit-contacts.spec.ts",
+      "hash": "0889b9e3777f1900",
+      "testCaseIds": [
+        "TC-SF-219-012"
+      ],
+      "caseHash": "cf6654e68fbadafb",
+      "irHash": "4bc099a7f95e868d",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.lastName",
+        "contact-new.root",
+        "contact-new.saveButton",
+        "contact-record.editButton"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "RF-009 ungrounded-value: step 1 relatedListHasRecord: literal \"QA-run-p4-build-decided-3-Acme fendi107\" is not in the case text, recipe or UI labels (never invent values)"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-015-create-contact-with-invalid-title-value-is-rejecte.spec.ts",
+      "hash": "2341aa5758e62967",
+      "testCaseIds": [
+        "TC-SF-219-015"
+      ],
+      "caseHash": "17210f39ed88b398",
+      "irHash": "6dff07fc6e2b5342",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.lastName",
+        "contact-new.root",
+        "contact-new.saveButton",
+        "contact-new.title"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-023-field-history-tracking-for-email-and-phone-changes.spec.ts",
+      "hash": "60676ffb4aacab89",
+      "testCaseIds": [
+        "TC-SF-219-023"
+      ],
+      "caseHash": "0420c9e04c8f0956",
+      "irHash": "5bd4d59b25b4c492",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-026-create-contact-with-valid-last-name-positive.spec.ts",
+      "hash": "cefacfee83232479",
+      "testCaseIds": [
+        "TC-SF-219-026"
+      ],
+      "caseHash": "752fd47a3b76454e",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [],
+      "dataBindings": [],
+      "origin": "mechanical",
+      "reviewReasons": [
+        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
+        "RF-003 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-032-create-contact-from-account-related-list-contact-l.spec.ts",
+      "hash": "a10a7d9e05ce0f5f",
+      "testCaseIds": [
+        "TC-SF-219-032"
+      ],
+      "caseHash": "d768593bb35038a0",
+      "irHash": "6f4adfcf9273ed4e",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.email",
+        "contact-new.firstName",
+        "contact-new.lastName",
+        "contact-new.phone",
+        "contact-new.root",
+        "contact-new.saveButton",
+        "contact-new.title"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-036-create-contact-with-each-approved-title-value.spec.ts",
+      "hash": "447fdda518016932",
+      "testCaseIds": [
+        "TC-SF-219-036"
+      ],
+      "caseHash": "cb659d2594451546",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [],
+      "dataBindings": [],
+      "origin": "mechanical",
+      "reviewReasons": [
+        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
+        "RF-010 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-044-create-contact-with-valid-data-from-account-regres.spec.ts",
+      "hash": "07cd81269cd533aa",
+      "testCaseIds": [
+        "TC-SF-219-044"
+      ],
+      "caseHash": "9f38bfa3d259aad2",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [],
       "dataBindings": [],
       "origin": "mechanical",
@@ -22,93 +310,43 @@
         "RF-001 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-coder-nim-8"
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
     },
     {
       "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-003-last-name-is-required-when-creating-a-contact.spec.ts",
-      "hash": "ce48b255f9f58127",
+      "path": "tests/generated/SF-219/TC-SF-219-045-mailing-address-defaults-from-account-billing-addr.spec.ts",
+      "hash": "64a0d3cea9bf17a8",
       "testCaseIds": [
-        "TC-SF-219-003"
+        "TC-SF-219-045"
       ],
-      "caseHash": "bfbd355eea31feb8",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "caseHash": "c0f1d65cdcc8fa45",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [],
       "dataBindings": [],
       "origin": "mechanical",
       "reviewReasons": [
         "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
-        "RF-004 judge: Missing Last Name field error assertion: Step 1 expects that an error is shown on the Last Name field, but the test only asserts `expect(newContactDialog.lastName).toBeVisible()`, which is true whether or not a validation error is displayed. The field-level error (e.g. the 'Complete this field' message/alert on Last Name) is never asserted, so the expected error result is unverified; add an assertion on the Last Name field error message/alert in the dialog.",
-        "RF-006 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+        "RF-002 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-coder-nim-8"
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
     },
     {
       "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-004-last-name-maximum-length-boundary-values-79-80-81.spec.ts",
-      "hash": "66ecddf72e9a8c0a",
+      "path": "tests/generated/SF-219/TC-SF-219-046-create-contact-with-empty-last-name-negative.spec.ts",
+      "hash": "c078ba5b72f68c18",
       "testCaseIds": [
-        "TC-SF-219-004"
+        "TC-SF-219-046"
       ],
-      "caseHash": "1f22dda463ef26df",
-      "irHash": "39ddffbae6f36da1",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "caseHash": "3fa9bcc72b1f1fd8",
+      "irHash": "85272c90e77e9db4",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
         "account-record.relatedTab",
-        "contact-new.lastName",
-        "contact-new.root",
-        "contact-new.saveButton"
-      ],
-      "dataBindings": [
-        "account-contact"
-      ],
-      "origin": "generated",
-      "reviewReasons": [],
-      "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-tc004-3"
-    },
-    {
-      "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-012-system-administrator-can-create-contact.spec.ts",
-      "hash": "e7648af92d2080c2",
-      "testCaseIds": [
-        "TC-SF-219-012"
-      ],
-      "caseHash": "16fcc0497bfc9049",
-      "irHash": "c4156c029f7fdd84",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
-      "locatorsUsed": [
-        "account-record.contactsNewButton",
-        "account-record.contactsRelatedList",
-        "account-record.relatedTab",
-        "contact-new.root"
-      ],
-      "dataBindings": [
-        "account-contact"
-      ],
-      "origin": "generated",
-      "reviewReasons": [],
-      "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-coder-nim-8"
-    },
-    {
-      "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-013-contact-appears-in-related-list-after-creation.spec.ts",
-      "hash": "14a71778824101d8",
-      "testCaseIds": [
-        "TC-SF-219-013"
-      ],
-      "caseHash": "c2c03a47a4396bb2",
-      "irHash": "18ef0fe07c3e36d0",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
-      "locatorsUsed": [
-        "account-record.contactsNewButton",
-        "account-record.contactsRelatedList",
-        "account-record.relatedTab",
-        "contact-new.email",
         "contact-new.firstName",
         "contact-new.lastName",
         "contact-new.root",
@@ -118,20 +356,143 @@
         "account-contact"
       ],
       "origin": "generated",
-      "reviewReasons": [],
-      "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-coder-nim-8"
+      "reviewReasons": [
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
     },
     {
       "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-022-contact-pages-accessibility.spec.ts",
-      "hash": "b8ae553ab4a4dec1",
+      "path": "tests/generated/SF-219/TC-SF-219-047-sales-rep-creates-contact-with-valid-email-contact.spec.ts",
+      "hash": "47f60d0387a81720",
       "testCaseIds": [
-        "TC-SF-219-022"
+        "TC-SF-219-047"
       ],
-      "caseHash": "91e73d7983f09a1e",
-      "irHash": "32b38af30117f5d8",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
+      "caseHash": "9ebd8502c3691689",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [],
+      "dataBindings": [],
+      "origin": "mechanical",
+      "reviewReasons": [
+        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
+        "RF-005 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-048-sales-rep-enters-syntactically-invalid-email-save.spec.ts",
+      "hash": "3bb8b0533956bfdd",
+      "testCaseIds": [
+        "TC-SF-219-048"
+      ],
+      "caseHash": "1816b6e234b04be4",
+      "irHash": "2411b6be0d29fb57",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.cancelButton",
+        "contact-new.email",
+        "contact-new.lastName",
+        "contact-new.root",
+        "contact-new.saveButton"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-050-duplicate-contact-warning-shown-when-saving-contac.spec.ts",
+      "hash": "ed0807ff4e58e9cd",
+      "testCaseIds": [
+        "TC-SF-219-050"
+      ],
+      "caseHash": "aa6cf9fc2b7bf878",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [],
+      "dataBindings": [],
+      "origin": "mechanical",
+      "reviewReasons": [
+        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
+        "RF-006 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-051-regression-verification-mtc-005-read-only-user-can.spec.ts",
+      "hash": "8681046dd30ef09e",
+      "testCaseIds": [
+        "TC-SF-219-051"
+      ],
+      "caseHash": "5817d070e48c8f2d",
+      "irHash": "d7eb1232a8a1174d",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [
+        "account-record.contactsRelatedList"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "RF-008 ungrounded-value: step 1 relatedListHasRecord: literal \"QA-run-p4-build-decided-3-285zv5xj\" is not in the case text, recipe or UI labels (never invent values)"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-052-new-contact-appears-in-account-s-contacts-related.spec.ts",
+      "hash": "07f0bb816695bb24",
+      "testCaseIds": [
+        "TC-SF-219-052"
+      ],
+      "caseHash": "15bd08519f0535a1",
+      "irHash": "eb37fef01629cb7e",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [
+        "account-record.contactsRelatedList",
+        "account-record.refreshButton"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-053-contact-pages-accessibility-wcag-2-1-aa-keyboard-n.spec.ts",
+      "hash": "2e40447f3079cf7f",
+      "testCaseIds": [
+        "TC-SF-219-053"
+      ],
+      "caseHash": "9da99fc66ed302a5",
+      "irHash": "6be31a820e708968",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
@@ -168,37 +529,28 @@
         "contact-new.root",
         "contact-new.salutation",
         "contact-new.saveButton",
-        "contact-new.title"
+        "contact-new.title",
+        "contact-record.activityTab",
+        "contact-record.casesNewButton",
+        "contact-record.chatterTab",
+        "contact-record.deleteButton",
+        "contact-record.detailsTab",
+        "contact-record.editButton",
+        "contact-record.editNameButton",
+        "contact-record.opportunitiesNewButton",
+        "contact-record.relatedTab",
+        "contact-record.root"
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
-      "origin": "generated",
-      "reviewReasons": [],
-      "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-coder-nim-8",
-      "reviewedBy": "review2-20261125-174039-60fb"
-    },
-    {
-      "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-023-field-history-tracking-for-email-and-phone.spec.ts",
-      "hash": "ee8d9bf3f6cecc1e",
-      "testCaseIds": [
-        "TC-SF-219-023"
-      ],
-      "caseHash": "23e1d2f0f86fe4f7",
-      "irHash": "121a34f8682f631b",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261120141700-b92b",
-      "locatorsUsed": [],
       "dataBindings": [
         "account-contact"
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-005 judge: History assertion weaker than expected result: The case expects the Contact History related list to show entries for the Email and Phone changes. The test performs the update through the API (the opened Contact record page is never used to edit/save) and only asserts that `historyFields(...)` contains 'Email' and 'Phone'. That can be satisfied by creation-time history entries and does not verify entries for the values changed in this step, nor that the Contact History related list displays them. Assert the history entries for this update (new values present in the history rows / related list rows)."
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-coder-nim-8"
+      "buildRun": "run-p4-build-decided-3",
+      "reviewedBy": "review2-20261125-203039-29fd"
     }
   ]
 }

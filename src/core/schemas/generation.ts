@@ -79,6 +79,8 @@ export const IrAction = z.discriminatedUnion('do', [
   z.object({ do: z.literal('openRecord'), ref: z.string().min(1), object: z.string().min(1) }),
   z.object({ do: z.literal('openNewFromRelatedList'), parentRef: z.string().min(1), relatedList: z.string().min(1) }),
   z.object({ do: z.literal('fill'), element: ElementRef, value: ValueRef }),
+  /** Choose an option of a picklist combobox (value = the option label; checked against the snapshot's picklist). */
+  z.object({ do: z.literal('select'), element: ElementRef, value: ValueRef }),
   z.object({ do: z.literal('clear'), element: ElementRef }),
   z.object({ do: z.literal('click'), element: ElementRef }),
   z.object({ do: z.literal('selectTab'), element: ElementRef }),

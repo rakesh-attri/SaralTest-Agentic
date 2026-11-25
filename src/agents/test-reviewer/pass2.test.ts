@@ -7,7 +7,7 @@ import { caseHash, type GeneratedSpec } from '../test-generator/graph.js';
 import { hashText } from '../test-generator/pageObjects.js';
 import { locatorsUsed, renderSkeleton, renderSpec, specPath } from '../test-generator/render.js';
 import type { ToolchainResult } from '../test-generator/toolchain.js';
-import { astViolations, pass2Findings, reviewPass2Round, settlePass2 } from './pass2.js';
+import { astViolations, pass2Findings, reviewPass2Round, settlePass2, withoutJudge } from './pass2.js';
 
 const ctx = generationContext();
 const recipe = bindRecipe(CASE, ctx);
@@ -230,5 +230,39 @@ describe('Test Reviewer pass 2: checklist + settlement', () => {
     expect(r2.findings.find((f) => f.origin === 'judge')?.resolvedBy).toBe('judge');
     expect(r2.findings.filter((f) => f.origin === 'deterministic').every((f) => f.resolvedBy === 'recheck')).toBe(true);
     expect(settlePass2(r2.findings, [s2]).artifacts[0]?.reviewStatus).toBe('APPROVED');
+  });
+});
+
+describe('judge outage (2026-11-25: NIM and Gemini both 503 for hours)', () => {
+  const outage = () =>
+    mockRouter({
+      judge: {
+        responder: () => {
+          throw Object.assign(new Error('503 This model is currently experiencing high demand'), { status: 503 });
+        },
+      },
+    });
+  const input = (s: GeneratedSpec, transientDegrades?: boolean) => ({
+    ctx,
+    cases: [CASE],
+    specs: [s],
+    toolchain: toolchain(s),
+    dryRun: dryRun(s),
+    prior: [],
+    round: 1,
+    mode: 'llm' as const,
+    ...(transientDegrades ? { transientDegrades } : {}),
+  });
+
+  it('graph mode: the TRANSIENT error reaches the QA Lead (retry); qa review: deterministic only, nothing APPROVED', async () => {
+    const s = spec();
+    await expect(reviewPass2Round(input(s), { router: await outage() })).rejects.toMatchObject({ kind: 'TRANSIENT' });
+    const r = await reviewPass2Round(input(s, true), { router: await outage() });
+    expect(r.judgeDegraded).toBe(true);
+    const settled = settlePass2(r.findings, [s]);
+    expect(settled.artifacts[0]?.reviewStatus).toBe('APPROVED');
+    const [a] = withoutJudge(settled.artifacts);
+    expect(a?.reviewStatus).toBe('REVIEW_REQUIRED');
+    expect(a?.reviewReasons.join(' ')).toMatch(/judge unavailable/);
   });
 });

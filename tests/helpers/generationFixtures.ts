@@ -62,6 +62,13 @@ export const SNAPSHOT: StoredSnapshot = {
     field('Contact', 'Phone', { type: 'phone', length: 40 }),
     field('Contact', 'MailingCountry', { type: 'string', length: 80 }),
     field('Contact', 'AccountId', { type: 'reference', referenceTo: ['Account'] }),
+    field('Contact', 'LeadSource', {
+      type: 'picklist',
+      picklistValues: [
+        { value: 'Web', active: true },
+        { value: 'Phone Inquiry', active: true },
+      ],
+    }),
     field('Contact', 'QA_Run_Id__c', { type: 'string', length: 50 }),
     comp(
       'ValidationRule',
@@ -136,6 +143,8 @@ export const ENTRIES: LocatorEntry[] = [
   entry('account-record', `${MAIN} › ${CONTACTS}`, 'button', 'New'),
   entry('contact-new', DIALOG, 'textbox', 'First Name', { fieldApiName: 'Contact.FirstName' }),
   entry('contact-new', DIALOG, 'textbox', 'Last Name', { fieldApiName: 'Contact.LastName' }),
+  entry('contact-new', DIALOG, 'combobox', 'Account Name', { fieldApiName: 'Contact.AccountId' }),
+  entry('contact-new', DIALOG, 'combobox', 'Lead Source', { fieldApiName: 'Contact.LeadSource' }),
   entry('contact-new', DIALOG, 'textbox', 'Mailing Country', { fieldApiName: 'Contact.MailingCountry' }),
   entry('contact-new', DIALOG, 'textbox', 'Phone', { fieldApiName: 'Contact.Phone', status: 'RE_VERIFY' }),
   entry('contact-new', DIALOG, 'button', 'Save'),

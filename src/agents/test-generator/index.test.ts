@@ -256,7 +256,7 @@ describe('Test Generator: fixes from the fixture demo (run-p4-fixture-1)', () =>
       expect: { caseStep: 0, evidenceIds: ['SF-219#AC2'] },
     });
     expect(irProblems(CASE, kb, ctx, recipe).join('\n')).toMatch(
-      /must cover every field of contact-new\.root; missing contact-new\.firstName/,
+      /must cover every field of contact-new\.root; missing contact-new\.accountId, contact-new\.leadSource, contact-new\.firstName/,
     );
   });
 });

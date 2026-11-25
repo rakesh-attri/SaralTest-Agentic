@@ -3,7 +3,7 @@
 import type { DataPlan, DataPlanStep } from '../../core/schemas/data.js';
 import type { IrAction, IrAssertion, IrStep, TestIR, ValueRef } from '../../core/schemas/generation.js';
 import { isAssertable, type TestCase } from '../../core/schemas/testCase.js';
-import type { SnapshotFacts } from '../../sf/data/plan.js';
+import type { FieldFact, SnapshotFacts } from '../../sf/data/plan.js';
 import { findMember, relatedListNewButton, type CatalogPage, type PageCatalog } from './pageObjects.js';
 
 export interface RecipeView {
@@ -106,6 +106,14 @@ export function derivableErrorCodes(
 }
 
 const FILLABLE = new Set(['textbox', 'spinbutton', 'searchbox']);
+
+/** The snapshot field behind a picklist combobox member, if it is one. */
+function picklistFact(ctx: GenerationContext, ref: string): FieldFact | undefined {
+  const m = findMember(ctx.catalog, ref);
+  const [object, field] = m?.member.fieldApiName?.split('.') ?? [];
+  const fact = object && field ? ctx.facts.field(object, field) : undefined;
+  return fact && (fact.type === 'picklist' || fact.type === 'multipicklist') ? fact : undefined;
+}
 const CLICKABLE = new Set(['button', 'tab', 'link', 'menuitem', 'checkbox', 'radio', 'option']);
 
 /**
@@ -289,6 +297,22 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         if (a.value.kind === 'unique') typedUniques.add(a.value.label);
         if (a.value.kind === 'length') typedLengths.add(a.value.length);
         break;
+      case 'select': {
+        member(a.element, new Set(['combobox']), true);
+        const fact = picklistFact(ctx, a.element);
+        if (!fact) {
+          p.push(`${where}: ${a.element} is not a picklist field in the snapshot (select is for picklists only)`);
+        } else if (a.value.kind === 'literal' && fact.picklistValues?.includes(a.value.value)) {
+          // grounded by the org: an active value of this picklist in the snapshot (DECLARED_CONFIG)
+        } else if (a.value.kind === 'literal') {
+          p.push(
+            `${where}: "${a.value.value}" is not an active value of ${fact.apiName} (values: ${(fact.picklistValues ?? []).join(', ')})`,
+          );
+        } else {
+          value(a.value, where, caseStep);
+        }
+        break;
+      }
       case 'clear':
         member(a.element, FILLABLE, true);
         break;
@@ -481,8 +505,25 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
   };
   let caseStep = 0; // the IR step being normalised (for omitted evidence ids)
   const stepEvidence = (): string[] => tc?.steps[caseStep]?.expected.evidenceIds ?? [];
+  // A literal equal to a synthetic recipe value (e.g. the build-preview Account name `QA-<run>-…`) is that recipe
+  // field: the value differs per run, so it must be read from the data plan at run time (run-p4-build-decided-3).
+  const runId = recipe?.plan.runId;
+  const recipeField = (v: string): ValueRef | undefined => {
+    for (const st of steps) {
+      for (const [field, fv] of Object.entries(st.fields)) {
+        if (typeof fv === 'string' && fv === v && runId && fv.includes(runId)) {
+          return { kind: 'data', ref: st.stepId, field };
+        }
+      }
+    }
+    return undefined;
+  };
   const val = (x: ValueRef): ValueRef => {
     if (x.kind === 'data' || x.kind === 'recordId') return { ...x, ref: ref(x.ref) };
+    if (x.kind === 'literal') {
+      const d = recipeField(x.value);
+      if (d) return d;
+    }
     if ((x.kind === 'literal' || x.kind === 'length') && !x.evidenceIds.length)
       return { ...x, evidenceIds: stepEvidence() };
     return x;
@@ -496,6 +537,11 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
       case 'openNewFromRelatedList':
         return { ...a, parentRef: ref(a.parentRef), relatedList: canonicalList(ctx.catalog, a.relatedList) };
       case 'fill':
+        // `fill` on a picklist combobox means choosing that option (same intent; the renderer needs `select`)
+        return picklistFact(ctx, a.element)
+          ? { do: 'select', element: a.element, value: val(a.value) }
+          : { ...a, value: val(a.value) };
+      case 'select':
         return { ...a, value: val(a.value) };
       case 'apiUpdate':
         return { ...a, ref: ref(a.ref), fields: fields(a.fields) };
@@ -536,9 +582,15 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
   };
   const data = [...new Set(ir.data.map(ref))];
   const notes = [...ir.notes];
+  const nav = {
+    record: undefined as { ref: string; object: string } | undefined,
+    parent: undefined as { ref: string; object: string } | undefined,
+  };
   const out = ir.steps.map((st) => {
     caseStep = st.caseStep;
-    const n = { ...st, actions: st.actions.map(action), assertions: st.assertions.map(assertion) };
+    const actions = navigationShorthand(st.actions.map(action), ctx, nav, notes);
+    const n = { ...st, actions, assertions: st.assertions.map(assertion) };
+    for (const a of n.assertions) if (a.check === 'recordView' && a.as) nav.record = { ref: a.as, object: a.object };
     const adopt = missingAdopt(n, ctx);
     if (!adopt) return n;
     notes.push(
@@ -547,6 +599,62 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
     return { ...n, actions: [...n.actions, adopt] };
   });
   return { ...ir, data, notes, steps: out };
+}
+
+/**
+ * Navigation shorthand the coder keeps writing (run-p4-build-decided-1: 12 of 20 cases fell back to skeletons on it),
+ * rewritten to the equivalent IR. The test's meaning is unchanged:
+ * - `click` on a related list's "New" button of the record just opened = `openNewFromRelatedList` on that record;
+ * - in a dialog opened that way, `fill` of the lookup to the parent with the parent's own record (its id or a field
+ *   of it) is dropped: Salesforce pre-fills that lookup with the parent (the dialog shows "Clear <lookup> Selection").
+ * Anything else is left to the checks.
+ */
+function navigationShorthand(
+  actions: IrAction[],
+  ctx: GenerationContext,
+  nav: { record: { ref: string; object: string } | undefined; parent: { ref: string; object: string } | undefined },
+  notes: string[],
+): IrAction[] {
+  const out: IrAction[] = [];
+  for (const a of actions) {
+    if (a.do === 'openRecord') {
+      nav.record = { ref: a.ref, object: a.object };
+      nav.parent = undefined;
+    } else if (a.do === 'openNewFromRelatedList') {
+      nav.parent = { ref: a.parentRef, object: nav.record?.ref === a.parentRef ? nav.record.object : '' };
+    } else if (a.do === 'click') {
+      const m = findMember(ctx.catalog, a.element);
+      const list = m?.member.scopeName;
+      if (
+        m?.page.kind === 'record' &&
+        m.member.role === 'button' &&
+        m.member.accessibleName === 'New' &&
+        list &&
+        nav.record?.object === m.page.object
+      ) {
+        const relatedList = canonicalList(ctx.catalog, list);
+        out.push({ do: 'openNewFromRelatedList', parentRef: nav.record.ref, relatedList });
+        nav.parent = { ...nav.record };
+        notes.push(
+          `navigation: click on ${a.element} written as openNewFromRelatedList(${nav.record.ref}, ${relatedList}) (by code)`,
+        );
+        continue;
+      }
+    } else if (a.do === 'fill' && nav.parent?.object) {
+      const m = findMember(ctx.catalog, a.element);
+      const field = m?.member.fieldApiName?.split('.')[1];
+      const v = a.value;
+      const sameParent = (v.kind === 'data' || v.kind === 'recordId') && v.ref === nav.parent.ref;
+      if (m?.page.kind === 'dialog' && field === `${nav.parent.object}Id` && sameParent) {
+        notes.push(
+          `navigation: fill of ${a.element} with ${nav.parent.ref} dropped — Salesforce pre-fills it when New is opened from ${nav.parent.ref}'s related list (by code)`,
+        );
+        continue;
+      }
+    }
+    out.push(a);
+  }
+  return out;
 }
 
 /**

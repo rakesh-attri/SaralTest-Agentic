@@ -335,3 +335,31 @@ You answered Q1–Q3 and C1–C4 and deferred BR-09. The flow was:
     and NFR-01 (no measurement method; TC-021). TC-011 stays BLOCKED-NO-PERSONA (no read-only user).
 - **Case ids changed** compared with run-p3-live-5 for re-planned obligations. The specs in `tests/generated/SF-219/`
   still come from run-p3-live-5 until `qa build --from-run run-p4-design-decided-1` is run.
+
+## Specs regenerated from the decided design (2026-11-25)
+
+`qa build --from-run run-p4-design-decided-1 --org qa-prod` for the 20 APPROVED cases. It took three builds, and
+each one exposed a generator gap that was fixed in code:
+
+| Run | Coder-generated | Skeleton | What it showed | Fix |
+|---|---|---|---|---|
+| run-p4-build-decided-1 | 7 | 13 | The coder clicks the related-list "New" button itself and types the parent Account into the pre-filled lookup. Old skeletons of the previous design (TC-002/003) were not removed. | `navigationShorthand` in `normalizeIr`: click → `openNewFromRelatedList`; a parent-lookup fill with the parent is dropped, with a note. `isGeneratedSpec` also removes old skeletons. |
+| run-p4-build-decided-2 | 4 | 16 | Lead Source = Web (Q1 cases) cannot be expressed: the IR had no picklist action. | New IR action `select` (renders `selectPicklist`). Its value must be an active picklist value in the snapshot, so it is grounded by the org. `fill` on a picklist combobox is rewritten to `select`. |
+| run-p4-build-decided-3 | 12 | 8 | Pass 2 failed: both judge models (NIM minimax, Gemini 3.1 flash-lite) returned 503 for hours, so the build ended without updating the manifest. TC-012/051 had the build-time synthetic Account name as a literal. | `qa review --pass 2` degrades on a judge outage (deterministic checks only, nothing APPROVED, reason recorded) and rewrites the manifest entries of the reviewed build. A literal equal to a run-specific recipe value becomes a `data` ref. |
+
+**State checked in** (manifest = run-p4-build-decided-3, reviewed by `review2-20261125-203039-29fd`, judge
+unavailable):
+- 20 specs. tsc and ESLint are clean, 20/20 list, live dry-run 47/47.
+- **All 20 are REVIEW_REQUIRED:**
+  - 10 have only "judge unavailable" as their reason: TC-007/008/009 (Phone for Web), 015 (invalid Title), 023, 032,
+    046, 048, 052, 053.
+  - 2 have a deterministic finding, the baked-in synthetic name (TC-012, TC-051). The code fix above applies at the
+    next generation.
+  - 8 are skeletons: TC-004, 010, 026, 036, 044, 045, 047, 050. NIM laguna still fails them on adopt/cleanup
+    bookkeeping and value kinds; Groq returns bad JSON or 429s; Gemini returns 503.
+- **Next, once the judge providers are back:**
+  - `qa review --pass 2 --run run-p4-build-decided-3` to get real verdicts;
+  - `qa build --from-run run-p4-design-decided-1 --org qa-prod --cases <skeletons + 012,051>` to regenerate the rest.
+- Known gap: inside `qa build`, a judge outage still escalates (the graph retries TRANSIENT), and the manifest is only
+  written when pass 2 settles. `qa review --pass 2` is the recovery path.
+

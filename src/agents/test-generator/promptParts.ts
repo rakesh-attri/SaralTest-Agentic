@@ -24,7 +24,8 @@ type Expect = { caseStep: number; evidenceIds: string[] /* subset of that case s
 type Action =
   | { do: "openRecord"; ref: StepId; object: string /* e.g. "Account" */ }
   | { do: "openNewFromRelatedList"; parentRef: StepId; relatedList: string /* e.g. "Contacts" */ }
-  | { do: "fill"; element: Ref; value: Value }
+  | { do: "fill"; element: Ref; value: Value }               // textbox / spinbutton only
+  | { do: "select"; element: Ref; value: Value }             // picklist combobox: value = option label (literal)
   | { do: "clear"; element: Ref }
   | { do: "click"; element: Ref }
   | { do: "selectTab"; element: Ref }

@@ -161,6 +161,9 @@ export function renderSpec(i: RenderInput): string {
       }
       case 'fill':
         return [`await ${el(a.element)}.fill(${val(a.value)});`];
+      case 'select':
+        imp.lightning.add('selectPicklist');
+        return [`await selectPicklist(page, ${el(a.element)}, ${val(a.value)});`];
       case 'clear':
         return [`await ${el(a.element)}.clear();`];
       case 'click':
