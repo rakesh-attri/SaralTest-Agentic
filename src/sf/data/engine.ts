@@ -322,6 +322,41 @@ export class DataEngine {
    * Adopt a record a test created through the UI: find it by a run-unique value, tag it with the run, and add it to
    * the ledger so cleanup removes it. The value must contain the run id (never matches foreign data).
    */
+  /**
+   * Register a record the test created through the UI, by the id shown after Save (code-owned cleanup: the model
+   * never writes it). Ownership is proven before anything is written: the record must have been created by this
+   * persona's user (`createdBy`) at or after `since`. Then it is run-tagged and enters the ledger, so cleanup removes
+   * it with the rest, in reverse order.
+   */
+  async adoptCreated(as: string, object: string, id: string, createdBy: string, since: Date): Promise<string> {
+    if (!/^[a-zA-Z0-9]{15,18}$/.test(id) || !/^[A-Za-z0-9_]+$/.test(object)) {
+      throw new QAError('DATA', `adoptCreated: invalid ${object} id ${id}`);
+    }
+    const rows = await this.o.sf.query<{ Id: string; CreatedById: string; CreatedDate: string }>(
+      `SELECT Id, CreatedById, CreatedDate FROM ${object} WHERE Id = ${soqlString(id)}`,
+    );
+    const r = rows[0];
+    if (!r) throw new QAError('DATA', `adoptCreated: ${object} ${id} not found`);
+    if (r.CreatedById.slice(0, 15) !== createdBy.slice(0, 15) || new Date(r.CreatedDate) < since) {
+      throw new QAError('DATA', `adoptCreated: ${object} ${id} was not created by this test's user during this test`);
+    }
+    const tag = this.o.plan.runTag.field;
+    if (tag) await this.o.sf.update(object, r.Id, { [tag]: this.o.plan.runTag.value });
+    const w = this.o.ledger.plan({
+      runId: this.o.plan.runId,
+      object,
+      step: as,
+      fields: { Id: r.Id },
+      order: 500 + this.adopted++,
+    });
+    if (w.state === 'PLANNED') {
+      this.o.ledger.transition(w.idempotencyKey, 'SENT');
+      this.o.ledger.transition(w.idempotencyKey, 'CONFIRMED', r.Id);
+    }
+    this.ids.set(as, r.Id);
+    return r.Id;
+  }
+
   async adopt(as: string, object: string, field: string, value: string): Promise<string> {
     if (!value.includes(this.o.plan.runId)) {
       throw new QAError('DATA', `adopt ${object}: the value must contain the run id ${this.o.plan.runId}`);

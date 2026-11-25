@@ -234,19 +234,16 @@ describe('Test Generator: fixes from the fixture demo (run-p4-fixture-1)', () =>
     );
   });
 
-  it('adopt must use the unique value the test typed; a keyboard check must cover every field of its scope', () => {
+  it('a model-written adopt is reported (cleanup is code-owned); a keyboard check must cover every field of its scope', () => {
     const ir = clone(GOOD_IR);
-    ir.steps[0]!.actions.push(
-      { do: 'fill', element: 'contact-new.lastName', value: { kind: 'unique', label: 'typed', format: 'text' } },
-      {
-        do: 'adopt',
-        as: 'uiContact',
-        object: 'Contact',
-        field: 'LastName',
-        value: { kind: 'unique', label: 'other', format: 'text' },
-      },
-    );
-    expect(irProblems(CASE, ir, ctx, recipe).join('\n')).toMatch(/same unique value the test typed/);
+    ir.steps[0]!.actions.push({
+      do: 'adopt',
+      as: 'uiContact',
+      object: 'Contact',
+      field: 'LastName',
+      value: { kind: 'unique', label: 'other', format: 'text' },
+    });
+    expect(irProblems(CASE, ir, ctx, recipe).join(' | ')).toMatch(/adopt is written by code/);
 
     const kb = clone(GOOD_IR);
     kb.steps[0]!.assertions.push({

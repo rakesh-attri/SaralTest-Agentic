@@ -1,7 +1,7 @@
 // Generation context + deterministic IR checks (the Test Generator reflects these back to the model; Test Reviewer
 // pass 2 re-runs them on the stored IR). Code decides what is allowed; the model only maps case steps to the IR.
 import type { DataPlan, DataPlanStep } from '../../core/schemas/data.js';
-import type { IrAction, IrAssertion, IrStep, TestIR, ValueRef } from '../../core/schemas/generation.js';
+import type { IrAction, IrAssertion, TestIR, ValueRef } from '../../core/schemas/generation.js';
 import { isAssertable, type TestCase } from '../../core/schemas/testCase.js';
 import type { FieldFact, SnapshotFacts } from '../../sf/data/plan.js';
 import { findMember, relatedListNewButton, type CatalogPage, type PageCatalog } from './pageObjects.js';
@@ -226,19 +226,20 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
       p.push(`${where}: caseStep ${st.caseStep} does not exist (case has ${tc.steps.length})`);
     if (!st.actions.length && !st.assertions.length) p.push(`${where}: no action and no assertion`);
     for (const a of st.actions) action(a, `${where} ${a.do}`, st.caseStep);
-    // A record the test creates in the UI and captures must also be adopted (tagged + cleaned up), or it stays in
-    // the org after the run (run-p4-tc004-1: two Contacts created at 79 / 80 characters were never adopted).
-    // Only Save in a create dialog creates a record; recordView after openRecord just captures an existing one.
-    const adoptedHere = st.actions.filter((x) => x.do === 'adopt').length;
-    const createSaves = st.actions.filter((x) => {
-      if (x.do !== 'click') return false;
-      const m = findMember(ctx.catalog, x.element);
-      return m?.page.kind === 'dialog' && m.member.role === 'button' && /^Save$/.test(m.member.accessibleName ?? '');
-    }).length;
-    const viewedHere = st.assertions.filter((x) => x.check === 'recordView').length;
-    if (Math.min(createSaves, viewedHere) > adoptedHere) {
+    // Cleanup of UI-created records is code-owned (render.ts registers the record shown after a create-dialog
+    // Save). The model's part is the assertion: a Save the case expects to succeed must be followed by recordView —
+    // without it the new record cannot be registered and would stay in the org.
+    const createSave = st.actions.some((x) => x.do === 'click' && isCreateSave(ctx, x.element));
+    const rejected = st.assertions.some(
+      (x) =>
+        x.check === 'fieldError' ||
+        x.check === 'soqlNoRecord' ||
+        x.check === 'apiRejects' ||
+        (x.check === 'visible' && findMember(ctx.catalog, x.element)?.page.kind === 'dialog'),
+    );
+    if (createSave && !rejected && !st.assertions.some((x) => x.check === 'recordView')) {
       p.push(
-        `${where}: the record this step creates in the UI is not adopted — add {"do":"adopt","as":"<name>","object":"<Object>","field":"<field>","value":<the unique / length value typed into that field>} after Save so cleanup removes it`,
+        `${where}: after Save in the create dialog assert {"check":"recordView","object":"<Object>","as":"<name>"} (the saved record) — or assert the rejection (fieldError / visible dialog / soqlNoRecord). Cleanup is automatic; never write adopt`,
       );
     }
     for (const a of st.assertions) {
@@ -344,21 +345,8 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         break;
       }
       case 'adopt':
-        if (a.value.kind === 'length') {
-          // data.ofLength(n) values start with QA-<runId>- (run-unique) once n is long enough to hold the prefix.
-          if (a.value.length < 40 || !typedLengths.has(a.value.length)) {
-            p.push(
-              `${where}: adopt by a length value needs the same 40+ character value the test typed into the record`,
-            );
-          }
-        } else if (a.value.kind !== 'unique' || a.value.format !== 'text') {
-          p.push(`${where}: adopt needs a run-unique text value (kind unique, format text) — never foreign data`);
-        } else if (!typedUniques.has(a.value.label)) {
-          p.push(
-            `${where}: adopt must use the same unique value the test typed into the record. Type it first: {"do":"fill","element":"<the ${a.field} field>","value":{"kind":"unique","label":"${a.value.label}"}} — never a recipe "data" value for a record the test creates in the UI`,
-          );
-        }
-        if (!ctx.facts.field(a.object, a.field)) p.push(`${where}: ${a.object}.${a.field} is not in the snapshot`);
+        // Legacy IR: normalizeIr removes model-written adopts (cleanup is code-owned since run-p4-build-decided-3).
+        p.push(`${where}: adopt is written by code — remove it (assert recordView after Save instead)`);
         created.add(a.as);
         break;
     }
@@ -586,17 +574,21 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
     record: undefined as { ref: string; object: string } | undefined,
     parent: undefined as { ref: string; object: string } | undefined,
   };
+  let unnamed = 0;
   const out = ir.steps.map((st) => {
     caseStep = st.caseStep;
     const actions = navigationShorthand(st.actions.map(action), ctx, nav, notes);
-    const n = { ...st, actions, assertions: st.assertions.map(assertion) };
+    const dropped = actions.filter((a) => a.do === 'adopt');
+    if (dropped.length) notes.push(`cleanup: ${dropped.length} model-written adopt(s) removed — cleanup is code-owned`);
+    const saves = actions.some((a) => a.do === 'click' && isCreateSave(ctx, a.element));
+    const assertions = st.assertions
+      .map(assertion)
+      .map((a) =>
+        a.check === 'recordView' && !a.as && saves ? { ...a, as: `created${a.object}${String(++unnamed)}` } : a,
+      );
+    const n = { ...st, actions: actions.filter((a) => a.do !== 'adopt'), assertions };
     for (const a of n.assertions) if (a.check === 'recordView' && a.as) nav.record = { ref: a.as, object: a.object };
-    const adopt = missingAdopt(n, ctx);
-    if (!adopt) return n;
-    notes.push(
-      `cleanup: the ${adopt.object} created in "${st.title}" is adopted by its typed ${adopt.field} (added by code)`,
-    );
-    return { ...n, actions: [...n.actions, adopt] };
+    return n;
   });
   return { ...ir, data, notes, steps: out };
 }
@@ -657,39 +649,8 @@ function navigationShorthand(
   return out;
 }
 
-/**
- * Cleanup bookkeeping (not test meaning): a step that saves a create dialog and captures the new record must adopt
- * it, so cleanup removes it. When exactly one run-unique value (unique text, or a 40+ char length value) was typed
- * into a field of the dialog's object in that step and nothing is adopted, the adopt is added by code
- * (run-p4-tc004-2: the NIM coder ignored the hint three times). Ambiguous steps are left to the check.
- */
-function missingAdopt(st: IrStep, ctx: GenerationContext): Extract<IrAction, { do: 'adopt' }> | undefined {
-  if (st.actions.some((a) => a.do === 'adopt')) return undefined;
-  const save = st.actions.find((a) => {
-    if (a.do !== 'click') return false;
-    const m = findMember(ctx.catalog, a.element);
-    return m?.page.kind === 'dialog' && m.member.role === 'button' && m.member.accessibleName === 'Save';
-  });
-  const view = st.assertions.find((a) => a.check === 'recordView');
-  if (save?.do !== 'click' || view?.check !== 'recordView') return undefined;
-  const dialog = findMember(ctx.catalog, save.element)?.page;
-  if (!dialog) return undefined;
-  const typed = st.actions.flatMap((a) => {
-    if (a.do !== 'fill') return [];
-    const m = findMember(ctx.catalog, a.element);
-    const field = m?.member.fieldApiName;
-    if (!m || m.page.id !== dialog.id || !field?.startsWith(`${dialog.object}.`)) return [];
-    const runUnique =
-      (a.value.kind === 'unique' && a.value.format === 'text') || (a.value.kind === 'length' && a.value.length >= 40);
-    return runUnique ? [{ field: field.split('.')[1] ?? '', value: a.value }] : [];
-  });
-  const only = typed.length === 1 ? typed[0] : undefined;
-  if (!only) return undefined;
-  return {
-    do: 'adopt',
-    as: view.as ?? `created${dialog.object}`,
-    object: dialog.object,
-    field: only.field,
-    value: only.value,
-  };
+/** A click on the Save button of a create dialog (the only UI action that creates a record). */
+export function isCreateSave(ctx: GenerationContext, ref: string): boolean {
+  const m = findMember(ctx.catalog, ref);
+  return m?.page.kind === 'dialog' && m.member.role === 'button' && m.member.accessibleName === 'Save';
 }

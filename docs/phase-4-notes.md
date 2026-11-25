@@ -363,3 +363,33 @@ unavailable):
 - Known gap: inside `qa build`, a judge outage still escalates (the graph retries TRANSIENT), and the manifest is only
   written when pass 2 settles. `qa review --pass 2` is the recovery path.
 
+## Judge resilience and code-owned cleanup (2026-11-25, operator request)
+
+- **`qa build` survives a judge outage.**
+  - The review2 node retries a TRANSIENT judge failure with the policy backoff (2 / 8 / 30 s). The router chain is
+    the provider fallback: NIM judge → Gemini.
+  - If both still fail, the round is deterministic-only and nothing becomes APPROVED ("judge unavailable"). A
+    DEGRADED issue is recorded, and **the manifest is always written.**
+  - Proof: `build.test.ts` (judge always 503), and live run run-p4-build-decided-4 (round 1 judge 503 ×4, round 2
+    judge answered).
+- **Record cleanup is no longer written by the model.**
+  - The IR contract no longer offers `adopt`; model-written adopts are removed with a note, and a legacy spec that
+    has one is BLOCKED by pass 2.
+  - The renderer emits `data.adoptCreated(as, object, id)` after every recordView that follows a create-dialog Save.
+  - The data engine first proves the record is ours (`CreatedById` = the persona's user, `CreatedDate` ≥ test start
+    − 5 min), then tags it and adds it to the cleanup ledger.
+  - The model's only obligation is an assertion: a create Save must be followed by recordView, or by a rejection
+    assertion.
+  - Tests: `data.test.ts` (ownership refusals, cleanup CLEAN), `promptParts.test.ts`.
+- **The judge times out on large reviews.** NIM `nemotron-3-ultra` hit its 120 s limit on a 10-spec review, so
+  one-case reviews were used.
+- **Live results:** builds run-p4-build-decided-4 and -5, plus one-case reviews of the build-3 specs.
+  - **20 specs, 3 APPROVED** (TC-026, 044, 051), **17 REVIEW_REQUIRED**, 14 coder-generated, 6 skeletons.
+  - Skeletons: TC-007, 012, 032, 045, 047, 050.
+  - The most frequent judge finding: the expected error *text* / field value / pre-filled Account Name is not
+    asserted. The IR's `fieldError` checks presence only, so it needs an optional message taken from the org's
+    validation rule.
+  - TC-015 was reviewed deterministic-only (judge timeout).
+  - TC-009 used Lead Source "Word of mouth" instead of the case's "Phone Inquiry"; the select check only allows
+    snapshot values, and qa-prod's picklist lacks "Phone Inquiry".
+

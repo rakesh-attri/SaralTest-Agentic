@@ -43,6 +43,11 @@ export interface TestData {
   update(stepId: string, fields: Record<string, unknown>): Promise<void>;
   /** Register a record the test created through the UI (by a run-unique value) so it is tagged and cleaned up. */
   adopt(as: string, object: string, field: string, value: string): Promise<string>;
+  /**
+   * Register the record a UI Save created, by the id on its record page (generated tests call it after every
+   * create-dialog Save, by code). Proven ours by creator + time, then tagged and cleaned up with the rest.
+   */
+  adoptCreated(as: string, object: string, id: string): Promise<string>;
 }
 
 interface WorkerFixtures {
@@ -99,6 +104,8 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     const ledger = new WriteLedger(join(dir, 'writes.jsonl'));
     const engines: DataEngine[] = [];
     let uniques = 0;
+    // Server clocks differ from ours: records created up to 5 minutes before the test started still count.
+    const since = new Date(Date.now() - 5 * 60_000);
     const find = (stepId: string): DataEngine => {
       const e = engines.find((x) => x.plan.steps.some((s) => s.stepId === stepId) || hasId(x, stepId));
       if (!e) throw new QAError('DATA', `no data step ${stepId} in this test (call data.create first)`);
@@ -154,6 +161,12 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         if (!e) throw new QAError('DATA', 'adopt needs data.create first (the run tag comes from the plan)');
         uniques++;
         return e.adopt(as, object, field, value);
+      },
+      async adoptCreated(as, object, id) {
+        const e = engines[0];
+        if (!e) throw new QAError('DATA', 'adoptCreated needs data.create first (the run tag comes from the plan)');
+        uniques++;
+        return e.adoptCreated(as, object, id, sf.identity.userId, since);
       },
     };
     await use(data);

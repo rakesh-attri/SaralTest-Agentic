@@ -8,40 +8,19 @@
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-004-create-contact-with-last-name-boundary-values-79-8.spec.ts",
-      "hash": "1fd411f3e775371a",
+      "hash": "e25014104bb7b1c8",
       "testCaseIds": [
         "TC-SF-219-004"
       ],
       "caseHash": "43403159cec09c17",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
-      "locatorsUsed": [],
-      "dataBindings": [],
-      "origin": "mechanical",
-      "reviewReasons": [
-        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
-        "RF-004 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
-    },
-    {
-      "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-007-create-contact-with-valid-10-digit-phone-and-non-w.spec.ts",
-      "hash": "44aaa59c1cc758fb",
-      "testCaseIds": [
-        "TC-SF-219-007"
-      ],
-      "caseHash": "97f1c3c5e7c70c76",
-      "irHash": "69f4c2b5a54e66b1",
+      "irHash": "b5f9ead8a0c38ded",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
         "account-record.relatedTab",
+        "contact-new.firstName",
         "contact-new.lastName",
-        "contact-new.leadSource",
-        "contact-new.phone",
         "contact-new.root",
         "contact-new.saveButton"
       ],
@@ -50,11 +29,29 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+        "RF-005 judge: Weaker assertion for 81-char Last Name validation error message: Step 9 expects 'error message is displayed on the Last Name field indicating maximum length is exceeded' but test only asserts a generic field error exists via expectFieldError(). The specific error message text is not verified."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "buildRun": "run-p4-build-decided-4"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-007-create-contact-with-valid-10-digit-phone-and-non-w.spec.ts",
+      "hash": "c576fd8503aece19",
+      "testCaseIds": [
+        "TC-SF-219-007"
+      ],
+      "caseHash": "97f1c3c5e7c70c76",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [],
+      "dataBindings": [],
+      "origin": "mechanical",
+      "reviewReasons": [
+        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
+        "RF-001 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-5"
     },
     {
       "kind": "spec",
@@ -81,11 +78,12 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+        "RF-001 judge: Validation error message not verified: Step 2 expects the specific validation error message 'Phone is required when Lead Source is Web.' to be displayed on the Phone field, but the test only calls `expectFieldError(newContactDialog.phone)` which may only assert that *some* error exists on the field without verifying the exact message text. The assertion must confirm the precise error message from the validation rule.",
+        "RF-002 judge: Duplicate assertion in step 1: Step 1 contains a duplicate assertion: `await expect(newContactDialog.root).toBeVisible();` appears twice consecutively. While not a functional mismatch, it indicates unnecessary code duplication."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
       "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "reviewedBy": "review2-20261125-214749-5789"
     },
     {
       "kind": "spec",
@@ -112,61 +110,61 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+        "RF-001 judge: Validation error message not asserted: The test case expects the specific validation error message 'Enter a 10-digit phone number.' to be displayed on the Phone field. The test only calls `expectFieldError(newContactDialog.phone)` which likely checks for any field error presence but does not assert the exact error message text. This weakens the assertion compared to the expected result.",
+        "RF-002 judge: Lead Source value differs from test case step: The test case step 2 explicitly says to set Lead Source to 'Phone Inquiry', but the test uses 'Word of mouth' with a comment that 'Phone Inquiry' is not an active picklist value. While this may be a pragmatic adjustment, it deviates from the declared test case step action. The test should either use the value specified in the case or the case should be updated to reflect the valid picklist value."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
       "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "reviewedBy": "review2-20261125-215129-c063"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-010-boundary-value-test-for-phone-field-9-10-and-11-di.spec.ts",
-      "hash": "d04b7ec4620366bc",
+      "hash": "49fe781aea37804f",
       "testCaseIds": [
         "TC-SF-219-010"
       ],
       "caseHash": "926d711a88efc279",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
-      "locatorsUsed": [],
-      "dataBindings": [],
-      "origin": "mechanical",
-      "reviewReasons": [
-        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
-        "RF-007 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
-    },
-    {
-      "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-012-system-administrator-can-create-and-edit-contacts.spec.ts",
-      "hash": "0889b9e3777f1900",
-      "testCaseIds": [
-        "TC-SF-219-012"
-      ],
-      "caseHash": "cf6654e68fbadafb",
-      "irHash": "4bc099a7f95e868d",
+      "irHash": "706c41ba29513525",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
         "account-record.relatedTab",
         "contact-new.lastName",
+        "contact-new.leadSource",
+        "contact-new.phone",
         "contact-new.root",
-        "contact-new.saveButton",
-        "contact-record.editButton"
+        "contact-new.saveButton"
       ],
       "dataBindings": [
         "account-contact"
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-009 ungrounded-value: step 1 relatedListHasRecord: literal \"QA-run-p4-build-decided-3-Acme fendi107\" is not in the case text, recipe or UI labels (never invent values)"
+        "RF-006 judge: Weaker assertion for Phone validation error message (9 and 11 digits): Steps 2 and 5 expect validation error 'Enter a 10-digit phone number.' on the Phone field, but test only asserts a generic field error exists via expectFieldError(). The specific error message text is not verified."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "buildRun": "run-p4-build-decided-4"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-012-system-administrator-can-create-and-edit-contacts.spec.ts",
+      "hash": "c83a58a6f39db37b",
+      "testCaseIds": [
+        "TC-SF-219-012"
+      ],
+      "caseHash": "cf6654e68fbadafb",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [],
+      "dataBindings": [],
+      "origin": "mechanical",
+      "reviewReasons": [
+        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
+        "RF-004 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-4"
     },
     {
       "kind": "spec",
@@ -196,7 +194,7 @@
       ],
       "reviewStatus": "REVIEW_REQUIRED",
       "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "reviewedBy": "review2-20261125-215423-4aa6"
     },
     {
       "kind": "spec",
@@ -214,41 +212,100 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+        "RF-001 locator-unresolved: no locator dry-run for this build (offline): locators are unverified",
+        "RF-002 judge: Step 1 missing assertion for initial Email and Phone values: Test case step 1 expects verification that 'Contact detail page shows the initial Email and Phone values that were set during test data creation'. The generated test only verifies the record title (LastName) via expectRecordTitle, but has no assertions for the initial Email and Phone field values displayed on the Contact detail page.",
+        "RF-003 judge: Step 3 assertion weaker than expected result: Test case step 3 expects: 'Two ContactHistory records exist: one for Email change showing the previous and new Email values, and one for Phone change showing the previous and new Phone values, each with CreatedById matching the tester and recent CreatedDate'. The generated test only asserts that historyFields() returns an array containing 'Email' and 'Phone' field names. It does not verify: (a) exactly two history records exist, (b) OldValue and NewValue match the specific previous and new values for each field, (c) CreatedById matches the tester, (d) CreatedDate is recent.",
+        "RF-004 judge: Step 4 missing assertion for Field History related list content: Test case step 4 expects: 'Field History related list shows two entries: one documenting the Email change with old and new values, and one documenting the Phone change with old and new values, each with correct timestamp and user'. The generated test only opens the Contact record page and calls recordIdFromView, with zero assertions about the Field History related list contents."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
       "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "reviewedBy": "review2-20261125-220004-6c23"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-026-create-contact-with-valid-last-name-positive.spec.ts",
-      "hash": "cefacfee83232479",
+      "hash": "3672c1214fc5df4f",
       "testCaseIds": [
         "TC-SF-219-026"
       ],
       "caseHash": "752fd47a3b76454e",
+      "irHash": "236f13d421227111",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.firstName",
+        "contact-new.lastName",
+        "contact-new.root",
+        "contact-new.saveButton"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p4-build-decided-4"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-032-create-contact-from-account-related-list-contact-l.spec.ts",
+      "hash": "c77f64c969024407",
+      "testCaseIds": [
+        "TC-SF-219-032"
+      ],
+      "caseHash": "d768593bb35038a0",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [],
       "dataBindings": [],
       "origin": "mechanical",
       "reviewReasons": [
         "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
-        "RF-003 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+        "RF-002 judge: Missing assertion for Account Name pre-populated and read-only in New Contact modal: Test case step 2 expects 'New Contact modal opens with Account Name field pre-populated with \\'Acme Test\\' and read-only' but the generated test only asserts dialog visibility (twice). The Account Name field value and read-only state are not verified, even though the comment acknowledges this was omitted due to the field being a combobox.",
+        "RF-004 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "buildRun": "run-p4-build-decided-5"
     },
     {
       "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-032-create-contact-from-account-related-list-contact-l.spec.ts",
-      "hash": "a10a7d9e05ce0f5f",
+      "path": "tests/generated/SF-219/TC-SF-219-036-create-contact-with-each-approved-title-value.spec.ts",
+      "hash": "598573c18c503d26",
       "testCaseIds": [
-        "TC-SF-219-032"
+        "TC-SF-219-036"
       ],
-      "caseHash": "d768593bb35038a0",
-      "irHash": "6f4adfcf9273ed4e",
+      "caseHash": "cb659d2594451546",
+      "irHash": "3b0e6b6926eadcd6",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.lastName",
+        "contact-new.root",
+        "contact-new.saveButton",
+        "contact-new.title"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "RF-007 judge: Missing assertions for Title field value on Contact detail page: Steps 2-5 each expect 'Contact detail page shows Title X' (Account Executive, Sales Manager, Director, VP Sales), but test only verifies the record title (Last Name) via expectRecordTitle(). No assertion checks that the Title field actually displays the selected value on the detail page or via SOQL."
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-4"
+    },
+    {
+      "kind": "spec",
+      "path": "tests/generated/SF-219/TC-SF-219-044-create-contact-with-valid-data-from-account-regres.spec.ts",
+      "hash": "365733a550b05f7f",
+      "testCaseIds": [
+        "TC-SF-219-044"
+      ],
+      "caseHash": "9f38bfa3d259aad2",
+      "irHash": "683930c6ebfb17b6",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -266,52 +323,9 @@
         "account-contact"
       ],
       "origin": "generated",
-      "reviewReasons": [
-        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
-    },
-    {
-      "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-036-create-contact-with-each-approved-title-value.spec.ts",
-      "hash": "447fdda518016932",
-      "testCaseIds": [
-        "TC-SF-219-036"
-      ],
-      "caseHash": "cb659d2594451546",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
-      "locatorsUsed": [],
-      "dataBindings": [],
-      "origin": "mechanical",
-      "reviewReasons": [
-        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
-        "RF-010 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
-    },
-    {
-      "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-044-create-contact-with-valid-data-from-account-regres.spec.ts",
-      "hash": "07cd81269cd533aa",
-      "testCaseIds": [
-        "TC-SF-219-044"
-      ],
-      "caseHash": "9f38bfa3d259aad2",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
-      "locatorsUsed": [],
-      "dataBindings": [],
-      "origin": "mechanical",
-      "reviewReasons": [
-        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
-        "RF-001 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p4-build-decided-4"
     },
     {
       "kind": "spec",
@@ -327,11 +341,10 @@
       "origin": "mechanical",
       "reviewReasons": [
         "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
-        "RF-002 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+        "RF-001 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "buildRun": "run-p4-build-decided-4"
     },
     {
       "kind": "spec",
@@ -357,11 +370,11 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+        "RF-001 judge: Missing assertion for Account Name pre-population: Step 1 expects 'New Contact modal opens with Account Name pre-populated' but the test only asserts the dialog is visible (twice). No assertion verifies the Account Name field is pre-populated with the test Account's name."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
       "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "reviewedBy": "review2-20261125-220227-acda"
     },
     {
       "kind": "spec",
@@ -377,11 +390,10 @@
       "origin": "mechanical",
       "reviewReasons": [
         "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
-        "RF-005 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+        "RF-002 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "buildRun": "run-p4-build-decided-4"
     },
     {
       "kind": "spec",
@@ -408,11 +420,12 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+        "RF-001 judge: Missing assertion for required fields visibility: Step 1 expects 'New Contact modal opens with required fields visible' but the test only asserts the dialog root is visible (twice). No assertion verifies that required fields (Last Name, Email, etc.) are actually visible in the modal.",
+        "RF-002 judge: Field error assertion weaker than expected result: Steps 2 and 3 expect 'an inline error appears on the Email field indicating the address format is invalid' but the test only calls expectFieldError() which checks for any field error presence. The assertion does not verify the error message content indicates an invalid email format (e.g., missing @ symbol)."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
       "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "reviewedBy": "review2-20261125-220554-8b41"
     },
     {
       "kind": "spec",
@@ -428,35 +441,29 @@
       "origin": "mechanical",
       "reviewReasons": [
         "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
-        "RF-006 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+        "RF-003 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "buildRun": "run-p4-build-decided-4"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-051-regression-verification-mtc-005-read-only-user-can.spec.ts",
-      "hash": "8681046dd30ef09e",
+      "hash": "139998a4981250fc",
       "testCaseIds": [
         "TC-SF-219-051"
       ],
       "caseHash": "5817d070e48c8f2d",
-      "irHash": "d7eb1232a8a1174d",
+      "irHash": "009fa16f46f47938",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
-      "locatorsUsed": [
-        "account-record.contactsRelatedList"
-      ],
+      "locatorsUsed": [],
       "dataBindings": [
         "account-contact"
       ],
       "origin": "generated",
-      "reviewReasons": [
-        "RF-008 ungrounded-value: step 1 relatedListHasRecord: literal \"QA-run-p4-build-decided-3-285zv5xj\" is not in the case text, recipe or UI labels (never invent values)"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p4-build-decided-4"
     },
     {
       "kind": "spec",
@@ -477,21 +484,21 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+        "RF-001 judge: Missing assertion for regression marker MTC-004: Step 2 expects verification that 'Test execution record shows MTC-004 passed for the current build' (regression marker), but the generated test only re-asserts the Contact appears in the related list. The MTC-004 execution record check is not implemented."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
       "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "reviewedBy": "review2-20261125-221106-c6d2"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-053-contact-pages-accessibility-wcag-2-1-aa-keyboard-n.spec.ts",
-      "hash": "2e40447f3079cf7f",
+      "hash": "0f4df934589d1a5f",
       "testCaseIds": [
         "TC-SF-219-053"
       ],
       "caseHash": "9da99fc66ed302a5",
-      "irHash": "6be31a820e708968",
+      "irHash": "231732e986af9ed2",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -546,11 +553,10 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+        "RF-003 judge: Step 5 tests contact detail page related list buttons instead of Contact list view row actions: Test case step 5 says 'Tab through Contact list view and verify row actions are keyboard accessible' with expected result 'Contact list view rows and row-level actions (e.g., Edit, Delete) are reachable and operable by keyboard'. The generated test stays on the Contact record page and checks tab order for casesNewButton and opportunitiesNewButton (New buttons in related lists), not a Contact list view page (/lightning/o/Contact/list) with row-level Edit/Delete actions."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-203039-29fd"
+      "buildRun": "run-p4-build-decided-5"
     }
   ]
 }

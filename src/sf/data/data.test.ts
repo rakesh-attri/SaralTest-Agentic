@@ -284,6 +284,30 @@ describe('test data engine on the offline fixture (FIXTURE)', () => {
     expect(c.status).toBe('CLEAN');
   });
 
+  it('adoptCreated (code-owned cleanup): only a record this user created during the test; tags and cleans it up', async () => {
+    const p = plan('run-adopt-2');
+    const engine = new DataEngine({ sf, plan: p, ledger: new WriteLedger(), org });
+    await engine.create();
+    const since = new Date(Date.now() - 60_000);
+    const ui = await sf.create('Contact', { LastName: 'Saved in the UI', AccountId: engine.recordId('Account') });
+    const me = sf.identity.userId;
+    // someone else's record / a record from before the test / a malformed id are refused before any write
+    await expect(engine.adoptCreated('c', 'Contact', ui, '005000000000999AAA', since)).rejects.toThrow(
+      /not created by/,
+    );
+    await expect(engine.adoptCreated('c', 'Contact', ui, me, new Date(Date.now() + 60_000))).rejects.toThrow(
+      /not created by/,
+    );
+    await expect(engine.adoptCreated('c', 'Contact', "x' OR Id != '", me, since)).rejects.toThrow(/invalid/);
+    expect(await engine.adoptCreated('uiContact', 'Contact', ui, me, since)).toBe(ui);
+    const tagged = await sf.query<{ QA_Run_Id__c: string }>(`SELECT QA_Run_Id__c FROM Contact WHERE Id = '${ui}'`);
+    expect(tagged[0]?.QA_Run_Id__c).toBe('run-adopt-2');
+    expect(engine.recordId('uiContact')).toBe(ui);
+    const c = await engine.cleanup();
+    expect(c.status).toBe('CLEAN');
+    expect(await sf.query(`SELECT Id FROM Contact WHERE Id = '${ui}'`)).toHaveLength(0);
+  });
+
   it('a profile without mutations refuses the write through the guard (no ledger record is confirmed)', async () => {
     const ro: OrgsConfig = { orgs: [org], profiles: { 'offline-fixture': { mutations: 'none' } } };
     const roSf = await connectSalesforce({

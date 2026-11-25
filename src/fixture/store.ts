@@ -137,11 +137,16 @@ export class FixtureStore {
     }
   }
 
-  create(object: string, data: Record<string, unknown>): SObject {
+  create(object: string, data: Record<string, unknown>, createdById?: string): SObject {
     const def = this.describe(object);
     this.validate(def, data, true);
     const id = this.newId(def.keyPrefix);
-    const rec: SObject = { ...data, Id: id, CreatedDate: new Date().toISOString() };
+    const rec: SObject = {
+      ...data,
+      Id: id,
+      CreatedDate: new Date().toISOString(),
+      ...(createdById ? { CreatedById: createdById } : {}),
+    };
     this.table(def.name).set(id, rec);
     return rec;
   }

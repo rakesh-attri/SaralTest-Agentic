@@ -16,7 +16,7 @@ type Ref = string;                // an element ref from the catalog, exactly as
 type Step = { caseStep: number /* 0-based index of the case step */; title: string; actions: Action[]; assertions: Assertion[] };
 type Value =
   | { kind: "data"; ref: StepId; field: string }                 // a recipe field value
-  | { kind: "recordId"; ref: StepId | string /* a recordView.as / adopt.as name */ }
+  | { kind: "recordId"; ref: StepId | string /* a recordView.as name */ }
   | { kind: "literal"; value: string; evidenceIds: string[] }    // must appear verbatim in the case text / recipe / UI labels
   | { kind: "length"; length: number; evidenceIds: string[] }    // a string of exactly N chars; N must be stated in the case step
   | { kind: "unique"; label: string /* lowercase-kebab */; format?: "text" | "email" | "phone" };
@@ -30,8 +30,8 @@ type Action =
   | { do: "click"; element: Ref }
   | { do: "selectTab"; element: Ref }
   | { do: "apiUpdate"; ref: StepId; fields: Record<string, Value> }
-  | { do: "adopt"; as: string; object: string; field: string; value: Value /* the unique (or 40+ char length) value typed */ };
-// Every record the test creates in the UI must be adopted in the same step (cleanup), including boundary records.
+// Cleanup is automatic: after Save in a create dialog assert recordView (with "as"); code registers that record
+// for cleanup. Preconditions come from the recipe ("data" refs). Never write cleanup or adopt.
 type Assertion =
   | { check: "visible" | "hidden" | "fieldError"; element: Ref; expect: Expect }
   | { check: "inputValue"; element: Ref; equals: Value; expect: Expect }

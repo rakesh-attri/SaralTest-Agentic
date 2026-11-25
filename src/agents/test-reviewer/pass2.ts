@@ -284,6 +284,8 @@ export interface Pass2Result {
   environment: 'LIVE' | 'MOCK' | 'NONE';
   models: string[];
   judgeDegraded: boolean;
+  /** Why the judge was unavailable (error kind + message), when degraded by an error. */
+  judgeError?: { kind: string; message: string };
   /** Per case id: open findings the generator should fix by regenerating. */
   feedback: Record<string, string[]>;
 }
@@ -325,6 +327,7 @@ export async function reviewPass2Round(i: Pass2Input, deps: Pass2Deps): Promise<
   let environment: Pass2Result['environment'] = 'NONE';
   const models: string[] = [];
   let judgeDegraded = false;
+  let judgeError: Pass2Result['judgeError'];
   const generated = i.specs.filter((s) => s.artifact.origin === 'generated');
   if (i.mode === 'llm' && deps.router && generated.length) {
     try {
@@ -415,6 +418,7 @@ export async function reviewPass2Round(i: Pass2Input, deps: Pass2Deps): Promise<
       if (!degradable) throw e;
       deps.logger?.warn({ err: e.message }, 'pass 2 judge unavailable: deterministic review only');
       judgeDegraded = true;
+      judgeError = { kind: e.kind, message: e.message };
     }
   } else if (i.mode === 'llm' && !deps.router) {
     judgeDegraded = true;
@@ -424,7 +428,7 @@ export async function reviewPass2Round(i: Pass2Input, deps: Pass2Deps): Promise<
   for (const f of findings.filter((x) => x.status === 'OPEN' && REGENERABLE.has(x.rule))) {
     for (const c of f.caseIds) (feedback[c] ??= []).push(f.text);
   }
-  return { findings, environment, models, judgeDegraded, feedback };
+  return { findings, environment, models, judgeDegraded, ...(judgeError ? { judgeError } : {}), feedback };
 }
 
 export interface SettlePass2Result {

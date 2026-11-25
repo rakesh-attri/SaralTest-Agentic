@@ -11,7 +11,8 @@ const literals = (u: { options: readonly { shape: Record<string, unknown> }[] },
 
 describe('compact IR contract (prompt size, run-p4-coder-groq-1: 9.6k tokens > Groq 7–8k TPM)', () => {
   it('names every action, assertion and value kind the schema accepts (kept in sync with the Zod schema)', () => {
-    for (const k of literals(IrAction, 'do')) expect(IR_CONTRACT).toContain(`do: "${k}"`);
+    // adopt stays in the schema for old IR files only: cleanup is code-owned and not offered to the model.
+    for (const k of literals(IrAction, 'do').filter((x) => x !== 'adopt')) expect(IR_CONTRACT).toContain(`do: "${k}"`);
     for (const k of literals(IrAssertion, 'check')) expect(IR_CONTRACT).toContain(`"${k}"`);
     for (const k of literals(ValueRefUnion, 'kind')) expect(IR_CONTRACT).toContain(`kind: "${k}"`);
     expect(IR_CONTRACT.length).toBeLessThan(4000);
@@ -203,37 +204,6 @@ describe('oracle checks from run-p4-coder-nim-4 (judge findings made determinist
   });
 });
 
-describe('UI-created records must be adopted (run-p4-tc004-1: boundary Contacts were not cleaned up)', () => {
-  it('rejects a captured UI record without adopt; accepts adopt by the typed boundary value', () => {
-    const ctx = generationContext();
-    const recipe = bindRecipe(CASE, ctx);
-    const v79 = { kind: 'length' as const, length: 79, evidenceIds: ['SF-219#AC2'] };
-    const tc = {
-      ...CASE,
-      steps: [
-        { ...CASE.steps[0]!, action: 'Enter a Last Name with exactly 79 characters and click Save' },
-        CASE.steps[1]!,
-      ],
-    };
-    const ir = structuredClone(GOOD_IR);
-    ir.steps[0] = {
-      caseStep: 0,
-      title: 'Save a 79-character Last Name',
-      actions: [
-        { do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' },
-        { do: 'fill', element: 'contact-new.lastName', value: v79 },
-        { do: 'click', element: 'contact-new.saveButton' },
-      ],
-      assertions: [
-        { check: 'recordView', object: 'Contact', as: 'c79', expect: { caseStep: 0, evidenceIds: ['SF-219#AC2'] } },
-      ],
-    };
-    expect(irProblems(tc, ir, ctx, recipe).join('\n')).toMatch(/the record this step creates in the UI is not adopted/);
-    ir.steps[0].actions.push({ do: 'adopt', as: 'c79', object: 'Contact', field: 'LastName', value: v79 });
-    expect(irProblems(tc, ir, ctx, recipe)).toEqual([]);
-  });
-});
-
 describe('value shorthand without kind (run-p4-coder-nim-7, TC-003)', () => {
   it('maps {data, field} / {unique} / {length} to the canonical value; leaves unknown shapes to the schema', () => {
     const step = (value: unknown) => ({
@@ -254,19 +224,19 @@ describe('value shorthand without kind (run-p4-coder-nim-7, TC-003)', () => {
   });
 });
 
-describe('cleanup bookkeeping added by code (run-p4-tc004-2)', () => {
-  it('adds the missing adopt for the one run-unique value typed into the created record; never when ambiguous', () => {
-    const ctx = generationContext();
-    const recipe = bindRecipe(CASE, ctx);
-    const v79 = { kind: 'length' as const, length: 79, evidenceIds: ['SF-219#AC2'] };
-    const ev = { caseStep: 0, evidenceIds: ['SF-219#AC2'] };
-    const tc = {
-      ...CASE,
-      steps: [
-        { ...CASE.steps[0]!, action: 'Enter a Last Name with exactly 79 characters and click Save' },
-        CASE.steps[1]!,
-      ],
-    };
+describe('cleanup is code-owned (operator 2026-11-25: the model never writes cleanup)', () => {
+  const ctx = generationContext();
+  const recipe = bindRecipe(CASE, ctx);
+  const v79 = { kind: 'length' as const, length: 79, evidenceIds: ['SF-219#AC2'] };
+  const ev = { caseStep: 0, evidenceIds: ['SF-219#AC2'] };
+  const tc = {
+    ...CASE,
+    steps: [
+      { ...CASE.steps[0]!, action: 'Enter a Last Name with exactly 79 characters and click Save' },
+      CASE.steps[1]!,
+    ],
+  };
+  const saveStep = (assertions: TestIR['steps'][number]['assertions'], extra: IrAction[] = []): TestIR => {
     const ir = structuredClone(GOOD_IR);
     ir.steps[0] = {
       caseStep: 0,
@@ -275,27 +245,40 @@ describe('cleanup bookkeeping added by code (run-p4-tc004-2)', () => {
         { do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' },
         { do: 'fill', element: 'contact-new.lastName', value: v79 },
         { do: 'click', element: 'contact-new.saveButton' },
+        ...extra,
       ],
-      assertions: [{ check: 'recordView', object: 'Contact', as: 'c79', expect: ev }],
+      assertions,
     };
-    const n = normalizeIr(ir, ctx, recipe, tc);
-    expect(n.steps[0]!.actions.at(-1)).toEqual({
-      do: 'adopt',
-      as: 'c79',
-      object: 'Contact',
-      field: 'LastName',
-      value: v79,
-    });
-    expect(n.notes.join(' ')).toMatch(/adopted by its typed LastName \(added by code\)/);
+    return ir;
+  };
+
+  it('the record shown after a create-dialog Save is registered by the renderer (data.adoptCreated)', () => {
+    const n = normalizeIr(saveStep([{ check: 'recordView', object: 'Contact', expect: ev }]), ctx, recipe, tc);
+    expect(n.steps[0]!.assertions[0]).toMatchObject({ check: 'recordView', as: 'createdContact1' });
     expect(irProblems(tc, n, ctx, recipe)).toEqual([]);
-    // Two run-unique values typed: which one identifies the record is ambiguous → left to the check.
-    const two = structuredClone(ir);
-    two.steps[0]!.actions.splice(2, 0, {
-      do: 'fill',
-      element: 'contact-new.firstName',
-      value: { kind: 'unique', label: 'f', format: 'text' },
-    });
-    expect(irProblems(tc, normalizeIr(two, ctx, recipe, tc), ctx, recipe).join('\n')).toMatch(/not adopted/);
+    const text = renderSpec({ tc, ir: n, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
+    expect(text).toContain("viewed['createdContact1'] = await recordIdFromView(page, 'Contact');");
+    expect(text).toContain("await data.adoptCreated('createdContact1', 'Contact', viewed['createdContact1']);");
+  });
+
+  it('model-written adopts are removed; a Save with neither recordView nor a rejection assertion is a problem', () => {
+    const withAdopt = saveStep(
+      [{ check: 'recordView', object: 'Contact', as: 'c79', expect: ev }],
+      [{ do: 'adopt', as: 'c79', object: 'Contact', field: 'LastName', value: v79 }],
+    );
+    const n = normalizeIr(withAdopt, ctx, recipe, tc);
+    expect(n.steps[0]!.actions.some((a) => a.do === 'adopt')).toBe(false);
+    expect(n.notes.join(' ')).toMatch(/adopt\(s\) removed — cleanup is code-owned/);
+    expect(irProblems(tc, normalizeIr(saveStep([]), ctx, recipe, tc), ctx, recipe).join('\n')).toMatch(
+      /after Save in the create dialog assert \{"check":"recordView"/,
+    );
+    const rejected = saveStep([{ check: 'fieldError', element: 'contact-new.lastName', expect: ev }]);
+    expect(irProblems(tc, normalizeIr(rejected, ctx, recipe, tc), ctx, recipe)).toEqual([]);
+  });
+
+  it('the IR contract no longer offers adopt', () => {
+    expect(IR_CONTRACT).not.toContain('do: "adopt"');
+    expect(IR_CONTRACT).toMatch(/Cleanup is automatic/);
   });
 });
 

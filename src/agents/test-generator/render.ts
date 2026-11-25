@@ -166,9 +166,14 @@ export function renderSpec(i: RenderInput): string {
         return [`await selectPicklist(page, ${el(a.element)}, ${val(a.value)});`];
       case 'clear':
         return [`await ${el(a.element)}.clear();`];
-      case 'click':
+      case 'click': {
         imp.lightning.add('waitForSpinners');
+        const m = findMember(cat, a.element);
+        if (m?.page.kind === 'dialog' && m.member.role === 'button' && m.member.accessibleName === 'Save') {
+          pendingCreate = m.page.object; // the record view shown next is the record this Save created
+        }
         return [`await ${el(a.element)}.click();`, 'await waitForSpinners(page);'];
+      }
       case 'selectTab':
         imp.lightning.add('selectTab');
         return [`await selectTab(${el(a.element)});`];
@@ -183,6 +188,8 @@ export function renderSpec(i: RenderInput): string {
     }
   };
 
+  let pendingCreate: string | undefined;
+  let autoNamed = 0;
   const assertion = (a: IrAssertion): string[] => {
     switch (a.check) {
       case 'visible':
@@ -197,13 +204,20 @@ export function renderSpec(i: RenderInput): string {
       case 'toast':
         imp.lightning.add('expectToast');
         return [`await expectToast(page, ${a.contains ? val(a.contains) : '/\\S/'});`];
-      case 'recordView':
+      case 'recordView': {
         imp.lightning.add('recordIdFromView');
-        if (a.as) {
-          viewed.add(a.as);
-          return [`viewed[${q(a.as)}] = await recordIdFromView(page, ${q(a.object)});`];
-        }
-        return [`await recordIdFromView(page, ${q(a.object)});`];
+        // Code-owned cleanup: the record a create-dialog Save produced is registered (ownership-checked, tagged,
+        // cleaned up in teardown) right after its id is known. The model never writes this.
+        const created = pendingCreate === a.object;
+        if (created) pendingCreate = undefined;
+        const as = a.as ?? (created ? `created${a.object}${String(++autoNamed)}` : undefined);
+        if (!as) return [`await recordIdFromView(page, ${q(a.object)});`];
+        viewed.add(as);
+        return [
+          `viewed[${q(as)}] = await recordIdFromView(page, ${q(a.object)});`,
+          ...(created ? [`await data.adoptCreated(${q(as)}, ${q(a.object)}, viewed[${q(as)}]);`] : []),
+        ];
+      }
       case 'recordTitle':
         imp.lightning.add('expectRecordTitle');
         return [`await expectRecordTitle(page, ${val(a.contains)});`];
