@@ -425,10 +425,19 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
 - [x] Live NIM / Groq: ids picked from `qa doctor`, `--live` green, `qa analyze` on NIM, forced failover verified (2026-11-21)
 
 ### Phase 4 — Generation & data
-- [ ] Test Generator, page objects, Lightning helpers, locator ESLint rule + dry-run
-- [ ] Test Reviewer pass 2 → APPROVED / REVIEW_REQUIRED / BLOCKED
-- [ ] Data engine (§7e): recipes, approvals, idempotency, verify, reconcile, verified cleanup
+- [x] Test Generator, page objects, Lightning helpers, locator ESLint rule + dry-run
+- [x] Test Reviewer pass 2 → APPROVED / REVIEW_REQUIRED / BLOCKED
+- [x] Data engine (§7e): recipes, approvals, idempotency, verify, reconcile, verified cleanup
 - **Exit:** specs lint/typecheck/resolve; data created, verified, cleaned, cleanup confirmed.
+- **Status (2026-11-21):** exit criteria met live on qa-prod and on the fixture; see `docs/phase-4-notes.md`.
+  - `run-p4-live-1`: 7/7 specs typecheck, lint and list; live dry-run 39/39; pass 2 → 3 APPROVED,
+    4 REVIEW_REQUIRED, 0 BLOCKED.
+  - `run-p4-live-data-1`: Account → Contact created and verified, negative rejected, cleanup CLEAN with re-query 0,
+    after operator approval `AP-b915e926a40e`.
+  - Both runs validate (`pnpm validate:build` / `validate:data`).
+  - Specs are not executed yet (Phase 5).
+  - The live coder answers came from the Gemini fallback.
+  - `data-testid`: wired (`testIdAttribute`); SF-219 needs none; still open for custom LWCs.
 
 ### Phase 5 — Execution & reporting
 - [ ] Runner (approved tests only), browser channel switch, result states incl. UNCERTAIN, LIVE/FIXTURE/MOCK labels

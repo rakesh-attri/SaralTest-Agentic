@@ -21,6 +21,8 @@ export interface ChatModelSpec {
   model: string;
   temperature: number;
   maxOutputTokens?: number | undefined;
+  /** OpenAI-compatible only: request JSON output from the endpoint. */
+  responseFormat?: 'json_object' | undefined;
   mock?: MockOptions;
   /** models.yaml `endpoints:` overrides for OpenAI-compatible providers. */
   endpoints?: ModelsConfig['endpoints'];
@@ -111,6 +113,7 @@ export async function createChatModel(spec: ChatModelSpec, secrets: ProviderSecr
         apiKey: await requireKey(secrets, ep.apiKeyEnv, spec.provider),
         configuration: { baseURL: ep.baseURL },
         ...(spec.maxOutputTokens ? { maxTokens: spec.maxOutputTokens } : {}),
+        ...(spec.responseFormat ? { modelKwargs: { response_format: { type: spec.responseFormat } } } : {}),
       });
     }
     case 'mock':

@@ -12,9 +12,23 @@
   const lastNameInput = form.querySelector('input[name="lastName"]');
   const lastNameErr = lastNameInput.parentElement.querySelector('.field-error');
 
+  // Tabs: one visible tabpanel at a time (Lightning-like record tabs).
+  for (const tab of document.querySelectorAll('[role="tab"]')) {
+    tab.addEventListener('click', () => {
+      for (const t of document.querySelectorAll('[role="tab"]')) {
+        const selected = t === tab;
+        t.setAttribute('aria-selected', String(selected));
+        const panel = document.getElementById(t.getAttribute('aria-controls'));
+        if (panel) panel.hidden = !selected;
+      }
+    });
+  }
+
   function open() {
     form.reset();
     form.querySelector('input[name="account"]').value = form.dataset.accountName;
+    // BRD BR-05 as implemented by this fixture: Mailing Address defaults from the Account's Billing Address.
+    form.querySelector('input[name="mailingCountry"]').value = form.dataset.billingCountry ?? '';
     pageError.hidden = true;
     lastNameErr.hidden = true;
     lastNameInput.removeAttribute('aria-invalid');
@@ -42,9 +56,13 @@
     const firstName = form.firstName.value.trim();
     const lastName = form.lastName.value.trim();
     const email = form.email.value.trim();
+    const phone = form.phone.value.trim();
+    const mailingCountry = form.mailingCountry.value.trim();
     const body = { LastName: lastName, AccountId: form.dataset.accountId };
     if (firstName) body.FirstName = firstName;
     if (email) body.Email = email;
+    if (phone) body.Phone = phone;
+    if (mailingCountry) body.MailingCountry = mailingCountry;
     spinner.hidden = false;
     await new Promise((r) => setTimeout(r, 300));
     const res = await fetch('/services/data/v62.0/sobjects/Contact', {

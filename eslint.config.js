@@ -3,6 +3,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
+import sfLocators from './packages/eslint-plugin-sf-locators/index.js';
 
 export default tseslint.config(
   {
@@ -73,6 +74,27 @@ export default tseslint.config(
     // Browser scripts of the offline fixture pages.
     files: ['examples/fixture/static/**/*.js'],
     languageOptions: { globals: { ...globals.browser } },
+  },
+  {
+    // Generated tests, page objects and Playwright support code (CLAUDE.md rule 6; salesforce-api-testing skill).
+    files: ['tests/**/*.ts'],
+    ignores: ['tests/unit/**'],
+    plugins: { 'sf-locators': sfLocators },
+    rules: {
+      'sf-locators/no-fragile-locators': 'error',
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.property.name='waitForTimeout']",
+          message: 'No waitForTimeout (CLAUDE.md rule 6). Use web-first assertions.',
+        },
+        {
+          selector: "CallExpression[callee.name='fetch']",
+          message:
+            'No raw fetch to Salesforce in tests: use the `sf` / `data` fixtures (salesforce-api-testing skill).',
+        },
+      ],
+    },
   },
   {
     files: ['**/*.test.ts'],

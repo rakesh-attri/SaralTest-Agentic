@@ -28,6 +28,16 @@ export interface RunStructuredOptions<T> {
   /** Task content (sources etc.) — redacted when a redactor is given. */
   user: string;
   skills?: { loader: SkillLoader; names: readonly string[] };
+  /**
+   * Compact description of the output type that replaces the JSON Schema text in the prompt (large schemas cost
+   * thousands of tokens). The reply is still validated against `schema`.
+   */
+  contract?: string;
+  /**
+   * Deterministic, meaning-preserving clean-up applied after the schema parse and before `check` (e.g. mapping an
+   * unambiguous alias to the canonical id). The returned value is what the caller gets.
+   */
+  normalize?: (value: T) => T;
   /** Deterministic checks beyond the schema; each returned string is reflected back to the model. */
   check?: (value: T) => string[];
   reflectRetries?: number;
@@ -113,7 +123,7 @@ export function zodProblems(err: z.ZodError, max = 25): string[] {
   return out;
 }
 
-function schemaText(schema: z.ZodType): string {
+export function schemaText(schema: z.ZodType): string {
   try {
     return JSON.stringify(z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }));
   } catch {
@@ -125,6 +135,7 @@ function validate<T>(
   text: string,
   schema: z.ZodType<T>,
   check?: (v: T) => string[],
+  normalize?: (v: T) => T,
 ): { value?: T; problems: string[] } {
   let raw: unknown;
   try {
@@ -134,19 +145,34 @@ function validate<T>(
   }
   const parsed = schema.safeParse(raw);
   if (!parsed.success) return { problems: zodProblems(parsed.error) };
-  const extra = check?.(parsed.data) ?? [];
-  return extra.length ? { problems: extra } : { value: parsed.data, problems: [] };
+  const value = normalize ? normalize(parsed.data) : parsed.data;
+  const extra = check?.(value) ?? [];
+  return extra.length ? { problems: extra } : { value, problems: [] };
+}
+
+/** The system prompt runStructured sends (instructions + skill descriptions + output contract). Exported for probes. */
+export async function composeSystemPrompt<T>(
+  opts: Pick<RunStructuredOptions<T>, 'system' | 'schema' | 'skills' | 'contract'>,
+): Promise<string> {
+  const skillBlock = opts.skills ? `\n\n${await opts.skills.loader.describe(opts.skills.names)}` : '';
+  if (opts.contract) {
+    return `${opts.system}${skillBlock}
+
+## Output contract
+Reply with ONE JSON value and nothing else (no prose, no markdown outside a single \`\`\`json block).
+${opts.contract}`;
+  }
+  return `${opts.system}${skillBlock}
+
+## Output contract
+Reply with ONE JSON value and nothing else (no prose, no markdown outside a single \`\`\`json block). It must validate against this JSON Schema:
+${schemaText(opts.schema)}`;
 }
 
 export async function runStructured<T>(opts: RunStructuredOptions<T>): Promise<StructuredResult<T>> {
   const reflectRetries = opts.reflectRetries ?? 2;
   const skillTool = opts.skills ? opts.skills.loader.loadSkillTool(opts.skills.names) : undefined;
-  const skillBlock = opts.skills ? `\n\n${await opts.skills.loader.describe(opts.skills.names)}` : '';
-  const system = `${opts.system}${skillBlock}
-
-## Output contract
-Reply with ONE JSON value and nothing else (no prose, no markdown outside a single \`\`\`json block). It must validate against this JSON Schema:
-${schemaText(opts.schema)}`;
+  const system = await composeSystemPrompt(opts);
   const user = opts.redactor ? opts.redactor.redactText(opts.user) : opts.user;
   const skillsLoaded: string[] = [];
   const attempts: AttemptRecord[] = [];
@@ -206,13 +232,22 @@ ${schemaText(opts.schema)}`;
         attempts.push({ model: m.id, attempt, outcome: 'ERROR', problems: [`${c.kind}: ${c.message}`] });
         const next = models[mi + 1];
         opts.logger?.warn(
-          { agent: opts.agent, model: m.id, kind: c.kind, rateLimited: isRateLimited(err), next: next?.id },
+          {
+            agent: opts.agent,
+            model: m.id,
+            attempt,
+            kind: c.kind,
+            error: c.message,
+            detail: c.detail,
+            rateLimited: isRateLimited(err),
+            next: next?.id,
+          },
           next ? `model call failed; failing over to ${next.id}` : 'model call failed; no model left in the chain',
         );
         lastError = err;
         break; // next model
       }
-      const v = validate(text, opts.schema, opts.check);
+      const v = validate(text, opts.schema, opts.check, opts.normalize);
       if (v.value !== undefined) {
         attempts.push({ model: m.id, attempt, outcome: 'OK' });
         return {
@@ -228,8 +263,12 @@ ${schemaText(opts.schema)}`;
       lastError = undefined;
       attempts.push({ model: m.id, attempt, outcome: 'INVALID', problems: v.problems });
       opts.logger?.warn(
-        { agent: opts.agent, model: m.id, attempt, problems: v.problems.slice(0, 5) },
+        { agent: opts.agent, model: m.id, attempt, problems: v.problems.slice(0, 5), problemCount: v.problems.length },
         'invalid output; reflecting',
+      );
+      opts.logger?.debug(
+        { agent: opts.agent, model: m.id, attempt, problems: v.problems, reply: text.slice(0, 4000) },
+        'invalid output (full problems + reply excerpt)',
       );
       messages.push(new AIMessage(text.slice(0, 6000)));
       messages.push(
@@ -243,12 +282,14 @@ ${schemaText(opts.schema)}`;
     const c = classifyError(lastError);
     throw new QAError(c.kind, `${opts.agent}: every model failed (${c.message})`, {
       attempts: attempts.length,
+      attemptLog: attempts,
       handled: models.length > 1 ? ['fallback'] : [],
     });
   }
   throw new QAError('INVALID_LLM_OUTPUT', `${opts.agent}: output still invalid after reflect-retries and fallback`, {
     problems: lastProblems.slice(0, 10),
     attempts: attempts.length,
+    attemptLog: attempts,
     // Reflect-retries and the fallback model already ran here: QA Lead triage moves on to the next response.
     handled: models.length > 1 ? ['retry', 'fallback'] : ['retry'],
   });

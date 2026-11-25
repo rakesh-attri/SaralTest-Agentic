@@ -193,8 +193,19 @@ describe('fixture server', () => {
     expect(html).toContain('<h1><span class="record-title">Fixture Seed Account</span></h1>');
     expect(html).toContain('role="grid" aria-label="Contacts"');
     expect(html).toContain('<button type="button" name="NewContact">New</button>');
-    expect(html).toMatch(/<label for="input-[0-9a-f]{6}-2"><abbr title="required">\*<\/abbr>Last Name<\/label>/);
+    // Required marker hidden from the accessible name, as on live Lightning ("Last Name", not "*Last Name").
+    expect(html).toMatch(
+      /<label for="input-[0-9a-f]{6}-2"><abbr title="required" aria-hidden="true">\*<\/abbr>Last Name<\/label>/,
+    );
+    expect(html).toMatch(/role="tabpanel" id="related-[0-9a-f]{6}"[^>]*hidden>/);
     expect(html).not.toMatch(/\{\{/);
+
+    const contactHtml = await (
+      await fetch(`${fx.url}/lightning/r/Contact/003FX0000000001AAA/view`, { headers: { cookie } })
+    ).text();
+    expect(contactHtml).toContain('<h1><span class="record-title">Seed Contact</span></h1>');
+    expect(contactHtml).toContain('href="/lightning/r/Account/001FX0000000001AAA/view"');
+    expect(contactHtml).not.toMatch(/\{\{/);
 
     const ro = await fetch(`${fx.url}/lightning/r/Account/${SEED_ACCOUNT}/view`, {
       headers: { cookie: 'sid=fixture-readonly-token' },

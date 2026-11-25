@@ -189,6 +189,7 @@ export class ModelRouter {
           model,
           temperature: cfg.temperature,
           maxOutputTokens: cfg.maxOutputTokens,
+          ...(ref.responseFormat ? { responseFormat: ref.responseFormat } : {}),
           ...(this.opts.config.endpoints ? { endpoints: this.opts.config.endpoints } : {}),
           ...(mock ? { mock } : {}),
         },
@@ -205,7 +206,8 @@ export class ModelRouter {
         maxWaitMs: last ? Math.max(limiter.maxWaitMs, LAST_IN_CHAIN_MAX_WAIT_MS) : limiter.maxWaitMs,
         lastInChain: last,
         maxOutputTokens: cfg.maxOutputTokens,
-        tools: ref.tools !== false,
+        // JSON mode replaces tool calling for the model (a load_skill call is not JSON output).
+        tools: ref.tools !== false && !ref.responseFormat,
         budget: this.opts.budget ?? currentBudget,
         onUsage: (u) => this.usage.push(u),
       };

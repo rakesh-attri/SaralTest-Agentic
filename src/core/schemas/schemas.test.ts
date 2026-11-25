@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  Approval,
   CoverageObligation,
+  DataWriteState,
+  GeneratedArtifact,
+  IrAssertion,
+  Recipe,
+  TestIR,
   Issue,
   Requirement,
   ReviewFinding,
@@ -205,5 +211,102 @@ describe('Phase 3 design contracts', () => {
     });
     expect(s.risks).toEqual([]);
     expect(s.reviewRound).toBe(0);
+  });
+});
+
+describe('Phase 4 generation + data contracts', () => {
+  const recipeYaml = {
+    recipe: 'account-contact',
+    approvedBy: 'Rakesh Sharma',
+    objects: [
+      { object: 'Account', recordType: null, fields: { Name: 'QA-{runId}-Acme {synthetic}', Industry: 'Technology' } },
+      {
+        object: 'Contact',
+        parent: { field: 'AccountId', ref: 'Account' },
+        fields: { LastName: 'QA-{runId}-{synthetic}' },
+      },
+    ],
+    negativeVariants: [{ name: 'missing-last-name', object: 'Contact', remove: ['LastName'], expect: 'rejected' }],
+    cleanup: 'reverse-dependency',
+  };
+
+  it('parses the approved Account → Contact recipe shape', () => {
+    const r = Recipe.parse(recipeYaml);
+    expect(r.objects[1]?.parent?.ref).toBe('Account');
+    expect(r.negativeVariants[0]?.remove).toEqual(['LastName']);
+  });
+
+  it('refuses an unapproved recipe, a parent declared later, and an unknown negative step', () => {
+    expect(Recipe.safeParse({ ...recipeYaml, approvedBy: '<name>' }).success).toBe(false);
+    const reversed = { ...recipeYaml, objects: [...recipeYaml.objects].reverse() };
+    expect(Recipe.safeParse(reversed).success).toBe(false);
+    const badNeg = { ...recipeYaml, negativeVariants: [{ name: 'x', object: 'Lead', expect: 'rejected' }] };
+    expect(Recipe.safeParse(badNeg).success).toBe(false);
+  });
+
+  it('test IR: elements are page-object members and every assertion cites an expectation', () => {
+    const ok = TestIR.safeParse({
+      caseId: 'TC-SF-219-003',
+      data: ['Account'],
+      steps: [
+        {
+          caseStep: 0,
+          title: 'Save without Last Name',
+          actions: [{ do: 'click', element: 'contact-new.save' }],
+          assertions: [
+            {
+              check: 'fieldError',
+              element: 'contact-new.lastName',
+              expect: { caseStep: 0, evidenceIds: ['SF-219#AC2'] },
+            },
+          ],
+        },
+      ],
+    });
+    expect(ok.success).toBe(true);
+    const raw = TestIR.safeParse({
+      caseId: 'x',
+      steps: [{ caseStep: 0, title: 'raw', actions: [{ do: 'click', element: "page.locator('//div')" }] }],
+    });
+    expect(raw.success).toBe(false);
+    // Omitted evidence parses; normalizeIr fills it from the case step and irProblems rejects an empty list.
+    const noEvidence = IrAssertion.safeParse({ check: 'toast', expect: { caseStep: 0 } });
+    expect(noEvidence.success && noEvidence.data.expect.evidenceIds).toEqual([]);
+  });
+
+  it('generated artifacts carry lineage and review status; old pass-1 findings stay valid', () => {
+    const a = GeneratedArtifact.parse({
+      kind: 'spec',
+      path: 'tests/generated/SF-219/x.spec.ts',
+      hash: 'h',
+      testCaseIds: ['TC-1'],
+    });
+    expect(a.locatorsUsed).toEqual([]);
+    expect(a.origin).toBe('deterministic');
+    expect(
+      ReviewFinding.parse({
+        id: 'RF-001',
+        round: 1,
+        severity: 'L',
+        rule: 'duplicate',
+        text: 't',
+        origin: 'deterministic',
+        status: 'OPEN',
+      }).pass,
+    ).toBeUndefined();
+  });
+
+  it('data plan: an issue-free plan is valid; approvals have stable ids', () => {
+    expect(
+      Approval.safeParse({
+        id: 'AP-0123456789ab',
+        checkpoint: 'new-data-recipe-or-mutation-type',
+        subject: 'recipe:account-contact@abc',
+        orgId: '00DdN00000uQ5dKUAS',
+        approvedBy: 'operator',
+        approvedAt: new Date().toISOString(),
+      }).success,
+    ).toBe(true);
+    expect(DataWriteState.options).toContain('FAILED');
   });
 });

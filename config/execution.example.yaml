@@ -9,3 +9,8 @@ visual:
   maxDiffPixelRatio: 0.01
   mask: [dates, recordIds, spinners, userNames, pii]
   allowExternalUpload: false   # screenshots never sent to an external model unless true for the run
+testIdAttribute: data-testid   # custom LWCs only; standard Lightning components are located by role/label
+a11y:
+  customNamespaces: [c]        # violations inside these LWC namespaces fail @a11y tests
+  # violations whose target only holds these Salesforce-owned namespaces are recorded as known baseline findings
+  standardNamespaces: [lightning, force, records, one, forcegenerated, runtime_, flexipage, slds]

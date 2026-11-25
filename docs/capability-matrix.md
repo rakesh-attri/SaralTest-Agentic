@@ -4,7 +4,7 @@ Status of every capability in PLAN.md. **implemented** = working code with tests
 stated limitation · **blocked** = needs an external prerequisite (exact blocker given) · **planned** = later phase.
 Updated at the end of each phase (CLAUDE.md rule 16).
 
-_Last updated: pre-Phase-4 model providers — 2026-11-20 (branch `main`)._
+_Last updated: Phase 4 generation & data — 2026-11-21 (branch `claude/phase-4-generation-data`)._
 
 ## Phase 0 — Foundation
 
@@ -85,13 +85,13 @@ _Last updated: pre-Phase-4 model providers — 2026-11-20 (branch `main`)._
 | Test assets linked to components (requirements, manual tests by deterministic text match; locators explicitly) → RE_VERIFY marks | implemented | `src/sf/graph/assetLinks.ts`, `impactOfDiff` | Text match is heuristic (word-bounded labels in the objects the text names); evidence term kept on each edge |
 | Org cross-check of requirements (existence, required, format, duplicate rule, personas, CRUD, picklist values, approved lists, timing mechanism) | implemented | `src/agents/sf-intelligence/crossCheck.ts` | Deterministic; NOT_FOUND only in a fully readable scope. Live findings: see phase-2-notes |
 | `discover` node in the main graph (`qa analyze --org`) | implemented | `src/graph/mainGraph.ts`, `src/cli/discover.ts` | Failures degrade (PARTIAL), hard stops block |
-| Application Explorer (Lightning) + locator registry (rank rules enforced, field match basis, privacy filter, redacted evidence) | implemented | `src/agents/app-explorer/`, `src/knowledge/locatorRegistry.ts` | Live: 3 pages (35/44/36 locators). Page objects are generated in Phase 4 |
+| Application Explorer (Lightning) + locator registry (rank rules enforced, field match basis, privacy filter, redacted evidence) | implemented | `src/agents/app-explorer/`, `src/knowledge/locatorRegistry.ts` | Live: 3 pages (35/44/36 locators on 2026-11-25). Elements no longer observed on a successfully explored page are RETIRED (since 2026-11-25) |
 | Application Explorer on Experience Cloud | blocked | same | **Blocker:** Digital Experiences not enabled in qa-prod (`Network` unsupported). No site to explore |
 | Playwright MCP as explorer backend | partial | `config/mcp-tools.yaml` | Library-based explorer is the deterministic default; MCP stays available for ad-hoc exploration |
 | RAG ingest: LanceDB tables, chunkers per §7, sha256 dedupe, incremental per source, resumable per batch, embed model per row, PII masking | implemented | `src/rag/` | `.qa-memory/rag/` |
 | Hybrid retrieval (vector + FTS, RRF, org/release filters, sourceRef) | implemented | `src/rag/store.ts` | |
 | Embedding quota handling (empty vectors from swallowed 429 → TRANSIENT, retried) | implemented | `src/models/guarded.ts` `checkVectors` | Gemini free tier allows ~60 embedded chunks/min; ingest is rate-limited accordingly |
-| Run-tag field for data cleanup (`QA_Run_Id__c`) | blocked | `config/orgs.yaml` | **Blocker for Phase 4:** the field does not exist in qa-prod. Create it (admin) or set `runTagField: null` (name prefix) |
+| Run-tag field for data cleanup (`QA_Run_Id__c`) | implemented | `config/orgs.yaml` | Created by the admin (Text 50, Account + Contact, System Administrator read/edit); seen by `qa discover` on 2026-11-21 (snapshot `…e218`) |
 
 ## Phase 3 — Test planning
 
@@ -114,6 +114,29 @@ _Last updated: pre-Phase-4 model providers — 2026-11-20 (branch `main`)._
 | Pro-class judge | blocked | `config/models.yaml` | **Blocker:** Gemini free tier — `gemini-2.5-pro` 404 for new keys, `gemini-3.1-pro-preview` 429 (quota 0). Enable billing |
 | Persona-based deny cases executable | blocked | `config/personas.yaml` | **Blocker:** no Read Only / Sales Rep test users (cases are BLOCKED-NO-PERSONA) |
 
+## Phase 4 — Generation & data
+
+| Capability | Status | Where | Notes / blocker |
+|---|---|---|---|
+| Contracts: Recipe, DataPlan, NegativePlan, CleanupReport, Approval; DataWrite step/order/parent + FAILED; test IR; GeneratedArtifact lineage + verdict; DryRunReport; pass-2 review rules | implemented | `src/core/schemas/data.ts`, `generation.ts`, `design.ts` | No new IssueKind (policy.yaml unchanged) |
+| ESLint rule `sf-locators/no-fragile-locators` on `tests/**` (+ no raw fetch) | implemented | `packages/eslint-plugin-sf-locators/`, `eslint.config.js` | RuleTester suite; verified on a probe spec in the real config |
+| Root Playwright config (persona projects, `.auth/<org>/<persona>.json`, channel from execution.yaml, reporting-labs + html + json) | implemented | `playwright.config.ts`, `tests/support/runConfig.ts`, `tests/setup/auth.setup.ts` | Execution is Phase 5; `--list` only in Phase 4 |
+| Lightning helpers (spinners, toast, record open by ledger id, tabs, related lists, field / page errors, record title, picklist, lookup) | implemented | `tests/support/lightning.ts` | Tested on the fixture in real Chromium. Toast role (`alert` / `status`) accepted both ways until verified live in Phase 5 |
+| a11y helpers per operator rule (scoped axe; Salesforce-owned violations = baseline; custom namespaces + keyboard check fail) | implemented | `tests/support/a11y.ts`, `config/execution.yaml` `a11y` | Seeded custom vs standard violation and tab-order break tested on the fixture. Baseline acceptance flow is Phase 6 |
+| Playwright fixtures `persona`, `sf`, `data` (per-test data sub-run, verified cleanup in teardown), `a11y` | implemented (not executed yet) | `tests/fixtures/index.ts` | Typechecked + listed; first execution in Phase 5 |
+| Page objects generated from the locator registry (regions, root, RE_VERIFY flagged) | implemented | `src/agents/test-generator/pageObjects.ts`, `tests/pages/` | qa-prod: AccountRecordPage 38, ContactRecordPage 47, NewContactDialog 38 members |
+| Locator dry-run (page state as persona, count 1 + visible + enabled; no MCP, no eval) | implemented | `src/agents/test-generator/dryRun.ts`, `expression.ts`, `qa locators dry-run` | Live qa-prod: all 123 members resolved (run-p4-dryrun-all) |
+| Test Generator (coder role fills a Zod IR; deterministic checks incl. grounding, metadata-derived error codes, page context of the flow, typed-value oracles, cleanup adoption; code renders the spec) | implemented | `src/agents/test-generator/` | Since 2026-11-21 the configured NIM coder (`poolside/laguna-xs-2.1`, `responseFormat: json_object`, ~3.1k-token prompt) generates specs itself: 4–6/7 SF-219 cases per full build, TC-004 regenerated and APPROVED. Groq on_demand is too small (8k TPM; qwen 1k output TPM). Diagnosis: `scripts/probe-coder.ts`, run log + `model-attempts.json` |
+| Test Reviewer pass 2 (deterministic checklist + AST checks + tsc / ESLint / --list / dry-run results + judge ≠ coder; ≤ 2 rounds; settlement) | implemented | `src/agents/test-reviewer/pass2.ts` | The judge (minimax flash) once accepted a wrong fix; the page-context check now catches that class deterministically |
+| `build ⇄ review2` in the main graph; seeded entry at build; `qa build`; build report (md + html) | implemented | `src/graph/buildNodes.ts`, `buildReport.ts`, `src/cli/build.ts` | |
+| Test data engine: recipe → snapshot-validated plan → approval → create (idempotent, UNCERTAIN reconciled) → read-back verify → negatives → reverse cleanup with tag re-check → re-query | implemented | `src/sf/data/`, `src/sf/dataFactory.ts`, `qa data plan/approve/run`, `qa cleanup` | Fixture: full cycle + failure paths tested |
+| Human checkpoint for new recipe versions (per autonomy level, per org) | implemented | `src/security/approvals.ts` | Recorded in `.qa-memory/approvals.jsonl`; graph-level interrupt for data arrives with the Phase 5 data node |
+| Independent validators `pnpm validate:build` / `pnpm validate:data` | implemented | `scripts/validate-build.ts` | Re-runs ESLint + `--list` itself; checks hashes, dry-run coverage, settlement, audit pairs; partial rebuilds (`qa build --cases`) checked through the merged story manifest |
+| Model warnings / errors kept with the run (`runs/<id>/logs/run.log`, `model-attempts.json`, report table) | implemented | `src/cli/analyze.ts` (`logFile`), `structured.ts`, `buildReport.ts` | `qa build` / `qa design`; console output stays at warn |
+| Record types in recipes | blocked | `src/sf/data/plan.ts` | Snapshot has no RecordTypeId yet → RECORD_TYPE_UNRESOLVED. Add RecordTypeId to discovery (Phase 5) |
+| Contact edit-mode locators (record page inline/edit form) | partial | locator registry | Not explored yet → TC-002 step 2 cannot be generated faithfully (REVIEW_REQUIRED). Add an edit state to the Explorer |
+| `data-testid` for custom LWCs (PLAN §12) | partial | `config/execution.yaml` `testIdAttribute` | Wired; SF-219 uses standard components only. Open decision for custom LWCs |
+
 ## External prerequisites (open blockers)
 
 | Blocker | Needed for | Owner | How to clear |
@@ -121,7 +144,6 @@ _Last updated: pre-Phase-4 model providers — 2026-11-20 (branch `main`)._
 | Google key on the Gemini **free tier** | a Pro-class judge; any Full Copy data in prompts (free-tier prompts may be used by Google to improve products, PLAN.md §12) | Rakesh | Enable billing on the Google project behind the key, then set judge to a Pro model and re-run `pnpm qa doctor --live` |
 | Full Copy sandbox `fc-admin`: placeholder org ID/URL, expired sf session | later live runs on the sandbox | Rakesh / SF admin | Fill `config/orgs.yaml`, authorize with `pnpm qa auth login --org fc-admin` |
 | Dedicated non-admin test users (sales rep, read only) on qa-prod, pre-approved on the ECA | persona-based UI/permission checks (AC6), BLOCKED-NO-PERSONA otherwise | SF admin | Create users, approve on the ECA, add to `config/personas.yaml`, `pnpm qa auth login --persona <id>` |
-| `QA_Run_Id__c` run-tag field missing in qa-prod | Phase 4 data cleanup guard | SF admin | Create the field on Account/Contact (metadata is never changed by the agent) or set `runTagField: null` |
 | Digital Experiences not enabled in qa-prod | Explorer on Experience Cloud | SF admin | Enable + create a site, or explore it in the Full Copy sandbox |
 | Atlassian Rovo MCP on deprecated `/v1/mcp` in `.mcp.json` | JIRA via MCP (REST works and carried the demo) | Rakesh | Change to `https://mcp.atlassian.com/v2/mcp`, then `pnpm qa doctor --include-oauth` |
 | Azure DevOps organisation + PAT | ADO work items as input (optional) | Rakesh | Set `ADO_ORG_URL` and `ADO_PAT` (Credential Manager preferred) |
@@ -133,7 +155,6 @@ _Last updated: pre-Phase-4 model providers — 2026-11-20 (branch `main`)._
 
 | Capability | Status | Phase |
 |---|---|---|
-| Test Generator, locator ESLint rule, Reviewer pass 2, data engine | planned | 4 |
 | Runner, reporting-labs + Playwright HTML, JIRA comment, Account→Contact demo | planned | 5 |
 | Visual QA | planned | 6 |
 | Investigation, healing, exploration, fault injection | planned | 7 |

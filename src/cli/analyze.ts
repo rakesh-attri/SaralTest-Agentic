@@ -6,7 +6,8 @@ import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 import { loadEnv, secretValues, type Env } from '../config/env.js';
 import { loadConfigFile, projectPaths, requireConfig } from '../config/loader.js';
-import type { PolicyConfig } from '../config/schemas.js';
+import { ModelRef, type ModelRole, type ModelsConfig, type PolicyConfig } from '../config/schemas.js';
+import { QAError } from '../core/errors.js';
 import { createLogger, type Logger } from '../core/logger.js';
 import { newRunId, runPaths } from '../core/runFolder.js';
 import type { Clarification } from '../core/schemas/index.js';
@@ -53,6 +54,15 @@ export interface RuntimeOptions {
   discover?: GraphDeps['discover'];
   /** Phase 3: test design inputs (`qa design`, `qa analyze --org`). Local reads, so it also works offline. */
   design?: GraphDeps['design'];
+  /** Phase 4: generation inputs + file checks (`qa build`). */
+  build?: GraphDeps['build'];
+  /**
+   * Also write every log line (debug and up, redacted) to this file, e.g. `runs/<runId>/logs/run.log`, so model
+   * warnings and errors are kept with the run whatever the console shows.
+   */
+  logFile?: string;
+  /** Replace a role's model chain for this run (e.g. `qa build --coder`): exactly these models, no other fallback. */
+  roleChains?: Partial<Record<ModelRole, ModelRef[]>>;
 }
 
 export interface Runtime {
@@ -64,6 +74,55 @@ export interface Runtime {
   close(): Promise<void>;
 }
 
+/**
+ * Replace role chains for one run. The judge must still differ from every coder model (CLAUDE.md rule 8), so an
+ * override that puts the judge's model into the coder chain is refused.
+ */
+export function applyRoleChains(config: ModelsConfig, chains: Partial<Record<ModelRole, ModelRef[]>>): ModelsConfig {
+  const roles = { ...config.roles };
+  for (const [role, chain] of Object.entries(chains) as [ModelRole, ModelRef[]][]) {
+    const [first, ...rest] = chain;
+    if (!first) continue;
+    const { tools: _tools, responseFormat: _format, ...base } = roles[role];
+    roles[role] = {
+      ...base,
+      provider: first.provider,
+      model: first.model,
+      ...(first.tools !== undefined ? { tools: first.tools } : {}),
+      ...(first.responseFormat ? { responseFormat: first.responseFormat } : {}),
+      fallbacks: rest,
+    };
+  }
+  const key = (m: ModelRef): string => `${m.provider}/${m.model}`;
+  const judge = [roles.judge, ...roles.judge.fallbacks].map(key);
+  const coder = [roles.coder, ...roles.coder.fallbacks].map(key);
+  const clash = coder.find((c) => judge.includes(c));
+  if (clash) throw new QAError('ENVIRONMENT', `coder chain would include the judge model ${clash} (CLAUDE.md rule 8)`);
+  return { ...config, roles };
+}
+
+/**
+ * Parse `provider/model[:json][:no-tools][,…]` (the model id may itself contain slashes, e.g.
+ * `nvidia-nim/poolside/laguna-xs-2.1:json`). `:json` = response_format json_object; `:no-tools` = inline skills.
+ */
+export function parseModelChain(spec: string): ModelRef[] {
+  return spec
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .map((x) => {
+      const [body = '', ...flags] = x.split(':');
+      const slash = body.indexOf('/');
+      if (slash < 1) throw new QAError('ENVIRONMENT', `model "${x}" must be <provider>/<model id>`);
+      return ModelRef.parse({
+        provider: body.slice(0, slash),
+        model: body.slice(slash + 1),
+        ...(flags.includes('no-tools') ? { tools: false } : {}),
+        ...(flags.includes('json') ? { responseFormat: 'json_object' } : {}),
+      });
+    });
+}
+
 export async function createRuntime(o: RuntimeOptions): Promise<Runtime> {
   const paths = projectPaths(o.root);
   const env0 = await loadEnv(o.root);
@@ -73,7 +132,11 @@ export async function createRuntime(o: RuntimeOptions): Promise<Runtime> {
   const env: Env = { ...env0, ...(jiraToken ? { JIRA_API_TOKEN: jiraToken } : {}) };
   const secrets = secretValues(env);
   const redactor = new Redactor({ secrets });
-  const logger: Logger = createLogger({ level: o.logLevel ?? 'warn', redact: (obj) => redactor.redactValue(obj) });
+  const logger: Logger = createLogger({
+    level: o.logLevel ?? 'warn',
+    redact: (obj) => redactor.redactValue(obj),
+    ...(o.logFile ? { file: o.logFile } : {}),
+  });
   const policy = await requireConfig('policy', paths);
 
   let router: ModelRouter | undefined;
@@ -84,8 +147,9 @@ export async function createRuntime(o: RuntimeOptions): Promise<Runtime> {
     if (!models.ok) {
       o.say(`config/models.yaml unusable (${models.errors.join('; ')}) — continuing with mechanical analysis.`);
     } else {
+      const config = applyRoleChains(models.value, o.roleChains ?? {});
       router = await ModelRouter.create({
-        config: models.value,
+        config,
         secrets: { get: async (k) => (await store.get(k)).value, setting: (k) => env[k] },
         secretValues: () => secrets,
         logger,
@@ -128,6 +192,7 @@ export async function createRuntime(o: RuntimeOptions): Promise<Runtime> {
     logger,
     ...(o.discover && !o.offline ? { discover: o.discover } : {}),
     ...(o.design ? { design: o.design } : {}),
+    ...(o.build ? { build: o.build } : {}),
     ...(router ? { router } : {}),
     skills: SkillLoader.forProject(o.root),
     redactor,

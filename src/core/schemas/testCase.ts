@@ -11,6 +11,9 @@ export const EvidenceLevel = z.enum([
 ]);
 export type EvidenceLevel = z.infer<typeof EvidenceLevel>;
 export const ASSERTABLE_LEVELS: readonly EvidenceLevel[] = ['APPROVED_REQUIREMENT', 'DECLARED_CONFIG', 'VERIFIED'];
+
+export const ReviewStatus = z.enum(['APPROVED', 'REVIEW_REQUIRED', 'BLOCKED']);
+export type ReviewStatus = z.infer<typeof ReviewStatus>;
 export const isAssertable = (level: EvidenceLevel): boolean => ASSERTABLE_LEVELS.includes(level);
 
 export const ExpectedResult = z.object({
@@ -65,7 +68,7 @@ export const TestCase = z
     dataRecipe: z.string().optional(),
     steps: z.array(TestStep).min(1),
     tags: z.array(z.string()),
-    reviewStatus: z.enum(['APPROVED', 'REVIEW_REQUIRED', 'BLOCKED']),
+    reviewStatus: ReviewStatus,
     snapshotId: z.string(),
     /** Why the case is not APPROVED (code-decided: evidence level, missing persona, open finding …). */
     reviewReasons: z.array(z.string()).default([]),

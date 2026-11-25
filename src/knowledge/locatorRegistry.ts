@@ -123,6 +123,24 @@ export class LocatorRegistry {
     ).map((r) => ({ page: r.page, count: r.count }));
   }
 
+  /**
+   * After a page was explored successfully: registered elements of that page + persona that were NOT observed are
+   * RETIRED (kept for history, never used for page objects). Seen 2026-11-25: QA Run Id was removed from the
+   * layouts, but its locators stayed ACTIVE because exploration only upserted what it saw. Returns the retired
+   * element keys.
+   */
+  retireMissing(org: string, page: string, persona: string, seen: readonly string[]): string[] {
+    const keep = new Set(seen);
+    const gone = this.list({ org, page })
+      .filter((l) => l.persona === persona && l.status !== 'RETIRED' && !keep.has(l.element))
+      .map((l) => l.element);
+    const stmt = this.db.prepare(
+      "UPDATE locators SET status = 'RETIRED' WHERE org = ? AND page = ? AND element = ? AND persona = ?",
+    );
+    for (const e of gone) stmt.run(org, page, e, persona);
+    return gone;
+  }
+
   /** Mark one locator RE_VERIFY by its graph asset id (`<page>/<element>`). Returns rows changed. */
   markAssetReverify(org: string, assetId: string): number {
     const slash = assetId.indexOf('/');

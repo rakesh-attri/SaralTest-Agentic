@@ -1,0 +1,15 @@
+{
+  "name": "eslint-plugin-sf-locators",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ESLint rule sf-locators/no-fragile-locators (salesforce-lightning-locators skill)",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  }
+}
