@@ -283,8 +283,55 @@ Run-to-run variance remains: 4–6 of 7 cases come from the coder per full build
 
 ## Open items for the operator
 
-1. Answer Q1–Q3 and resolve the 4 org conflicts from Phase 3, so more cases can become APPROVED and generated.
+1. ~~Answer Q1–Q3 and resolve the 4 org conflicts~~ done 2026-11-25 (see *Operator decisions* below). Still open:
+   TC-SF-219-031 (BR-08 delete) is REVIEW_REQUIRED on a judge finding, and Email rule C1 is not in the org yet.
 2. To make TC-002 fully assertable: add Billing Street / City / Postal Code values to the approved recipe, and let
    the Explorer capture the Contact edit form (Phase 5 task).
 3. Confirm that field history tracking is on for Contact Email / Phone in qa-prod (TC-023's precondition).
 4. Non-admin test users (Phase 3 open item) are still needed for the BLOCKED-NO-PERSONA deny cases.
+
+## Operator decisions applied (2026-11-25)
+
+You answered Q1–Q3 and C1–C4 and deferred BR-09. The flow was:
+- `qa discover --org qa-prod` → `run-p4-discover-4`, snapshot `…20261125122127-93cc`. It shows the new rules:
+  Phone_Required_For_Web, Title_Must_Be_Approved (exactly the 4 titles) and duplicate rule
+  Contact_Same_Email_Same_Account.
+  - Phone_Must_Be_10_Digits is unchanged (hash `b0f3cd5a43`).
+  - Matching rules are **not** a discovered metadata type, so Contact_Email_Account itself is not in the snapshot.
+    The active duplicate rule that uses it is.
+- **New `qa decide`** (`src/cli/decide.ts`, `src/inputs/decisions.ts`). It applies a decisions YAML
+  (`examples/decisions/SF-219.yaml`) to an analysis run and writes a **new** analysis run. The source run is unchanged;
+  no model and no org call is used. In detail:
+  - answers → clarification ANSWERED;
+  - the findings an answer names are removed;
+  - the answer's stated expected outcomes are added to the linked requirements;
+  - the answer becomes a `rule` section of a `SF-219-DECISIONS` source document, so it is approved, uncontested
+    evidence;
+  - org-conflict notes are `text` sections, which are context and never assertable;
+  - every change is listed in `decisions-applied.md`.
+- **New requirement status `DEFERRED`.** A deferred requirement gets no org cross-check, obligations, risks or cases.
+  Its RTM row is `excluded`, with the reason, and it appears in the charter's out-of-scope list.
+- `qa decide --from-run run-p1-final-combined --decisions examples/decisions/SF-219.yaml --run-id run-p4-decided-1`:
+  - R14, R19 and R22 became EXECUTABLE; R23 (BR-09) is DEFERRED;
+  - findings F-006/007/008/009/012/016/017/018 were resolved.
+- `qa design --from-run run-p4-decided-1 --org qa-prod --run-id run-p4-design-decided-1`:
+  - the cross-check went from 4 CONFLICT to 1 (C1, Email);
+  - **26 cases: 20 APPROVED, 5 REVIEW_REQUIRED, 1 BLOCKED** (Phase 3 had 7 APPROVED);
+  - `pnpm validate:design run-p4-design-decided-1` → valid; R23 `excluded`.
+  - The run status is PARTIAL because one judge "verify" call failed (Gemini 503) after 3 retries. That finding was
+    escalated, not dropped.
+- Per decision:
+  - Q1: TC-007/008/009/010 APPROVED (both branches of Phone-for-Web, plus the 10-digit rule).
+  - Q2: TC-036 (each approved title) and TC-015 (invalid title rejected) APPROVED.
+  - Q3: TC-031 (open Case blocks delete) is **REVIEW_REQUIRED**. The judge asked for the positive counterpart
+    ("a Contact with only closed Cases can be deleted"), which BR-08 and your answer do not state. It is recorded as
+    known defect `eval/golden/SF-219/known_defects.json` KD-SF-219-001, expected outcome FAIL, for the Phase 7 demo.
+  - C1: TC-049 (Email empty as Sales Rep) is REVIEW_REQUIRED with its step UNKNOWN_OR_CONTRADICTORY (org conflict
+    OC-003). It is never asserted or generated until the Email_Required_For_Sales_Reps rule exists. The Sales Rep
+    user already exists and is active (read-only SOQL), so the other Sales Rep cases (TC-032/044/045/047/048) are
+    APPROVED.
+  - C2: TC-050 (duplicate warning) APPROVED.
+  - Still REVIEW_REQUIRED for reasons outside these decisions: R20 / BR-07 (no stated edit outcome; TC-016/017)
+    and NFR-01 (no measurement method; TC-021). TC-011 stays BLOCKED-NO-PERSONA (no read-only user).
+- **Case ids changed** compared with run-p3-live-5 for re-planned obligations. The specs in `tests/generated/SF-219/`
+  still come from run-p3-live-5 until `qa build --from-run run-p4-design-decided-1` is run.

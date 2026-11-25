@@ -1,0 +1,52 @@
+# Operator decisions for SF-219 (2026-11-25), applied with:
+#   qa decide --from-run run-p1-final-combined --decisions examples/decisions/SF-219.yaml --run-id run-p4-decided-1
+# Answers become approved requirement text (decisions document, kind "rule"); deferred requirements are not designed.
+storyKey: SF-219
+decidedBy: QA operator
+decidedOn: 2026-11-25
+
+answers:
+  - id: Q1
+    answer: >-
+      Accepted. Lead Source is the standard Contact picklist and contains Web. Phone is required only when Lead Source
+      is Web. The org enforces this with validation rule Phone_Required_For_Web.
+    resolvesFindings: [F-006, F-016]
+    expectedOutcomes:
+      - When Lead Source is Web and Phone is empty, the Contact is not saved and an error is shown.
+      - When Lead Source is not Web, a Contact without Phone is saved.
+  - id: Q2
+    answer: >-
+      The approved titles are Account Executive, Sales Manager, Director and VP Sales. The org enforces them with
+      validation rule Title_Must_Be_Approved (custom metadata later).
+    resolvesFindings: [F-007, F-012, F-017]
+    settlesRequirement: true
+    expectedOutcomes:
+      - A Contact whose Title is Account Executive, Sales Manager, Director or VP Sales is saved.
+      - A Contact whose Title is not one of the approved titles is not saved and an error is shown.
+  - id: Q3
+    answer: >-
+      Accepted: deleting a Contact that has open Cases is blocked and the Contact still exists; the exact error text is
+      not asserted. This is intentionally NOT implemented in the org yet, so the test is kept and its failure is
+      expected (known defect, used for the Phase 7 investigation demo).
+    resolvesFindings: [F-018]
+    settlesRequirement: true
+    expectedOutcomes:
+      - Deleting a Contact that has an open Case is blocked and the Contact still exists.
+
+deferred:
+  - requirementId: SF-219-R23
+    reason: BR-09 Number_of_Contacts__c is out of scope for now (operator decision 2026-11-25).
+    resolvesFindings: [F-008, F-009]
+
+notes:
+  - id: C1
+    text: >-
+      Accepted: validation rule Email_Required_For_Sales_Reps will be added once the Sales Rep user is set up. Until the
+      rule exists the Email-for-Sales-Rep cases stay blocked (org conflict).
+  - id: C2
+    text: >-
+      Accepted: matching rule Contact_Email_Account and duplicate rule Contact_Same_Email_Same_Account are active.
+  - id: C3
+    text: Accepted together with Q1 (Phone_Required_For_Web).
+  - id: C4
+    text: Accepted together with Q2 (Title_Must_Be_Approved).

@@ -4,7 +4,7 @@ import { basename, extname, join } from 'node:path';
 import type { Command } from 'commander';
 import { z } from 'zod';
 import { crossCheckRequirements } from '../agents/sf-intelligence/crossCheck.js';
-import { buildContext, type DesignHook } from '../graph/designNodes.js';
+import { buildContext, inScope, type DesignHook } from '../graph/designNodes.js';
 import { summarizeDesign, writeDesignReport } from '../graph/designReport.js';
 import { reviewRound, settleFindings } from '../agents/test-reviewer/index.js';
 import { buildCases, buildRtm, mechanicalDrafts, TestCaseIdStore } from '../agents/test-planner/index.js';
@@ -72,7 +72,7 @@ export function createDesignHook(o: { root: string; orgAlias: string; snapshotId
       const configured = personas.personas.map((p) => ({ id: p.id, profile: p.profile }));
       const cc = crossCheckRequirements({
         snapshot: snap,
-        requirements: s.requirements,
+        requirements: inScope(s.requirements),
         findings: s.findings,
         configuredPersonas: configured.flatMap((p) => [p.id, p.profile]),
       });
