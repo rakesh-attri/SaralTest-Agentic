@@ -63,7 +63,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Activity/Email",
-          "lastVerifiedAt": "2026-11-21T09:56:39.451Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.542Z"
         },
         {
           "name": "expandAllShowDetailsForActivitiesInTheTimelineButton",
@@ -75,7 +75,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Activity/Expand All. Show details for activities in the timeline.",
-          "lastVerifiedAt": "2026-11-21T09:56:39.606Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.618Z"
         },
         {
           "name": "moreEmailActionsButton",
@@ -87,7 +87,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Activity/More Email Actions",
-          "lastVerifiedAt": "2026-11-21T09:56:39.509Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.561Z"
         },
         {
           "name": "refreshButton",
@@ -99,7 +99,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Activity/Refresh",
-          "lastVerifiedAt": "2026-11-21T09:56:39.577Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.605Z"
         },
         {
           "name": "timelineSettingsButton",
@@ -111,7 +111,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Activity/Timeline Settings",
-          "lastVerifiedAt": "2026-11-21T09:56:39.545Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.589Z"
         },
         {
           "name": "upcomingAndOverdueButton",
@@ -123,7 +123,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Activity/Upcoming & Overdue",
-          "lastVerifiedAt": "2026-11-21T09:56:39.726Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.643Z"
         },
         {
           "name": "viewAllButton",
@@ -135,7 +135,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Activity/View All",
-          "lastVerifiedAt": "2026-11-21T09:56:39.653Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.630Z"
         },
         {
           "name": "deleteButton",
@@ -147,7 +147,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Delete",
-          "lastVerifiedAt": "2026-11-21T09:56:39.121Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.401Z"
         },
         {
           "name": "additionalInformationButton",
@@ -159,7 +159,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Additional Information",
-          "lastVerifiedAt": "2026-11-21T09:56:46.953Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.609Z"
         },
         {
           "name": "addressInformationButton",
@@ -171,7 +171,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Address Information",
-          "lastVerifiedAt": "2026-11-21T09:56:47.245Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.723Z"
         },
         {
           "name": "detailsChangeOwnerButton",
@@ -184,7 +184,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Change Owner",
-          "lastVerifiedAt": "2026-11-21T09:56:46.590Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.496Z"
         },
         {
           "name": "customLinksButton",
@@ -196,7 +196,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Custom Links",
-          "lastVerifiedAt": "2026-11-21T09:56:47.420Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.790Z"
         },
         {
           "name": "editAccountNameButton",
@@ -209,7 +209,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Account Name",
-          "lastVerifiedAt": "2026-11-21T09:56:46.705Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.530Z"
         },
         {
           "name": "editAnnualRevenueButton",
@@ -222,7 +222,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Annual Revenue",
-          "lastVerifiedAt": "2026-11-21T09:56:47.132Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.681Z"
         },
         {
           "name": "editBillingAddressButton",
@@ -235,7 +235,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Billing Address",
-          "lastVerifiedAt": "2026-11-21T09:56:47.304Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.736Z"
         },
         {
           "name": "editDescriptionButton",
@@ -248,7 +248,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Description",
-          "lastVerifiedAt": "2026-11-21T09:56:47.191Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.701Z"
         },
         {
           "name": "editEmployeesButton",
@@ -261,7 +261,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Employees",
-          "lastVerifiedAt": "2026-11-21T09:56:47.020Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.647Z"
         },
         {
           "name": "editFaxButton",
@@ -274,7 +274,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Fax",
-          "lastVerifiedAt": "2026-11-21T09:56:46.749Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.551Z"
         },
         {
           "name": "editIndustryButton",
@@ -287,7 +287,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Industry",
-          "lastVerifiedAt": "2026-11-21T09:56:47.077Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.665Z"
         },
         {
           "name": "editParentAccountButton",
@@ -300,7 +300,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Parent Account",
-          "lastVerifiedAt": "2026-11-21T09:56:46.787Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.567Z"
         },
         {
           "name": "editPhoneButton",
@@ -313,20 +313,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Phone",
-          "lastVerifiedAt": "2026-11-21T09:56:46.641Z"
-        },
-        {
-          "name": "editQARunIdButton",
-          "ref": "account-record.editQARunIdButton",
-          "kind": "element",
-          "role": "button",
-          "accessibleName": "Edit QA Run Id",
-          "fieldApiName": "Account.QA_Run_Id__c",
-          "expression": "getByRole('main').getByRole('button', { name: 'Edit QA Run Id', exact: true })",
-          "strategyRank": 1,
-          "status": "ACTIVE",
-          "registryElement": "button:Details/Edit QA Run Id",
-          "lastVerifiedAt": "2026-11-21T09:56:46.912Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.511Z"
         },
         {
           "name": "editShippingAddressButton",
@@ -339,7 +326,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Shipping Address",
-          "lastVerifiedAt": "2026-11-21T09:56:47.348Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.757Z"
         },
         {
           "name": "editTypeButton",
@@ -352,7 +339,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Type",
-          "lastVerifiedAt": "2026-11-21T09:56:46.986Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.632Z"
         },
         {
           "name": "editWebsiteButton",
@@ -365,7 +352,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Website",
-          "lastVerifiedAt": "2026-11-21T09:56:46.853Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.589Z"
         },
         {
           "name": "systemInformationButton",
@@ -377,7 +364,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/System Information",
-          "lastVerifiedAt": "2026-11-21T09:56:47.382Z"
+          "lastVerifiedAt": "2026-11-25T12:09:16.772Z"
         },
         {
           "name": "editButton",
@@ -389,7 +376,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Edit",
-          "lastVerifiedAt": "2026-11-21T09:56:39.034Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.378Z"
         },
         {
           "name": "followButton",
@@ -401,7 +388,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Follow",
-          "lastVerifiedAt": "2026-11-21T09:56:38.977Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.363Z"
         },
         {
           "name": "contactsNewButton",
@@ -414,7 +401,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Related/Contacts/New",
-          "lastVerifiedAt": "2026-11-21T09:56:39.316Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.485Z"
         },
         {
           "name": "opportunitiesNewButton",
@@ -427,7 +414,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Related/Opportunities/New",
-          "lastVerifiedAt": "2026-11-21T09:56:39.362Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.502Z"
         },
         {
           "name": "showMoreActionsButton",
@@ -439,7 +426,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Show more actions",
-          "lastVerifiedAt": "2026-11-21T09:56:39.161Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.417Z"
         },
         {
           "name": "viewAccountHierarchyButton",
@@ -451,7 +438,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:View Account Hierarchy",
-          "lastVerifiedAt": "2026-11-21T09:56:38.928Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.341Z"
         },
         {
           "name": "activityTab",
@@ -463,7 +450,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "tab:Tabs/Activity",
-          "lastVerifiedAt": "2026-11-21T09:56:39.385Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.515Z"
         },
         {
           "name": "chatterTab",
@@ -475,7 +462,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "tab:Tabs/Chatter",
-          "lastVerifiedAt": "2026-11-21T09:56:39.409Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.527Z"
         },
         {
           "name": "detailsTab",
@@ -487,7 +474,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "tab:Tabs/Details",
-          "lastVerifiedAt": "2026-11-21T09:56:39.243Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.452Z"
         },
         {
           "name": "relatedTab",
@@ -499,7 +486,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "tab:Tabs/Related",
-          "lastVerifiedAt": "2026-11-21T09:56:39.208Z"
+          "lastVerifiedAt": "2026-11-25T12:09:11.440Z"
         }
       ]
     },
@@ -562,7 +549,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Activity/Email",
-          "lastVerifiedAt": "2026-11-21T09:56:57.121Z"
+          "lastVerifiedAt": "2026-11-25T12:09:25.052Z"
         },
         {
           "name": "expandAllShowDetailsForActivitiesInTheTimelineButton",
@@ -574,7 +561,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Activity/Expand All. Show details for activities in the timeline.",
-          "lastVerifiedAt": "2026-11-21T09:56:57.309Z"
+          "lastVerifiedAt": "2026-11-25T12:09:25.133Z"
         },
         {
           "name": "moreEmailActionsButton",
@@ -586,7 +573,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Activity/More Email Actions",
-          "lastVerifiedAt": "2026-11-21T09:56:57.177Z"
+          "lastVerifiedAt": "2026-11-25T12:09:25.073Z"
         },
         {
           "name": "refreshButton",
@@ -598,7 +585,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Activity/Refresh",
-          "lastVerifiedAt": "2026-11-21T09:56:57.264Z"
+          "lastVerifiedAt": "2026-11-25T12:09:25.114Z"
         },
         {
           "name": "timelineSettingsButton",
@@ -610,7 +597,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Activity/Timeline Settings",
-          "lastVerifiedAt": "2026-11-21T09:56:57.222Z"
+          "lastVerifiedAt": "2026-11-25T12:09:25.094Z"
         },
         {
           "name": "upcomingAndOverdueButton",
@@ -622,7 +609,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Activity/Upcoming & Overdue",
-          "lastVerifiedAt": "2026-11-21T09:56:57.389Z"
+          "lastVerifiedAt": "2026-11-25T12:09:25.176Z"
         },
         {
           "name": "viewAllButton",
@@ -634,7 +621,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Activity/View All",
-          "lastVerifiedAt": "2026-11-21T09:56:57.347Z"
+          "lastVerifiedAt": "2026-11-25T12:09:25.157Z"
         },
         {
           "name": "changeOwnerButton",
@@ -646,7 +633,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Change Owner",
-          "lastVerifiedAt": "2026-11-21T09:56:56.706Z"
+          "lastVerifiedAt": "2026-11-25T12:09:24.891Z"
         },
         {
           "name": "deleteButton",
@@ -658,7 +645,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Delete",
-          "lastVerifiedAt": "2026-11-21T09:56:56.528Z"
+          "lastVerifiedAt": "2026-11-25T12:09:24.828Z"
         },
         {
           "name": "additionalInformationButton",
@@ -670,7 +657,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Additional Information",
-          "lastVerifiedAt": "2026-11-21T09:57:03.479Z"
+          "lastVerifiedAt": "2026-11-25T12:09:29.998Z"
         },
         {
           "name": "addressInformationButton",
@@ -682,7 +669,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Address Information",
-          "lastVerifiedAt": "2026-11-21T09:57:03.344Z"
+          "lastVerifiedAt": "2026-11-25T12:09:29.940Z"
         },
         {
           "name": "detailsChangeOwnerButton",
@@ -695,7 +682,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Change Owner",
-          "lastVerifiedAt": "2026-11-21T09:57:02.894Z"
+          "lastVerifiedAt": "2026-11-25T12:09:29.829Z"
         },
         {
           "name": "editAccountNameButton",
@@ -708,7 +695,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Account Name",
-          "lastVerifiedAt": "2026-11-21T09:57:03.105Z"
+          "lastVerifiedAt": "2026-11-25T12:09:29.884Z"
         },
         {
           "name": "editAssistantButton",
@@ -720,7 +707,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Assistant",
-          "lastVerifiedAt": "2026-11-21T09:57:03.730Z"
+          "lastVerifiedAt": "2026-11-25T12:09:30.083Z"
         },
         {
           "name": "editAsstPhoneButton",
@@ -733,7 +720,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Asst. Phone",
-          "lastVerifiedAt": "2026-11-21T09:57:03.870Z"
+          "lastVerifiedAt": "2026-11-25T12:09:30.109Z"
         },
         {
           "name": "editBirthdateButton",
@@ -746,7 +733,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Birthdate",
-          "lastVerifiedAt": "2026-11-21T09:57:03.792Z"
+          "lastVerifiedAt": "2026-11-25T12:09:30.097Z"
         },
         {
           "name": "editDepartmentButton",
@@ -759,7 +746,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Department",
-          "lastVerifiedAt": "2026-11-21T09:57:03.926Z"
+          "lastVerifiedAt": "2026-11-25T12:09:30.129Z"
         },
         {
           "name": "editDescriptionButton",
@@ -772,7 +759,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Description",
-          "lastVerifiedAt": "2026-11-21T09:57:03.981Z"
+          "lastVerifiedAt": "2026-11-25T12:09:30.147Z"
         },
         {
           "name": "editEmailButton",
@@ -785,7 +772,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Email",
-          "lastVerifiedAt": "2026-11-21T09:57:03.152Z"
+          "lastVerifiedAt": "2026-11-25T12:09:29.898Z"
         },
         {
           "name": "editFaxButton",
@@ -798,7 +785,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Fax",
-          "lastVerifiedAt": "2026-11-21T09:57:03.537Z"
+          "lastVerifiedAt": "2026-11-25T12:09:30.015Z"
         },
         {
           "name": "editHomePhoneButton",
@@ -811,7 +798,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Home Phone",
-          "lastVerifiedAt": "2026-11-21T09:57:03.626Z"
+          "lastVerifiedAt": "2026-11-25T12:09:30.048Z"
         },
         {
           "name": "editLeadSourceButton",
@@ -824,7 +811,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Lead Source",
-          "lastVerifiedAt": "2026-11-21T09:57:03.583Z"
+          "lastVerifiedAt": "2026-11-25T12:09:30.031Z"
         },
         {
           "name": "editMailingAddressButton",
@@ -837,7 +824,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Mailing Address",
-          "lastVerifiedAt": "2026-11-21T09:57:03.385Z"
+          "lastVerifiedAt": "2026-11-25T12:09:29.958Z"
         },
         {
           "name": "editMobileButton",
@@ -849,7 +836,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Mobile",
-          "lastVerifiedAt": "2026-11-21T09:57:03.048Z"
+          "lastVerifiedAt": "2026-11-25T12:09:29.873Z"
         },
         {
           "name": "editNameButton",
@@ -862,7 +849,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Name",
-          "lastVerifiedAt": "2026-11-21T09:57:02.999Z"
+          "lastVerifiedAt": "2026-11-25T12:09:29.857Z"
         },
         {
           "name": "editOtherAddressButton",
@@ -875,7 +862,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Other Address",
-          "lastVerifiedAt": "2026-11-21T09:57:03.419Z"
+          "lastVerifiedAt": "2026-11-25T12:09:29.979Z"
         },
         {
           "name": "editOtherPhoneButton",
@@ -888,7 +875,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Other Phone",
-          "lastVerifiedAt": "2026-11-21T09:57:03.671Z"
+          "lastVerifiedAt": "2026-11-25T12:09:30.062Z"
         },
         {
           "name": "editPhoneButton",
@@ -901,20 +888,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Phone",
-          "lastVerifiedAt": "2026-11-21T09:57:02.947Z"
-        },
-        {
-          "name": "editQARunIdButton",
-          "ref": "contact-record.editQARunIdButton",
-          "kind": "element",
-          "role": "button",
-          "accessibleName": "Edit QA Run Id",
-          "fieldApiName": "Contact.QA_Run_Id__c",
-          "expression": "getByRole('main').getByRole('button', { name: 'Edit QA Run Id', exact: true })",
-          "strategyRank": 1,
-          "status": "ACTIVE",
-          "registryElement": "button:Details/Edit QA Run Id",
-          "lastVerifiedAt": "2026-11-21T09:57:03.293Z"
+          "lastVerifiedAt": "2026-11-25T12:09:29.846Z"
         },
         {
           "name": "editReportsToButton",
@@ -927,7 +901,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Reports To",
-          "lastVerifiedAt": "2026-11-21T09:57:03.252Z"
+          "lastVerifiedAt": "2026-11-25T12:09:29.926Z"
         },
         {
           "name": "editTitleButton",
@@ -940,7 +914,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/Edit Title",
-          "lastVerifiedAt": "2026-11-21T09:57:03.205Z"
+          "lastVerifiedAt": "2026-11-25T12:09:29.912Z"
         },
         {
           "name": "systemInformationButton",
@@ -952,7 +926,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Details/System Information",
-          "lastVerifiedAt": "2026-11-21T09:57:04.046Z"
+          "lastVerifiedAt": "2026-11-25T12:09:30.164Z"
         },
         {
           "name": "editButton",
@@ -964,7 +938,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Edit",
-          "lastVerifiedAt": "2026-11-21T09:56:56.485Z"
+          "lastVerifiedAt": "2026-11-25T12:09:24.813Z"
         },
         {
           "name": "followButton",
@@ -976,7 +950,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Follow",
-          "lastVerifiedAt": "2026-11-21T09:56:56.441Z"
+          "lastVerifiedAt": "2026-11-25T12:09:24.794Z"
         },
         {
           "name": "phone2Button",
@@ -988,7 +962,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Phone (2)",
-          "lastVerifiedAt": "2026-11-21T09:56:56.641Z"
+          "lastVerifiedAt": "2026-11-25T12:09:24.873Z"
         },
         {
           "name": "addToCampaignButton",
@@ -1000,7 +974,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Related/Campaign History/Add to Campaign",
-          "lastVerifiedAt": "2026-11-21T09:56:57.012Z"
+          "lastVerifiedAt": "2026-11-25T12:09:25.005Z"
         },
         {
           "name": "casesNewButton",
@@ -1013,7 +987,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Related/Cases/New",
-          "lastVerifiedAt": "2026-11-21T09:56:56.881Z"
+          "lastVerifiedAt": "2026-11-25T12:09:24.954Z"
         },
         {
           "name": "uploadFilesButton",
@@ -1025,7 +999,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Related/Notes & Attachments/Upload Files",
-          "lastVerifiedAt": "2026-11-21T09:56:56.928Z"
+          "lastVerifiedAt": "2026-11-25T12:09:24.969Z"
         },
         {
           "name": "uploadFilesOrDropFilesButton",
@@ -1037,7 +1011,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Related/Notes & Attachments/Upload Files Or drop files",
-          "lastVerifiedAt": "2026-11-21T09:56:56.973Z"
+          "lastVerifiedAt": "2026-11-25T12:09:24.987Z"
         },
         {
           "name": "opportunitiesNewButton",
@@ -1050,7 +1024,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Related/Opportunities/New",
-          "lastVerifiedAt": "2026-11-21T09:56:56.824Z"
+          "lastVerifiedAt": "2026-11-25T12:09:24.933Z"
         },
         {
           "name": "showMoreActionsButton",
@@ -1062,7 +1036,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:Show more actions",
-          "lastVerifiedAt": "2026-11-21T09:56:56.570Z"
+          "lastVerifiedAt": "2026-11-25T12:09:24.846Z"
         },
         {
           "name": "activityTab",
@@ -1074,7 +1048,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "tab:Tabs/Activity",
-          "lastVerifiedAt": "2026-11-21T09:56:57.045Z"
+          "lastVerifiedAt": "2026-11-25T12:09:25.017Z"
         },
         {
           "name": "chatterTab",
@@ -1086,7 +1060,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "tab:Tabs/Chatter",
-          "lastVerifiedAt": "2026-11-21T09:56:57.080Z"
+          "lastVerifiedAt": "2026-11-25T12:09:25.030Z"
         },
         {
           "name": "detailsTab",
@@ -1098,7 +1072,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "tab:Tabs/Details",
-          "lastVerifiedAt": "2026-11-21T09:56:56.769Z"
+          "lastVerifiedAt": "2026-11-25T12:09:24.916Z"
         },
         {
           "name": "relatedTab",
@@ -1110,7 +1084,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "tab:Tabs/Related",
-          "lastVerifiedAt": "2026-11-21T09:56:56.738Z"
+          "lastVerifiedAt": "2026-11-25T12:09:24.903Z"
         }
       ]
     },
@@ -1163,7 +1137,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:New Contact/Cancel",
-          "lastVerifiedAt": "2026-11-21T09:57:17.387Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.753Z"
         },
         {
           "name": "cancelAndCloseButton",
@@ -1175,7 +1149,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:New Contact/Cancel and close",
-          "lastVerifiedAt": "2026-11-21T09:57:16.044Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.031Z"
         },
         {
           "name": "clearAccountNameSelectionButton",
@@ -1187,7 +1161,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:New Contact/Clear Account Name Selection",
-          "lastVerifiedAt": "2026-11-21T09:57:16.324Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.150Z"
         },
         {
           "name": "saveButton",
@@ -1199,7 +1173,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:New Contact/Save",
-          "lastVerifiedAt": "2026-11-21T09:57:17.456Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.807Z"
         },
         {
           "name": "saveAndNewButton",
@@ -1211,7 +1185,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:New Contact/Save & New",
-          "lastVerifiedAt": "2026-11-21T09:57:17.418Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.777Z"
         },
         {
           "name": "selectADateForBirthdateButton",
@@ -1223,7 +1197,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "button:New Contact/Select a date for Birthdate",
-          "lastVerifiedAt": "2026-11-21T09:57:17.139Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.550Z"
         },
         {
           "name": "accountId",
@@ -1236,7 +1210,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "combobox:New Contact/Account Name",
-          "lastVerifiedAt": "2026-11-21T09:57:16.290Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.135Z"
         },
         {
           "name": "leadSource",
@@ -1249,7 +1223,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "combobox:New Contact/Lead Source",
-          "lastVerifiedAt": "2026-11-21T09:57:17.040Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.472Z"
         },
         {
           "name": "mailingAddressAddressSearch",
@@ -1262,7 +1236,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "combobox:New Contact/Mailing Address/Address Search",
-          "lastVerifiedAt": "2026-11-21T09:57:16.531Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.230Z"
         },
         {
           "name": "salutation",
@@ -1275,7 +1249,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "combobox:New Contact/Name required/Salutation",
-          "lastVerifiedAt": "2026-11-21T09:57:16.124Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.071Z"
         },
         {
           "name": "otherAddressAddressSearch",
@@ -1288,7 +1262,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "combobox:New Contact/Other Address/Address Search",
-          "lastVerifiedAt": "2026-11-21T09:57:16.773Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.345Z"
         },
         {
           "name": "reportsToId",
@@ -1301,7 +1275,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "combobox:New Contact/Reports To",
-          "lastVerifiedAt": "2026-11-21T09:57:16.445Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.208Z"
         },
         {
           "name": "assistant",
@@ -1313,7 +1287,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Assistant",
-          "lastVerifiedAt": "2026-11-21T09:57:17.275Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.642Z"
         },
         {
           "name": "assistantPhone",
@@ -1326,7 +1300,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Asst. Phone",
-          "lastVerifiedAt": "2026-11-21T09:57:17.315Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.699Z"
         },
         {
           "name": "birthdate",
@@ -1339,7 +1313,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Birthdate",
-          "lastVerifiedAt": "2026-11-21T09:57:17.107Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.529Z"
         },
         {
           "name": "department",
@@ -1352,7 +1326,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Department",
-          "lastVerifiedAt": "2026-11-21T09:57:17.235Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.612Z"
         },
         {
           "name": "description",
@@ -1365,7 +1339,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Description",
-          "lastVerifiedAt": "2026-11-21T09:57:17.357Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.730Z"
         },
         {
           "name": "email",
@@ -1378,7 +1352,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Email",
-          "lastVerifiedAt": "2026-11-21T09:57:16.365Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.164Z"
         },
         {
           "name": "fax",
@@ -1391,7 +1365,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Fax",
-          "lastVerifiedAt": "2026-11-21T09:57:17.015Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.455Z"
         },
         {
           "name": "homePhone",
@@ -1404,7 +1378,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Home Phone",
-          "lastVerifiedAt": "2026-11-21T09:57:17.072Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.499Z"
         },
         {
           "name": "mailingCity",
@@ -1417,7 +1391,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Mailing Address/Mailing City",
-          "lastVerifiedAt": "2026-11-21T09:57:16.616Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.270Z"
         },
         {
           "name": "mailingCountry",
@@ -1430,7 +1404,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Mailing Address/Mailing Country",
-          "lastVerifiedAt": "2026-11-21T09:57:16.731Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.324Z"
         },
         {
           "name": "mailingState",
@@ -1443,7 +1417,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Mailing Address/Mailing State/Province",
-          "lastVerifiedAt": "2026-11-21T09:57:16.695Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.302Z"
         },
         {
           "name": "mailingStreet",
@@ -1456,7 +1430,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Mailing Address/Mailing Street",
-          "lastVerifiedAt": "2026-11-21T09:57:16.576Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.249Z"
         },
         {
           "name": "mailingPostalCode",
@@ -1469,7 +1443,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Mailing Address/Mailing Zip/Postal Code",
-          "lastVerifiedAt": "2026-11-21T09:57:16.658Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.285Z"
         },
         {
           "name": "mobile",
@@ -1481,7 +1455,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Mobile",
-          "lastVerifiedAt": "2026-11-21T09:57:16.258Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.124Z"
         },
         {
           "name": "firstName",
@@ -1494,7 +1468,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Name required/First Name",
-          "lastVerifiedAt": "2026-11-21T09:57:16.182Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.094Z"
         },
         {
           "name": "lastName",
@@ -1507,7 +1481,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Name required/Last Name",
-          "lastVerifiedAt": "2026-11-21T09:57:16.221Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.110Z"
         },
         {
           "name": "otherCity",
@@ -1520,7 +1494,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Other Address/Other City",
-          "lastVerifiedAt": "2026-11-21T09:57:16.859Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.382Z"
         },
         {
           "name": "otherCountry",
@@ -1533,7 +1507,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Other Address/Other Country",
-          "lastVerifiedAt": "2026-11-21T09:57:16.980Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.435Z"
         },
         {
           "name": "otherState",
@@ -1546,7 +1520,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Other Address/Other State/Province",
-          "lastVerifiedAt": "2026-11-21T09:57:16.942Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.417Z"
         },
         {
           "name": "otherStreet",
@@ -1559,7 +1533,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Other Address/Other Street",
-          "lastVerifiedAt": "2026-11-21T09:57:16.814Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.363Z"
         },
         {
           "name": "otherPostalCode",
@@ -1572,7 +1546,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Other Address/Other Zip/Postal Code",
-          "lastVerifiedAt": "2026-11-21T09:57:16.903Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.402Z"
         },
         {
           "name": "otherPhone",
@@ -1585,7 +1559,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Other Phone",
-          "lastVerifiedAt": "2026-11-21T09:57:17.191Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.583Z"
         },
         {
           "name": "phone",
@@ -1598,20 +1572,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Phone",
-          "lastVerifiedAt": "2026-11-21T09:57:16.086Z"
-        },
-        {
-          "name": "qARunId",
-          "ref": "contact-new.qARunId",
-          "kind": "element",
-          "role": "textbox",
-          "accessibleName": "QA Run Id",
-          "fieldApiName": "Contact.QA_Run_Id__c",
-          "expression": "getByRole('dialog', { name: 'New Contact' }).getByRole('textbox', { name: 'QA Run Id', exact: true })",
-          "strategyRank": 1,
-          "status": "ACTIVE",
-          "registryElement": "textbox:New Contact/QA Run Id",
-          "lastVerifiedAt": "2026-11-21T09:57:16.483Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.052Z"
         },
         {
           "name": "title",
@@ -1624,7 +1585,7 @@
           "strategyRank": 1,
           "status": "ACTIVE",
           "registryElement": "textbox:New Contact/Title",
-          "lastVerifiedAt": "2026-11-21T09:57:16.418Z"
+          "lastVerifiedAt": "2026-11-25T12:09:39.183Z"
         }
       ]
     }

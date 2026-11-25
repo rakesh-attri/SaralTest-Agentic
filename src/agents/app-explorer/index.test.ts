@@ -63,6 +63,28 @@ describe('locator registry rules', () => {
       LocatorEntry.safeParse({ ...base, strategy: 'css', strategyRank: 5, expression: "locator('[name=x]')" }).success,
     ).toBe(false);
   });
+  it('retires elements a successful exploration no longer observed (2026-11-25: QA Run Id left the layouts)', () => {
+    const reg = new LocatorRegistry(join(mkdtempSync(join(tmpdir(), 'registry ')), 'locators.db'));
+    reg.upsert([
+      { ...base, element: 'textbox:Last Name', status: 'ACTIVE' },
+      { ...base, element: 'textbox:QA Run Id', status: 'ACTIVE' },
+      { ...base, element: 'textbox:Other persona', persona: 'sales-rep', status: 'ACTIVE' },
+    ]);
+    expect(reg.retireMissing(base.org, base.page, base.persona, ['textbox:Last Name'])).toEqual(['textbox:QA Run Id']);
+    expect(reg.list({ status: 'RETIRED' }).map((l) => l.element)).toEqual(['textbox:QA Run Id']);
+    // Other personas' rows and already-retired rows are untouched; retiring again is a no-op.
+    expect(
+      reg
+        .list({ status: 'ACTIVE' })
+        .map((l) => l.element)
+        .sort(),
+    ).toEqual(['textbox:Last Name', 'textbox:Other persona']);
+    expect(reg.retireMissing(base.org, base.page, base.persona, ['textbox:Last Name'])).toEqual([]);
+    // Seen again later → upsert makes it ACTIVE again.
+    reg.upsert([{ ...base, element: 'textbox:QA Run Id', status: 'ACTIVE' }]);
+    expect(reg.list({ status: 'RETIRED' })).toEqual([]);
+  });
+
   it('upserts by (org, page, element, persona) and marks RE_VERIFY by field', () => {
     const reg = new LocatorRegistry(join(mkdtempSync(join(tmpdir(), 'registry ')), 'locators.db'));
     // Same key twice: the later verification replaces the earlier one.

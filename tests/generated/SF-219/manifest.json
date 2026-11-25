@@ -174,12 +174,10 @@
         "account-contact"
       ],
       "origin": "generated",
-      "reviewReasons": [
-        "RF-001 assertion-missing: step 1 tabOrder: the keyboard check must cover every field of contact-new.root; missing contact-new.qARunId"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
       "buildRun": "run-p4-coder-nim-8",
-      "reviewedBy": "review2-20261121-153613-91da"
+      "reviewedBy": "review2-20261125-174039-60fb"
     },
     {
       "kind": "spec",

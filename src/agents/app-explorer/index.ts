@@ -30,7 +30,9 @@ export interface RunExplorerInput {
  * Explore pages as the run's persona and register locators (read-only). Record ids come from read-only SOQL on
  * existing records; the browser session comes from the frontdoor storageState.
  */
-export async function runExplorer(i: RunExplorerInput): Promise<{ pages: PageResult[]; registered: number }> {
+export async function runExplorer(
+  i: RunExplorerInput,
+): Promise<{ pages: PageResult[]; registered: number; retired: { page: string; elements: string[] }[] }> {
   const log = i.log ?? (() => undefined);
   const unknown = i.pageIds.filter((p) => !PAGES[p]);
   if (unknown.length)
@@ -95,6 +97,13 @@ export async function runExplorer(i: RunExplorerInput): Promise<{ pages: PageRes
       log,
     });
     const registered = i.registry.upsert(out.entries);
+    // Elements no longer observed on a page that was explored successfully are retired.
+    const retired: { page: string; elements: string[] }[] = [];
+    for (const p of out.pages.filter((x) => !x.error)) {
+      const seen = out.entries.filter((e) => e.page === p.page).map((e) => e.element);
+      const gone = i.registry.retireMissing(i.ctx.org.orgId, p.page, i.ctx.persona.id, seen);
+      if (gone.length) retired.push({ page: p.page, elements: gone });
+    }
     if (i.snapshots && snapshot) {
       for (const p of out.pages.filter((x) => !x.error)) {
         i.snapshots.recordLineage({
@@ -109,7 +118,7 @@ export async function runExplorer(i: RunExplorerInput): Promise<{ pages: PageRes
       const linked = linkAssets(assetsFromRegistry(i.registry, i.ctx.org.orgId), snapshot.components);
       i.graph.addEdges(i.ctx.org.orgId, linked.nodes, linked.edges);
     }
-    return { pages: out.pages, registered };
+    return { pages: out.pages, registered, retired };
   } finally {
     await browser.close().catch(() => undefined);
   }

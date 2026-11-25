@@ -30,59 +30,59 @@ export class AccountRecordPage {
     return this.page.getByRole('main').getByRole('article', { name: 'Opportunities', exact: true });
   }
 
-  /** button:Activity/Email · button "Email" · rank 1 · verified 2026-11-21 */
+  /** button:Activity/Email · button "Email" · rank 1 · verified 2026-11-25 */
   get emailButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Email', exact: true });
   }
 
-  /** button:Activity/Expand All. Show details for activities in the timeline. · button "Expand All. Show details for activities in the timeline." · rank 1 · verified 2026-11-21 */
+  /** button:Activity/Expand All. Show details for activities in the timeline. · button "Expand All. Show details for activities in the timeline." · rank 1 · verified 2026-11-25 */
   get expandAllShowDetailsForActivitiesInTheTimelineButton(): Locator {
     return this.page
       .getByRole('main')
       .getByRole('button', { name: 'Expand All. Show details for activities in the timeline.', exact: true });
   }
 
-  /** button:Activity/More Email Actions · button "More Email Actions" · rank 1 · verified 2026-11-21 */
+  /** button:Activity/More Email Actions · button "More Email Actions" · rank 1 · verified 2026-11-25 */
   get moreEmailActionsButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'More Email Actions', exact: true });
   }
 
-  /** button:Activity/Refresh · button "Refresh" · rank 1 · verified 2026-11-21 */
+  /** button:Activity/Refresh · button "Refresh" · rank 1 · verified 2026-11-25 */
   get refreshButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Refresh', exact: true });
   }
 
-  /** button:Activity/Timeline Settings · button "Timeline Settings" · rank 1 · verified 2026-11-21 */
+  /** button:Activity/Timeline Settings · button "Timeline Settings" · rank 1 · verified 2026-11-25 */
   get timelineSettingsButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Timeline Settings', exact: true });
   }
 
-  /** button:Activity/Upcoming & Overdue · button "Upcoming & Overdue" · rank 1 · verified 2026-11-21 */
+  /** button:Activity/Upcoming & Overdue · button "Upcoming & Overdue" · rank 1 · verified 2026-11-25 */
   get upcomingAndOverdueButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Upcoming & Overdue', exact: true });
   }
 
-  /** button:Activity/View All · button "View All" · rank 1 · verified 2026-11-21 */
+  /** button:Activity/View All · button "View All" · rank 1 · verified 2026-11-25 */
   get viewAllButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'View All', exact: true });
   }
 
-  /** button:Delete · button "Delete" · rank 1 · verified 2026-11-21 */
+  /** button:Delete · button "Delete" · rank 1 · verified 2026-11-25 */
   get deleteButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Delete', exact: true });
   }
 
-  /** button:Details/Additional Information · button "Additional Information" · rank 1 · verified 2026-11-21 */
+  /** button:Details/Additional Information · button "Additional Information" · rank 1 · verified 2026-11-25 */
   get additionalInformationButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Additional Information', exact: true });
   }
 
-  /** button:Details/Address Information · button "Address Information" · rank 1 · verified 2026-11-21 */
+  /** button:Details/Address Information · button "Address Information" · rank 1 · verified 2026-11-25 */
   get addressInformationButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Address Information', exact: true });
   }
 
-  /** button:Details/Change Owner · button "Change Owner" · rank 1 · verified 2026-11-21 */
+  /** button:Details/Change Owner · button "Change Owner" · rank 1 · verified 2026-11-25 */
   get detailsChangeOwnerButton(): Locator {
     return this.page
       .getByRole('main')
@@ -90,92 +90,87 @@ export class AccountRecordPage {
       .getByRole('button', { name: 'Change Owner', exact: true });
   }
 
-  /** button:Details/Custom Links · button "Custom Links" · rank 1 · verified 2026-11-21 */
+  /** button:Details/Custom Links · button "Custom Links" · rank 1 · verified 2026-11-25 */
   get customLinksButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Custom Links', exact: true });
   }
 
-  /** Account.Name · button "Edit Account Name" · rank 1 · verified 2026-11-21 */
+  /** Account.Name · button "Edit Account Name" · rank 1 · verified 2026-11-25 */
   get editAccountNameButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Edit Account Name', exact: true });
   }
 
-  /** Account.AnnualRevenue · button "Edit Annual Revenue" · rank 1 · verified 2026-11-21 */
+  /** Account.AnnualRevenue · button "Edit Annual Revenue" · rank 1 · verified 2026-11-25 */
   get editAnnualRevenueButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Edit Annual Revenue', exact: true });
   }
 
-  /** Account.BillingAddress · button "Edit Billing Address" · rank 1 · verified 2026-11-21 */
+  /** Account.BillingAddress · button "Edit Billing Address" · rank 1 · verified 2026-11-25 */
   get editBillingAddressButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Edit Billing Address', exact: true });
   }
 
-  /** Account.Description · button "Edit Description" · rank 1 · verified 2026-11-21 */
+  /** Account.Description · button "Edit Description" · rank 1 · verified 2026-11-25 */
   get editDescriptionButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Edit Description', exact: true });
   }
 
-  /** Account.NumberOfEmployees · button "Edit Employees" · rank 1 · verified 2026-11-21 */
+  /** Account.NumberOfEmployees · button "Edit Employees" · rank 1 · verified 2026-11-25 */
   get editEmployeesButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Edit Employees', exact: true });
   }
 
-  /** Account.Fax · button "Edit Fax" · rank 1 · verified 2026-11-21 */
+  /** Account.Fax · button "Edit Fax" · rank 1 · verified 2026-11-25 */
   get editFaxButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Edit Fax', exact: true });
   }
 
-  /** Account.Industry · button "Edit Industry" · rank 1 · verified 2026-11-21 */
+  /** Account.Industry · button "Edit Industry" · rank 1 · verified 2026-11-25 */
   get editIndustryButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Edit Industry', exact: true });
   }
 
-  /** Account.ParentId · button "Edit Parent Account" · rank 1 · verified 2026-11-21 */
+  /** Account.ParentId · button "Edit Parent Account" · rank 1 · verified 2026-11-25 */
   get editParentAccountButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Edit Parent Account', exact: true });
   }
 
-  /** Account.Phone · button "Edit Phone" · rank 1 · verified 2026-11-21 */
+  /** Account.Phone · button "Edit Phone" · rank 1 · verified 2026-11-25 */
   get editPhoneButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Edit Phone', exact: true });
   }
 
-  /** Account.QA_Run_Id__c · button "Edit QA Run Id" · rank 1 · verified 2026-11-21 */
-  get editQARunIdButton(): Locator {
-    return this.page.getByRole('main').getByRole('button', { name: 'Edit QA Run Id', exact: true });
-  }
-
-  /** Account.ShippingAddress · button "Edit Shipping Address" · rank 1 · verified 2026-11-21 */
+  /** Account.ShippingAddress · button "Edit Shipping Address" · rank 1 · verified 2026-11-25 */
   get editShippingAddressButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Edit Shipping Address', exact: true });
   }
 
-  /** Account.Type · button "Edit Type" · rank 1 · verified 2026-11-21 */
+  /** Account.Type · button "Edit Type" · rank 1 · verified 2026-11-25 */
   get editTypeButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Edit Type', exact: true });
   }
 
-  /** Account.Website · button "Edit Website" · rank 1 · verified 2026-11-21 */
+  /** Account.Website · button "Edit Website" · rank 1 · verified 2026-11-25 */
   get editWebsiteButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Edit Website', exact: true });
   }
 
-  /** button:Details/System Information · button "System Information" · rank 1 · verified 2026-11-21 */
+  /** button:Details/System Information · button "System Information" · rank 1 · verified 2026-11-25 */
   get systemInformationButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'System Information', exact: true });
   }
 
-  /** button:Edit · button "Edit" · rank 1 · verified 2026-11-21 */
+  /** button:Edit · button "Edit" · rank 1 · verified 2026-11-25 */
   get editButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Edit', exact: true });
   }
 
-  /** button:Follow · button "Follow" · rank 1 · verified 2026-11-21 */
+  /** button:Follow · button "Follow" · rank 1 · verified 2026-11-25 */
   get followButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Follow', exact: true });
   }
 
-  /** button:Related/Contacts/New · button "New" · rank 1 · verified 2026-11-21 */
+  /** button:Related/Contacts/New · button "New" · rank 1 · verified 2026-11-25 */
   get contactsNewButton(): Locator {
     return this.page
       .getByRole('main')
@@ -183,7 +178,7 @@ export class AccountRecordPage {
       .getByRole('button', { name: 'New', exact: true });
   }
 
-  /** button:Related/Opportunities/New · button "New" · rank 1 · verified 2026-11-21 */
+  /** button:Related/Opportunities/New · button "New" · rank 1 · verified 2026-11-25 */
   get opportunitiesNewButton(): Locator {
     return this.page
       .getByRole('main')
@@ -191,32 +186,32 @@ export class AccountRecordPage {
       .getByRole('button', { name: 'New', exact: true });
   }
 
-  /** button:Show more actions · button "Show more actions" · rank 1 · verified 2026-11-21 */
+  /** button:Show more actions · button "Show more actions" · rank 1 · verified 2026-11-25 */
   get showMoreActionsButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'Show more actions', exact: true });
   }
 
-  /** button:View Account Hierarchy · button "View Account Hierarchy" · rank 1 · verified 2026-11-21 */
+  /** button:View Account Hierarchy · button "View Account Hierarchy" · rank 1 · verified 2026-11-25 */
   get viewAccountHierarchyButton(): Locator {
     return this.page.getByRole('main').getByRole('button', { name: 'View Account Hierarchy', exact: true });
   }
 
-  /** tab:Tabs/Activity · tab "Activity" · rank 1 · verified 2026-11-21 */
+  /** tab:Tabs/Activity · tab "Activity" · rank 1 · verified 2026-11-25 */
   get activityTab(): Locator {
     return this.page.getByRole('main').getByRole('tab', { name: 'Activity', exact: true });
   }
 
-  /** tab:Tabs/Chatter · tab "Chatter" · rank 1 · verified 2026-11-21 */
+  /** tab:Tabs/Chatter · tab "Chatter" · rank 1 · verified 2026-11-25 */
   get chatterTab(): Locator {
     return this.page.getByRole('main').getByRole('tab', { name: 'Chatter', exact: true });
   }
 
-  /** tab:Tabs/Details · tab "Details" · rank 1 · verified 2026-11-21 */
+  /** tab:Tabs/Details · tab "Details" · rank 1 · verified 2026-11-25 */
   get detailsTab(): Locator {
     return this.page.getByRole('main').getByRole('tab', { name: 'Details', exact: true });
   }
 
-  /** tab:Tabs/Related · tab "Related" · rank 1 · verified 2026-11-21 */
+  /** tab:Tabs/Related · tab "Related" · rank 1 · verified 2026-11-25 */
   get relatedTab(): Locator {
     return this.page.getByRole('main').getByRole('tab', { name: 'Related', exact: true });
   }

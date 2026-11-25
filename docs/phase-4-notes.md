@@ -236,6 +236,30 @@ Run-to-run variance remains: 4–6 of 7 cases come from the coder per full build
     added to the Contact layout), and the spec's keyboard check does not cover it;
   - next step: regenerate TC-022 (`qa build --cases TC-SF-219-022`), or remove the run-tag field from the layout.
 
+## Re-check on 2026-11-25: fresh snapshot, Phone rule, locators, TC-022 pass 2
+
+- **`qa discover --org qa-prod`** (`run-p4-discover-3`) → `snap-00DdN00000uQ5dK-20261125120518-86ab`. The diff
+  against `…c1ce` has one change: the admin **removed QA Run Id from the Account and Contact layouts**. No RE_VERIFY
+  marks were raised.
+- **Phone rule re-verified:** `Contact.Phone_Must_Be_10_Digits` has the same hash as in `…b92b` / `…e218` /
+  `…c1ce` — active, same message. `Phone_Required_For_Web` and `Title_Must_Be_Approved` are unchanged. The behaviour
+  (a rejected write) was not re-tested: that needs a data write under a new recipe approval.
+- **Fix, locator retirement:** exploration only upserted what it saw, so the 3 QA Run Id locators stayed ACTIVE after
+  the field left the layouts. `LocatorRegistry.retireMissing` now marks elements not observed on a successfully
+  explored page **RETIRED** (kept for history; a later sighting re-activates them). There is a regression test in
+  `app-explorer/index.test.ts`.
+- **Live re-exploration** (`qa locators discover --org qa-prod`, observe only):
+  - 115 ACTIVE, verified 2026-11-25 — account-record 35, contact-record 44, contact-new 36 (incl. the Phone field);
+  - 3 RETIRED — the QA Run Id field and its two edit buttons.
+  - Page objects were regenerated with no QA Run Id member.
+- **TC-022** (`qa review --pass 2 --run run-p4-coder-nim-8 --cases TC-SF-219-022` → `review2-20261125-174039-60fb`):
+  - **APPROVED**;
+  - judge `nvidia-nim/minimaxai/minimax-m3.1-flash` (LIVE) with 0 findings;
+  - tsc / ESLint 0 errors, listed;
+  - live dry-run 36/36, including `contact-new.phone` (count 1, visible, enabled).
+- **SF-219 set now:** 4 APPROVED (TC-004, TC-012, TC-013, TC-022) and 3 REVIEW_REQUIRED (TC-002, TC-003, TC-023).
+  `pnpm validate:build run-p4-tc004-3` → valid; 520 tests green.
+
 ## Not verified / known limits
 
 - **The specs have not been executed** (Phase 5). APPROVED means generated, typechecked, linted, listed,

@@ -35,6 +35,7 @@ export async function exploreAndRegister(
     for (const p of r.pages) {
       say(`  ${p.page}: ${p.error ? `FAILED (${p.error})` : `${p.locators} locators`} via ${p.path || '?'}`);
     }
+    for (const x of r.retired) say(`  ${x.page}: retired (no longer on the page): ${x.elements.join(', ')}`);
     const pages = registry.pages(ctx.org.orgId);
     say(`Registry: ${pages.map((p) => `${p.page}=${p.count}`).join(', ')} (${registryFile(ctx.root)})`);
     return r.pages.filter((p) => !p.error).length;
