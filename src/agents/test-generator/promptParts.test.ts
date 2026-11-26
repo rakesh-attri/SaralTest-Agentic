@@ -288,8 +288,9 @@ describe('cleanup is code-owned (operator 2026-11-25: the model never writes cle
     ir.steps[0]!.actions[1] = { do: 'fill', element: 'contact-new.lastName', value: lit };
     const n = normalizeIr(ir, ctx, recipe, tc);
     expect(n.steps[0]!.actions[1]).toMatchObject({ value: { kind: 'unique', label: 'test-contact' } });
-    expect(n.steps[0]!.assertions[1]).toMatchObject({ contains: { kind: 'unique', label: 'test-contact' } });
-    expect(n.steps[0]!.assertions[2]).toMatchObject({
+    // the model's own header check of the create step is replaced by the code-owned one (run-p5-build-1)
+    expect(n.steps[0]!.assertions.map((a) => a.check)).toEqual(['recordView', 'soqlField']);
+    expect(n.steps[0]!.assertions[1]).toMatchObject({
       field: 'Account.Name',
       equals: { kind: 'data', ref: 'Account', field: 'Name' },
     });
@@ -656,5 +657,158 @@ describe('accepted observed messages as assertion text (Phase 5)', () => {
       { check: 'fieldError', element: 'contact-new.lastName', message: { observed: 'om-dup' }, expect: ev },
     ]);
     expect(irProblems(CASE, wrongField, ctx, recipe).join(' ')).toMatch(/alert message, not field/);
+  });
+});
+
+describe('records created in the UI (run-p5-build-1: TC-010, 036, 046, 050)', () => {
+  const ctx0 = generationContext();
+  const recipe = bindRecipe(CASE, ctx0);
+  const at = '2026-11-26T10:00:00.000Z';
+  const ctx = {
+    ...ctx0,
+    observedMessages: [
+      {
+        org: 'o',
+        page: 'contact-new',
+        persona: 'system-admin',
+        snapshotId: 's',
+        observedAt: at,
+        runId: 'observe-8',
+        environment: 'LIVE' as const,
+        id: 'om-req',
+        field: 'Contact.LastName',
+        kind: 'required' as const,
+        placement: 'field' as const,
+        text: 'Complete this field.',
+        accepted: { by: 'QA operator', at },
+      },
+    ],
+  };
+  const ev = { caseStep: 0, evidenceIds: CASE.steps[0]!.expected.evidenceIds };
+  const ev1 = { caseStep: 1, evidenceIds: CASE.steps[1]!.expected.evidenceIds };
+  const name = { kind: 'unique' as const, label: 'last-name', format: 'text' as const };
+  const seedName = { kind: 'data' as const, ref: 'Contact', field: 'LastName' };
+  const create = (caseStep: number, assertions: IrAssertion[]): TestIR['steps'][number] => ({
+    caseStep,
+    title: 'Create a Contact',
+    actions: [
+      { do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' },
+      { do: 'fill', element: 'contact-new.lastName', value: name },
+      { do: 'click', element: 'contact-new.saveButton' },
+    ],
+    assertions,
+  });
+  const withSteps = (steps: TestIR['steps']): TestIR => ({ ...structuredClone(GOOD_IR), steps });
+
+  it("drops the model's toast / title / related-list checks of a create step and never lets 'as' shadow a recipe step", () => {
+    const n = normalizeIr(
+      withSteps([
+        create(0, [
+          { check: 'toast', contains: seedName, expect: ev },
+          { check: 'relatedListHasRecord', parentRef: 'Account', relatedList: 'Contacts', name: seedName, expect: ev },
+          { check: 'recordView', object: 'Contact', as: 'Contact', expect: ev },
+          { check: 'recordTitle', contains: seedName, expect: ev },
+          {
+            check: 'soqlField',
+            ref: 'Contact',
+            object: 'Contact',
+            field: 'Title',
+            equals: { kind: 'literal', value: 'Director', evidenceIds: ['SF-219#AC2'] },
+            expect: ev,
+          },
+        ]),
+      ]),
+      ctx,
+      recipe,
+      CASE,
+    );
+    const a = n.steps[0]!.assertions;
+    expect(a.map((x) => x.check)).toEqual(['recordView', 'soqlField']);
+    expect(a[0]).toMatchObject({ as: 'createdContact1' });
+    expect(a[1]).toMatchObject({ ref: 'createdContact1' });
+    expect(n.notes.join(' ')).toMatch(/3 toast \/ title \/ related-list check\(s\) replaced/);
+    const text = renderSpec({ tc: CASE, ir: n, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
+    expect(text).not.toContain("data.value('Contact', 'LastName')");
+  });
+
+  it('a name reused after a record was created gets a suffix, also in a later "not saved" check', () => {
+    const second = create(1, [
+      { check: 'fieldError', element: 'contact-new.lastName', expect: ev1 },
+      { check: 'soqlNoRecord', object: 'Contact', field: 'LastName', value: name, expect: ev1 },
+    ]);
+    const n = normalizeIr(
+      withSteps([create(0, [{ check: 'recordView', object: 'Contact', expect: ev }]), second]),
+      ctx,
+      recipe,
+      CASE,
+    );
+    expect(n.steps[0]!.actions[1]).toMatchObject({ value: { label: 'last-name' } });
+    expect(n.steps[1]!.actions[1]).toMatchObject({ value: { label: 'last-name-2' } });
+    expect(n.steps[1]!.assertions[1]).toMatchObject({ value: { label: 'last-name-2' } });
+    // a Save that was rejected does not use the name up
+    const rejectedFirst = normalizeIr(
+      withSteps([create(0, [{ check: 'fieldError', element: 'contact-new.lastName', expect: ev }]), second]),
+      ctx,
+      recipe,
+      CASE,
+    );
+    expect(rejectedFirst.steps[1]!.actions[1]).toMatchObject({ value: { label: 'last-name' } });
+  });
+
+  it('the only accepted message observed on a field without a validation rule is asserted', () => {
+    const n = normalizeIr(
+      withSteps([create(0, [{ check: 'fieldError', element: 'contact-new.lastName', expect: ev }])]),
+      ctx,
+      recipe,
+      CASE,
+    );
+    expect(n.steps[0]!.assertions[0]).toMatchObject({ message: { observed: 'om-req' } });
+    const none = normalizeIr(
+      withSteps([create(0, [{ check: 'fieldError', element: 'contact-new.lastName', expect: ev }])]),
+      ctx0,
+      recipe,
+      CASE,
+    );
+    expect(none.steps[0]!.assertions[0]).not.toHaveProperty('message');
+  });
+
+  it('a SOQL check on a recipe record of another object, or of a value against itself, targets the created record', () => {
+    const later: TestIR['steps'][number] = {
+      caseStep: 1,
+      title: 'Verify by SOQL',
+      actions: [],
+      assertions: [
+        {
+          check: 'soqlField',
+          ref: 'Account',
+          object: 'Contact',
+          field: 'Account.Name',
+          equals: { kind: 'data', ref: 'Account', field: 'Name' },
+          expect: ev1,
+        },
+        {
+          check: 'soqlField',
+          ref: 'Contact',
+          object: 'Contact',
+          field: 'LastName',
+          equals: seedName,
+          expect: ev1,
+        },
+      ],
+    };
+    const n = normalizeIr(
+      withSteps([create(0, [{ check: 'recordView', object: 'Contact', expect: ev }]), later]),
+      ctx,
+      recipe,
+      CASE,
+    );
+    expect(n.steps[1]!.assertions.map((a) => ('ref' in a ? a.ref : ''))).toEqual([
+      'createdContact1',
+      'createdContact1',
+    ]);
+    // without a created record it is refused
+    expect(irProblems(CASE, withSteps([later]), ctx, recipe).join('\n')).toMatch(
+      /Account is a Account record, not a Contact/,
+    );
   });
 });

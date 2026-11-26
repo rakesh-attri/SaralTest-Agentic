@@ -497,6 +497,11 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
       case 'soqlField':
         recordRef(a.ref, where);
         if (!soqlFieldKnown(ctx, a.object, a.field)) p.push(`${where}: ${a.object}.${a.field} is not in the snapshot`);
+        {
+          const st = steps.find((x) => x.stepId === a.ref);
+          if (st && st.object !== a.object)
+            p.push(`${where}: ${a.ref} is a ${st.object} record, not a ${a.object} — query a ${a.object} record`);
+        }
         value(a.equals, where, cs);
         // Operator rule 2026-11-26: never assert on record ids (dynamic) — compare a parent by its name.
         if (a.equals.kind === 'recordId') {
@@ -625,7 +630,20 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
   // run-unique. A case literal typed as that name (e.g. 'TestContact') becomes a unique value with that label; every
   // later use of the same literal (toast, related list, header) follows it.
   const renamed = new Map<string, ValueRef>();
+  // Each record the test creates needs its own name: the SOQL check expects exactly one record with it, and a later
+  // "not saved" check of the same name would find the earlier record (run-p5-build-1: TC-036 typed one name into 4
+  // create dialogs, TC-010 reused it after a successful Save). A reused unique label gets a suffix from then on.
+  const usedNames = new Set<string>(); // unique labels of records already created
+  const relabel = new Map<string, string>();
+  let currentName: string | undefined; // unique label typed into the open create dialog's name field
+  const lastCreated = new Map<string, string>(); // object → recordView `as` of the last record created in the UI
   const val = (x: ValueRef): ValueRef => {
+    const v = val0(x);
+    if (v.kind !== 'unique') return v;
+    const l = relabel.get(v.label);
+    return l ? { ...v, label: l } : v;
+  };
+  const val0 = (x: ValueRef): ValueRef => {
     if (x.kind === 'data' || x.kind === 'recordId') return { ...x, ref: ref(x.ref) };
     if (x.kind === 'literal') {
       const u = renamed.get(x.value);
@@ -649,20 +667,33 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
         // `fill` on a picklist combobox means choosing that option (same intent; the renderer needs `select`)
         if (picklistFact(ctx, a.element)) return { do: 'select', element: a.element, value: val(a.value) };
         const m = findMember(ctx.catalog, a.element);
-        if (
-          a.value.kind === 'literal' &&
-          m?.page.kind === 'dialog' &&
-          m.member.fieldApiName === nameFieldOf(m.page.object) &&
-          !renamed.has(a.value.value)
-        ) {
-          const u: ValueRef = { kind: 'unique', label: toLabel(a.value.value), format: 'text' };
-          renamed.set(a.value.value, u);
-          notes.push(
-            `data: the ${m.member.fieldApiName} typed in the create dialog is run-unique (label '${a.value.value}') so the saved record is found by the run tag (by code)`,
-          );
-          return { ...a, value: u };
+        const nameFill = m?.page.kind === 'dialog' && m.member.fieldApiName === nameFieldOf(m.page.object);
+        let v = a.value;
+        if (nameFill && v.kind === 'literal') {
+          const known = renamed.get(v.value);
+          if (known) v = known;
+          else {
+            const u: ValueRef = { kind: 'unique', label: toLabel(v.value), format: 'text' };
+            renamed.set(v.value, u);
+            notes.push(
+              `data: the ${m.member.fieldApiName ?? ''} typed in the create dialog is run-unique (label '${v.value}') so the saved record is found by the run tag (by code)`,
+            );
+            v = u;
+          }
         }
-        return { ...a, value: val(a.value) };
+        if (nameFill && v.kind === 'unique') {
+          const base = v.label;
+          if (usedNames.has(base)) {
+            let n = 2;
+            while (usedNames.has(`${base}-${String(n)}`)) n++;
+            relabel.set(base, `${base}-${String(n)}`);
+            notes.push(
+              `data: '${base}' already names a record this test created — this dialog types '${base}-${String(n)}' so each record is found by its own name (by code)`,
+            );
+          } else relabel.delete(base);
+          currentName = relabel.get(base) ?? base;
+        }
+        return { ...a, value: val(v) };
       }
       case 'select':
         return { ...a, value: val(a.value) };
@@ -678,6 +709,27 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
     const ev = tc?.steps[a0.expect.caseStep]?.expected.evidenceIds ?? [];
     const a = a0.expect.evidenceIds.length ? a0 : { ...a0, expect: { ...a0.expect, evidenceIds: ev } };
     switch (a.check) {
+      case 'fieldError': {
+        // No message given, no validation rule on the field, and exactly one human-accepted message observed on it:
+        // that is the text Salesforce shows (run-p5-build-1, TC-046: "Complete this field." was accepted but unused).
+        if (a.message) return a;
+        const field = findMember(ctx.catalog, a.element)?.member.fieldApiName;
+        const [o, f] = field?.split('.') ?? [];
+        if (!field || !o || !f) return a;
+        const ruled = ctx.facts.activeValidationRules(o).some((vr) => {
+          const formula = vr.body?.['errorConditionFormula'];
+          return typeof formula === 'string' && new RegExp(`\\b${f}\\b`).test(formula);
+        });
+        const seen = (ctx.observedMessages ?? []).filter(
+          (m) => m.accepted && m.placement === 'field' && m.field === field,
+        );
+        const only = seen.length === 1 ? seen[0] : undefined;
+        if (ruled || !only) return a;
+        notes.push(
+          `fieldError ${field}: the only human-accepted message observed on this field (${only.id}) is asserted (by code)`,
+        );
+        return { ...a, message: { observed: only.id } };
+      }
       case 'inputValue':
         return { ...a, equals: val(a.equals) };
       case 'toast':
@@ -696,15 +748,27 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
         const rel = relationshipOf(a.field);
         const eq = a.equals;
         const parent = eq.kind === 'recordId' ? steps.find((s) => s.stepId === ref(eq.ref)) : undefined;
-        if (rel && parent && typeof parent.fields['Name'] === 'string') {
-          return {
-            ...a,
-            ref: ref(a.ref),
-            field: `${rel}.Name`,
-            equals: { kind: 'data', ref: parent.stepId, field: 'Name' },
-          };
+        const s =
+          rel && parent && typeof parent.fields['Name'] === 'string'
+            ? {
+                ...a,
+                ref: ref(a.ref),
+                field: `${rel}.Name`,
+                equals: { kind: 'data' as const, ref: parent.stepId, field: 'Name' },
+              }
+            : { ...a, ref: ref(a.ref), equals: val(a.equals) };
+        // A recipe record of another object (TC-050: the Account's id as a Contact), or a recipe field compared with
+        // itself, cannot be what the step verifies: it is the record this test created in the UI, when there is one.
+        const st = steps.find((x) => x.stepId === s.ref);
+        const target = lastCreated.get(s.object);
+        const self = s.equals.kind === 'data' && s.equals.ref === s.ref && s.equals.field === s.field;
+        if (st && target && (st.object !== s.object || self)) {
+          notes.push(
+            `soqlField ${s.object}.${s.field}: ${s.ref} is ${st.object !== s.object ? `a ${st.object}, not a ${s.object}` : 'compared with its own value'} — checked on ${target}, the ${s.object} this test created (by code)`,
+          );
+          return { ...s, ref: target };
         }
-        return { ...a, ref: ref(a.ref), equals: val(a.equals) };
+        return s;
       }
       case 'soqlNoRecord':
         return { ...a, value: val(a.value) };
@@ -729,11 +793,39 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
     const dropped = actions.filter((a) => a.do === 'adopt');
     if (dropped.length) notes.push(`cleanup: ${dropped.length} model-written adopt(s) removed — cleanup is code-owned`);
     const saves = actions.some((a) => a.do === 'click' && isCreateSave(ctx, a.element));
-    const assertions = st.assertions
+    let assertions = st.assertions
       .map(assertion)
       .map((a) =>
-        a.check === 'recordView' && !a.as && saves ? { ...a, as: `created${a.object}${String(++unnamed)}` } : a,
+        a.check === 'recordView' &&
+        saves &&
+        (!a.as || steps.some((s) => s.stepId === a.as)) /* "as" must not shadow a recipe step (TC-036: "Contact") */
+          ? { ...a, as: `created${a.object}${String(++unnamed)}` }
+          : a,
       );
+    const createdView = saves
+      ? assertions.find((a): a is Extract<IrAssertion, { check: 'recordView' }> => a.check === 'recordView')
+      : undefined;
+    if (createdView?.as) {
+      const as = createdView.as;
+      // The code renders toast → related list → header → SOQL with the name typed in the dialog; the model's own
+      // toast / title / related-list checks of this step are dropped (run-p5-build-1, TC-036 / TC-050: they named the
+      // recipe Contact instead of the record just created).
+      const own = new Set(['toast', 'recordTitle', 'relatedListHasRecord']);
+      const kept = assertions.filter((a) => !own.has(a.check));
+      if (kept.length < assertions.length)
+        notes.push(
+          `after Save: ${String(assertions.length - kept.length)} toast / title / related-list check(s) replaced by the code-owned checks of the name typed`,
+        );
+      // A field check of this step on the object just created is about that record, not a recipe record.
+      assertions = kept.map((a) => {
+        if (a.check !== 'soqlField' || a.object !== createdView.object) return a;
+        if (!steps.some((s) => s.stepId === a.ref && s.object === a.object)) return a;
+        notes.push(`soqlField ${a.object}.${a.field}: checked on ${as}, the record this step created (by code)`);
+        return { ...a, ref: as };
+      });
+      lastCreated.set(createdView.object, as);
+      if (currentName) usedNames.add(currentName);
+    }
     const n = { ...st, actions: actions.filter((a) => a.do !== 'adopt'), assertions };
     for (const a of n.assertions) if (a.check === 'recordView' && a.as) nav.record = { ref: a.as, object: a.object };
     return n;
