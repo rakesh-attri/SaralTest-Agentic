@@ -9,13 +9,39 @@ import { runSettings, storageStatePath } from './tests/support/runConfig.js';
 const s = runSettings();
 const desktop = s.execution.viewports[0] ?? { width: 1440, height: 900 };
 
+const environment = process.env['QA_ENVIRONMENT'] ?? 'UNKNOWN';
 const reportingLabs: ReportingLabsOptions = {
-  title: `SF QA — ${s.storyKey}`,
+  title: `SF QA — ${s.storyKey}${environment === 'LIVE' ? '' : ` (${environment} — not a Salesforce result)`}`,
   outputFolder: join(s.runDir, 'reporting-labs'),
-  history: { enabled: true, keep: 30 },
+  // History lives next to the story's runs, not inside one run folder, so the trend spans runs.
+  history: { enabled: true, keep: 30, file: join(s.root, '.qa-memory', 'reporting-labs-history.json') },
   dimensions: ['priority', 'severity', 'feature', 'owner', 'story'],
-  maskKeys: ['password', 'token', 'sessionId', 'accessToken', 'refreshToken', 'sid', 'authorization'],
-  metadata: { org: s.orgAlias, run: s.runId },
+  maskKeys: [
+    'password',
+    'token',
+    'sessionId',
+    'accessToken',
+    'refreshToken',
+    'sid',
+    'authorization',
+    'secret',
+    'apiKey',
+  ],
+  maskFromEnv: true,
+  ...(process.env['QA_JIRA_BASE_URL']
+    ? { links: { story: `${process.env['QA_JIRA_BASE_URL'].replace(/\/+$/, '')}/browse/{id}` } }
+    : {}),
+  metadata: { org: s.orgAlias, run: s.runId, environment, build: s.runId },
+  envVar: 'QA_ENVIRONMENT',
+  env: {
+    Environment: environment,
+    Org: s.orgAlias,
+    Browser: s.browser,
+    Personas: s.personas.personas.map((p) => p.id).join(', '),
+    Snapshot: process.env['QA_SNAPSHOT_ID'] ?? 'unknown',
+  },
+  emitJson: true,
+  pdf: false,
 };
 
 const projects: NonNullable<PlaywrightTestConfig['projects']> = s.personas.personas.flatMap((p) => [

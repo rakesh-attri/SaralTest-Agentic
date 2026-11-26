@@ -1,5 +1,5 @@
 // Main graph, Phase 5: a run seeded for execution (`qa run`) enters at execute and always ends at report.
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -62,7 +62,7 @@ const outcome = (
   files: [],
 });
 
-async function runGraph(hook: ExecuteHook): Promise<QAGraphStateType> {
+async function runGraph(hook: ExecuteHook, check?: (root: string) => void): Promise<QAGraphStateType> {
   const root = mkdtempSync(join(tmpdir(), 'qa exec graph '));
   roots.push(root);
   const checkpointer = new SqliteCheckpointSaver(join(root, '.qa-memory', 'checkpoints.db'));
@@ -74,7 +74,15 @@ async function runGraph(hook: ExecuteHook): Promise<QAGraphStateType> {
     adapter: { root, cwd: root, env: {} },
     memoryDir: join(root, '.qa-memory'),
     checkpointer,
-    execute: hook,
+    // The real Runner writes results.json + run/execution-summary.json before returning (the reports read them).
+    execute: async (st) => {
+      const out = await hook(st);
+      const dir = join(root, 'runs', st.runId, 'run');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'execution-summary.json'), JSON.stringify({ ...out.summary, status: out.status }));
+      writeFileSync(join(root, 'runs', st.runId, 'results.json'), JSON.stringify(out.results));
+      return out;
+    },
   });
   const state = {
     ...initialRunState({
@@ -92,12 +100,22 @@ async function runGraph(hook: ExecuteHook): Promise<QAGraphStateType> {
   };
   const config = { configurable: { thread_id: 'run-exec-g' } };
   await graph.invoke(state, config);
+  check?.(root);
   return (await graph.getState(config)).values as QAGraphStateType;
 }
 
 describe('main graph: execute node (Phase 5)', () => {
   it('a seeded run enters at execute, keeps results + evidence and ends at report COMPLETE', async () => {
-    const v = await runGraph(() => Promise.resolve(outcome('COMPLETE', [row('TC-1', 'PASS'), row('TC-2', 'SKIPPED')])));
+    let report = '';
+    const v = await runGraph(
+      () => Promise.resolve(outcome('COMPLETE', [row('TC-1', 'PASS'), row('TC-2', 'SKIPPED')])),
+      (root) => {
+        const f = join(root, 'runs', 'run-exec-g', 'report', 'execution-report.md');
+        expect(existsSync(f)).toBe(true);
+        report = readFileSync(f, 'utf8');
+      },
+    );
+    expect(report).toMatch(/FIXTURE — offline fixture, NOT a Salesforce result/);
     expect(v.status).toBe('COMPLETE');
     expect(v.results.map((r) => r.state)).toEqual(['PASS', 'SKIPPED']);
     expect(v.execution?.environment).toBe('FIXTURE');

@@ -202,6 +202,8 @@ export async function executeStory(o: ExecuteOptions, d: ExecuteDeps = {}): Prom
       flaky: results.filter((r) => r.flaky).length,
       cleanup: extra.reconcile?.status ?? 'NONE',
       exitCode: extra.exitCode ?? null,
+      status,
+      ...(extra.blockedReason ? { blockedReason: extra.blockedReason } : {}),
     };
     files.push(json(join(runDir, 'results.json'), results));
     files.push(json(join(outDir, 'execution-summary.json'), summary));
@@ -335,6 +337,11 @@ export async function executeStory(o: ExecuteOptions, d: ExecuteDeps = {}): Prom
     QA_STORY_KEY: o.storyKey,
     QA_BROWSER: browser.browser,
     QA_AUTONOMY: autonomy,
+    QA_ENVIRONMENT: environment,
+    QA_SNAPSHOT_ID: plan.snapshotId,
+    ...(ctx.env.JIRA_BASE_URL && !/<[^>]+>/.test(ctx.env.JIRA_BASE_URL)
+      ? { QA_JIRA_BASE_URL: ctx.env.JIRA_BASE_URL }
+      : {}),
     SF_BASE_URL: baseURL,
     ...(o.keepData ? { QA_KEEP_DATA: '1' } : {}),
   };

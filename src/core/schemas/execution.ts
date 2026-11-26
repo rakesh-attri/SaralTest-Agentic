@@ -60,6 +60,9 @@ export const ExecutionSummary = z.object({
   cleanup: z.enum(['CLEAN', 'INCOMPLETE', 'KEPT', 'NONE']),
   /** Playwright exit code (null = not started). */
   exitCode: z.number().int().nullable(),
+  /** Runner outcome: COMPLETE = every selected test reported; BLOCKED = stopped before any test (preflight). */
+  status: z.enum(['COMPLETE', 'PARTIAL', 'BLOCKED']).optional(),
+  blockedReason: z.string().optional(),
 });
 export type ExecutionSummary = z.infer<typeof ExecutionSummary>;
 

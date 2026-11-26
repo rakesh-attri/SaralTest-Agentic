@@ -1,3 +1,4 @@
+import { esc, md } from '../report/format.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import ExcelJS from 'exceljs';
@@ -17,9 +18,6 @@ const LEVELS: EvidenceLevel[] = [
   'OBSERVED_ONLY',
   'UNKNOWN_OR_CONTRADICTORY',
 ];
-const md = (s: string): string => s.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
-const esc = (s: string): string =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export interface DesignSummary {
   acs: { ref: string; caseIds: string[]; covered: boolean }[];
@@ -447,6 +445,8 @@ export async function writeDesignReport(s: QAGraphStateType, runDir: string, sta
     models: s.designModels,
     snapshotId: s.charter?.snapshotId,
     reviewRounds: s.reviewRound,
+    // Lineage (Phase 5): the analysis run this design started from (`qa design --from-run`), when seeded from one.
+    ...(s.source.ref.startsWith('run:') ? { analysisRun: s.source.ref.slice(4) } : {}),
     summary: sum,
   });
   const write = async (name: string, text: string): Promise<void> => {

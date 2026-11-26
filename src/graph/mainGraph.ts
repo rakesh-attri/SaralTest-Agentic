@@ -22,6 +22,8 @@ import { createPlanNode, type DesignHook } from './designNodes.js';
 import { writeDesignReport } from './designReport.js';
 import { QAGraphState, type QAGraphStateType, type QAGraphUpdate } from './state.js';
 import type { ExecutionOutcome } from '../runner/execute.js';
+import { loadReportData, writeExecutionReports } from '../report/execution.js';
+import { attemptLog } from '../models/attemptLog.js';
 
 /**
  * Main graph (PLAN.md §2), Phases 1–4 (build <-> review2 after the design; `qa build` enters at build):
@@ -472,6 +474,24 @@ export function buildMainGraph(deps: GraphDeps) {
         const buildOut = await writeBuildReport(s, paths.dir, status);
         outputs.push(...buildOut);
         say(`Build report written: ${buildOut.find((o) => o.endsWith('build-report.md')) ?? paths.dir}`);
+      }
+      if (s.execution) {
+        const env = deps.adapter.env;
+        const jira =
+          typeof env['JIRA_BASE_URL'] === 'string' && !/<[^>]+>/.test(env['JIRA_BASE_URL'])
+            ? env['JIRA_BASE_URL']
+            : undefined;
+        const execOut = await writeExecutionReports(
+          loadReportData({
+            root: deps.root,
+            runId: s.runId,
+            status,
+            failedAttempts: [...attemptLog.failed()],
+            ...(jira ? { jiraBaseUrl: jira } : {}),
+          }),
+        );
+        outputs.push(...execOut);
+        say(`Execution reports written: ${execOut.find((o) => o.endsWith('index.md')) ?? paths.dir}`);
       }
       return { status, outputs };
     },
