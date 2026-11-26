@@ -11,10 +11,27 @@ function name(n: string): string {
   return n;
 }
 
-/** Value of `field` on record `id` (undefined when the record does not exist). */
+/** A field, or one parent field through a relationship (`Account.Name`): each part an API name. */
+function fieldPath(f: string): string[] {
+  const parts = f.split('.');
+  if (parts.length > 2) throw new Error(`not a field or parent field: ${f}`);
+  return parts.map(name);
+}
+
+/**
+ * Value of `field` on record `id` (undefined when the record does not exist). `field` may be a parent field
+ * (`Account.Name`): the generator compares parents by name, never by id (qa-prod run-p5-live-8, TC-050).
+ */
 export async function soqlValue(sf: Sf, object: string, id: string, field: string): Promise<unknown> {
-  const rows = await sf.query(`SELECT ${name(field)} FROM ${name(object)} WHERE Id = ${soqlString(id)}`);
-  return rows[0]?.[field];
+  const path = fieldPath(field);
+  const rows = await sf.query(`SELECT ${path.join('.')} FROM ${name(object)} WHERE Id = ${soqlString(id)}`);
+  const row = rows[0];
+  if (!row) return undefined;
+  const [head, sub] = path;
+  if (!head) return undefined;
+  if (!sub) return row[head];
+  const parent = row[head];
+  return parent && typeof parent === 'object' ? (parent as Record<string, unknown>)[sub] : null;
 }
 
 /** Number of `object` records with `field = value`. */
