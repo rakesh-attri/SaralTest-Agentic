@@ -13,6 +13,7 @@ import type { SkillLoader } from '../../skills/skillLoader.js';
 import { fieldErrorRule, irProblems, type GenerationContext } from '../test-generator/context.js';
 import type { GeneratedSpec } from '../test-generator/graph.js';
 import { findMember } from '../test-generator/pageObjects.js';
+import type { ObservedMessage } from '../../core/schemas/execution.js';
 import { A11Y_SCOPE_NOTE } from '../test-generator/render.js';
 import type { ToolchainResult } from '../test-generator/toolchain.js';
 import { runStructured } from '../shared/structured.js';
@@ -165,11 +166,24 @@ export function observedForStep(
       .filter((f): f is string => typeof f === 'string'),
   );
   const text = tc.steps[n]?.expected.text ?? '';
-  const duplicate = /duplicate/i.test(text);
+  // What the step expects decides which observation can evidence it. A maximum-length message was looked for and
+  // not found (qa-prod truncates the input at the field length), so it is never evidenced by another message.
+  const kind: ObservedMessage['kind'] | 'length' | undefined = /duplicate/i.test(text)
+    ? 'duplicate'
+    : /\b(?:length|maximum|characters?|too long|exceed)/i.test(text)
+      ? 'length'
+      : /\b(?:required|empty|blank|missing)\b/i.test(text)
+        ? 'required'
+        : /\b(?:invalid|format|valid)\b/i.test(text)
+          ? 'validation'
+          : undefined;
+  if (kind === 'length') return [];
   return all.filter(
     (m) =>
       (m.persona === tc.persona || m.persona === 'system-admin') &&
-      (duplicate ? m.kind === 'duplicate' : m.field !== undefined && fields.has(m.field) && m.kind !== 'duplicate'),
+      (kind === 'duplicate'
+        ? m.kind === 'duplicate'
+        : m.field !== undefined && fields.has(m.field) && m.kind !== 'duplicate' && (!kind || m.kind === kind)),
   );
 }
 
@@ -268,7 +282,7 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
             key: `msg-obs:${tc.id}:${String(n)}`,
             severity: 'M',
             rule: 'message-unasserted',
-            text: `step ${String(n + 1)}: the message is now evidenced by UI observation — ${seen.map((m) => `[${m.placement}] "${m.text}" (OBSERVED ${m.observedAt.slice(0, 10)}, ${m.runId})`).join('; ')} — but the spec does not assert it (it checks only that the field is invalid). A human accepts the observed text, then regenerate the spec (qa build --cases ${tc.id}) so it asserts it`,
+            text: `step ${String(n + 1)}: the message is now evidenced by UI observation — ${seen.map((m) => `[${m.placement}] "${m.text}" (OBSERVED ${m.observedAt.slice(0, 10)}, ${m.runId})`).join('; ')} — but the spec does not assert it${seen.some((m) => m.kind === 'duplicate') ? '' : ' (it checks only that the field is invalid)'}. A human accepts the observed text, then regenerate the spec (qa build --cases ${tc.id}) so it asserts it`,
           });
         } else {
           add({

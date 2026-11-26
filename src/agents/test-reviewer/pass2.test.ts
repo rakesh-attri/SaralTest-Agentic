@@ -399,6 +399,15 @@ describe('expected error text needs org evidence (operator 2026-11-26)', () => {
       'Duplicate!',
     ]);
     expect(observedForStep(t, ir(), 0, ctx)).toEqual([]);
+    // a maximum-length expectation is never evidenced by another message (qa-prod truncates instead)
+    expect(
+      observedForStep(
+        tc('error message is displayed on the Phone field indicating maximum length is exceeded'),
+        ir(),
+        0,
+        c2,
+      ),
+    ).toEqual([]);
     const s = spec(ir());
     const f = pass2Findings({ ctx: c2, cases: [t], specs: [s], toolchain: toolchain(s), dryRun: dryRun(s) });
     expect(f.map((x) => x.rule)).toContain('message-unasserted');

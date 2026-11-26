@@ -136,18 +136,30 @@ export async function rerunPass2(o: Pass2ReviewOptions): Promise<{ runId: string
     // Update the verdicts in the story manifest (the specs themselves are unchanged).
     const mf = join(o.root, ...manifestPath(storyKey).split('/'));
     if (existsSync(mf)) {
-      const m = JSON.parse(readFileSync(mf, 'utf8')) as { artifacts: (GeneratedArtifact & { reviewedBy?: string })[] };
-      // Entries of the reviewed build replace whatever the manifest had for those cases (e.g. after a build whose
-      // pass 2 never finished, the manifest still described the previous build).
-      const reviewed = new Set(settled.artifacts.flatMap((a) => a.testCaseIds));
-      const others = m.artifacts.filter(
-        (a) => !a.testCaseIds.some((id) => reviewed.has(id)) && !settled.artifacts.some((x) => x.path === a.path),
-      );
-      m.artifacts = [
-        ...others,
-        ...settled.artifacts.map((a) => ({ ...a, buildRun: o.buildRun, reviewedBy: runId })),
-      ].sort((a, b) => a.path.localeCompare(b.path));
-      (m as { buildRun?: string }).buildRun = o.buildRun;
+      const m = JSON.parse(readFileSync(mf, 'utf8')) as {
+        artifacts: (GeneratedArtifact & { reviewedBy?: string; buildRun?: string })[];
+      };
+      // A re-review changes only the verdict: reviewStatus / reviewReasons / reviewedBy. Everything else the manifest
+      // records about the file (dependsOn, stale, snapshotId, buildRun …) stays as it is — the spec did not change.
+      // When the judge was unavailable, the previous judge findings are carried over (they still apply).
+      m.artifacts = m.artifacts.map((a) => {
+        const s2 = settled.artifacts.find((x) => x.path === a.path);
+        if (!s2) return a;
+        const priorJudge = r.judgeDegraded
+          ? a.reviewReasons
+              .filter((x) => / judge: /.test(x))
+              .map(
+                (x) =>
+                  `${x} [carried over from ${a.reviewedBy ?? a.buildRun ?? 'the previous review'}: judge unavailable]`,
+              )
+          : [];
+        return {
+          ...a,
+          reviewStatus: s2.reviewStatus,
+          reviewReasons: [...s2.reviewReasons, ...priorJudge],
+          reviewedBy: runId,
+        };
+      });
       writeFileSync(mf, `${JSON.stringify(m, null, 2)}\n`, 'utf8');
     }
     const dir = join(runPaths(o.root, runId).dir, 'build');
