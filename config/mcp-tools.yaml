@@ -25,14 +25,11 @@ salesforce:            # @salesforce/mcp with --toolsets orgs,data,metadata,user
             open_org,                  # opens a personal browser session; Playwright uses isolated contexts only
             resume_tool_operation]     # could resume a blocked long-running operation (e.g. a deploy)
 
-atlassian-rovo:        # Atlassian Rovo MCP — names observed on the session's connection; verify against /v2/mcp
-  observe: [atlassianUserInfo, getAccessibleAtlassianResources, getVisibleJiraProjects, getJiraIssue,
-            searchJiraIssuesUsingJql, getJiraIssueRemoteIssueLinks, getTransitionsForJiraIssue, getIssueLinkTypes,
-            getJiraProjectIssueTypesMetadata, getJiraIssueTypeMetaWithFields, lookupJiraAccountId, search, fetch,
-            getConfluencePage, getConfluenceSpaces, getPagesInConfluenceSpace, getConfluencePageDescendants,
-            getConfluencePageFooterComments, getConfluencePageInlineComments, getConfluenceCommentChildren,
-            searchConfluenceUsingCql, getContentFormatGuide]
-  mutate:  [addCommentToJiraIssue,     # run report comment
+atlassian-rovo:        # Atlassian Rovo MCP v2 (https://mcp.atlassian.com/v2/mcp) — names verified on the live listing 2026-11-26
+  observe: [atlassianUserInfo, getAccessibleAtlassianResources, getJiraIssue, searchJiraIssuesUsingJql, search,
+            listJiraIssueComments, getConfluenceContent, searchConfluence]
+  mutate:  [addOrEditJiraIssueComment, # run report comment, ADD mode only (guard refuses a commentId) — v2 name
+            addCommentToJiraIssue,     # v1 name of the same tool (kept for clients still on /v1/mcp)
             createJiraIssue]           # only with an approved defect-publication policy (policy.yaml defectPublication)
-  blocked: [editJiraIssue, transitionJiraIssue, createIssueLink, addWorklogToJiraIssue, createConfluencePage,
-            updateConfluencePage, createConfluenceFooterComment, createConfluenceInlineComment]
+  blocked: [editJiraIssue, transitionJiraIssue, createConfluenceContent, updateConfluenceContent, addGraphContext,
+            executeWrite, executeDestructive, executeRead, discover]   # v2 meta-tools bypass the per-tool allow-list

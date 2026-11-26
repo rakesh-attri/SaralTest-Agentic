@@ -28,6 +28,11 @@ export const TOOL_CATEGORIES: Record<string, string> = {
   'salesforce.run_agent_test': 'agent-test',
   'salesforce.deploy_metadata': 'metadata',
   'salesforce.retrieve_metadata': 'metadata',
+  // External publication (JIRA): never through the org-profile guard — only `qa report comment publish` with its
+  // own approval-bound guard (src/report/jiraComment.ts publicationGuard).
+  'atlassian-rovo.addOrEditJiraIssueComment': 'external-publication',
+  'atlassian-rovo.addCommentToJiraIssue': 'external-publication',
+  'atlassian-rovo.createJiraIssue': 'external-publication',
 };
 
 const METADATA_TOOL = /(deploy|metadata|anonymous|execute_apex|create_scratch|delete_org)/i;
@@ -79,6 +84,11 @@ export function decide(o: OrgPolicyOptions, req: MutationRequest): MutationDecis
   const intent = intentOf(req);
   if ('error' in intent) return deny(intent.error);
   if (intent.category === 'metadata') return deny(`${req.server}.${req.tool} would change metadata`, 'METADATA_WRITE');
+  if (intent.category === 'external-publication') {
+    return deny(
+      `${req.server}.${req.tool} publishes outside Salesforce: only through an approved publication (qa report comment)`,
+    );
+  }
 
   if (profile.mutations === 'none') {
     return deny(`profile ${org.profile} allows no mutations`, 'PROFILE_FORBIDDEN_MUTATION');

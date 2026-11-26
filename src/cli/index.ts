@@ -20,6 +20,7 @@ import { registerData } from './data.js';
 import { registerDecide } from './decide.js';
 import { registerRun } from './run.js';
 import { registerReport } from './report.js';
+import { registerJiraComment } from './jiraComment.js';
 import { renderFailedAttempts } from '../models/attemptLog.js';
 import { createDiscoverHook, registerDiscover } from './discover.js';
 import { createDesignHook, designSummary, registerDesign } from './design.js';
@@ -90,7 +91,7 @@ export function buildCli(): Command {
   registerData(program, rootOf, say);
   registerDecide(program, rootOf, say);
   registerRun(program, rootOf, say);
-  registerReport(program, rootOf, say);
+  registerJiraComment(registerReport(program, rootOf, say), rootOf, say);
 
   const mcp = program.command('mcp').description('MCP server utilities');
   mcp
