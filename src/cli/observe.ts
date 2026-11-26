@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import type { Command } from 'commander';
 import { observeMessages, type ObserveMessagesResult } from '../agents/app-explorer/messages.js';
 import { newRunId } from '../core/runFolder.js';
+import { QAError } from '../core/errors.js';
+import { projectPaths, requireConfig } from '../config/loader.js';
 import type { Autonomy } from '../core/state.js';
 import { ObservedMessageStore } from '../knowledge/observedMessages.js';
 import { SnapshotStore } from '../knowledge/snapshotStore.js';
@@ -42,6 +44,37 @@ export function renderObserveReport(r: ObserveMessagesResult, o: { runId: string
 }
 
 export function registerObserve(loc: Command, rootOf: () => string, say: Say): void {
+  loc
+    .command('messages')
+    .description('List UI-observed message texts of an org; --accept records a human acceptance (PLAN §7f)')
+    .requiredOption('--org <alias>', 'org alias from config/orgs.yaml')
+    .option('--accept <id>', 'observed message id to accept')
+    .option('--by <name>', 'who accepts it (a name or role, never an email)')
+    .option('--text <exact>', 'the exact text confirmed by the human (when the stored copy is masked)')
+    .action(async (o: { org: string; accept?: string; by?: string; text?: string }) => {
+      const root = rootOf();
+      const orgs = await requireConfig('orgs', projectPaths(root));
+      const org = orgs.orgs.find((x) => x.alias === o.org);
+      if (!org) throw new QAError('ENVIRONMENT', `org alias "${o.org}" is not in config/orgs.yaml`);
+      const store = new ObservedMessageStore(observedMessagesFile(root));
+      try {
+        if (o.accept) {
+          if (!o.by) throw new QAError('DATA', '--accept needs --by "<name>"');
+          const m = store.accept(o.accept, o.by, o.text);
+          say(
+            `Accepted ${m.id} (${m.field ?? '?'} ${m.kind} ${m.placement}) by ${o.by}: "${m.accepted?.text ?? m.text}"`,
+          );
+        }
+        for (const m of store.latest(org.orgId)) {
+          say(
+            `${m.id}  ${m.field ?? '-'}  ${m.kind}/${m.placement}  ${m.accepted ? `ACCEPTED by ${m.accepted.by}` : 'not accepted'}  "${m.accepted?.text ?? m.text}"`,
+          );
+        }
+      } finally {
+        store.close();
+      }
+    });
+
   loc
     .command('observe-messages')
     .description(
