@@ -121,6 +121,10 @@ describe('Explorer: observed messages on the offline fixture (real Chromium, FIX
       environment: 'FIXTURE',
     });
     expect(by('invalid-email')?.messages.find((m) => m.placement === 'field')?.text).toMatch(/invalid email address/);
+    // page-level text is the error box only, never the whole dialog
+    expect(by('required-last-name')?.messages.find((m) => m.placement === 'page')?.text).toBe(
+      'We hit a snag. Required fields are missing: [LastName]',
+    );
     expect(by('invalid-email')?.created).toBe(false);
     // The fixture input truncates to 80 and saves; it has no duplicate rule: both saves are adopted and cleaned.
     expect(by('last-name-81')?.notes.join(' ')).toMatch(/the input kept 80/);
@@ -144,4 +148,28 @@ describe('Explorer: observed messages on the offline fixture (real Chromium, FIX
     );
     store.close();
   }, 180_000);
+});
+
+describe('field message from the ARIA snapshot (live Lightning shape)', () => {
+  it('takes the help text after the invalid textbox and drops the label prefix', async () => {
+    const { messageFromAriaSnapshot } = await import('./messages.js');
+    const yaml = [
+      '      - group "Name":',
+      '        - text: Last Name',
+      '        - textbox "Last Name" [invalid]',
+      '        - text: Last Name Complete this field.',
+      '      - textbox "Email"',
+    ].join('\n');
+    expect(messageFromAriaSnapshot(yaml, 'Last Name')).toBe('Complete this field.');
+    expect(messageFromAriaSnapshot(yaml, 'Email')).toBe(''); // not invalid → no message
+    // the typed value is a child of the textbox, the message its sibling (live, run-p5-observe-7)
+    const email = [
+      '      - text: Email',
+      '      - textbox "Email" [invalid]:',
+      '        - /placeholder: name@example.com',
+      '        - text: not-an-email',
+      '      - text: Email Enter a valid email address.',
+    ].join('\n');
+    expect(messageFromAriaSnapshot(email, 'Email')).toBe('Enter a valid email address.');
+  });
 });

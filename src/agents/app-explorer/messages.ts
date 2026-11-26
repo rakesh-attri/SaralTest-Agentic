@@ -4,7 +4,7 @@
 // Contact_Same_Email_Same_Account. Each attempt is a Save click → a guarded, audited mutation (`uiAttempt`). A rejected
 // save creates nothing; that is proven by SOQL. Anything a save did create is adopted (tag + ledger) and removed by the
 // verified cleanup with the run-tagged seed records. "Save anyway" on a duplicate warning is never pressed.
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import type { Browser, Locator, Page } from 'playwright';
 import type { ObservedMessage } from '../../core/schemas/execution.js';
@@ -65,27 +65,139 @@ export interface ObserveMessagesResult {
 const MAX_TEXT = 400;
 
 /** Text of the element(s) an input's aria-describedby points to (Lightning's field-level help/error message). */
-async function describedText(page: Page, field: Locator): Promise<string> {
-  const ids = ((await field.getAttribute('aria-describedby').catch(() => null)) ?? '').split(/\s+/).filter(Boolean);
-  const parts: string[] = [];
-  for (const id of ids) {
-    const el = page.locator(`[id="${id.replace(/"/g, '')}"]`);
-    if ((await el.count()) !== 1) continue;
-    const t = (await el.innerText().catch(() => '')).trim();
-    if (t) parts.push(t);
-  }
-  return parts.join(' ').replace(/\s+/g, ' ').slice(0, MAX_TEXT);
+/**
+ * Text of the element(s) an input's aria-describedby points to (Lightning's field-level help/error message). The ids
+ * are resolved in the input's own root (Lightning components keep the message in the same shadow root), then in the
+ * document; a form-element help text next to the input is the fallback.
+ */
+async function describedText(field: Locator): Promise<string> {
+  // After a save popover closes, the record form re-enters the accessibility tree a moment later.
+  await field.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+  if ((await field.count()) !== 1) return '';
+  const text = await field
+    .evaluate((el) => {
+      const ids = (el.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean);
+      // Lightning keeps the help message in another (native) shadow root: search every open root, own root first.
+      const findDeep = (root: Document | ShadowRoot, id: string, depth = 0): Element | null => {
+        // querySelector, not getElementById: LWC's synthetic shadow patches getElementById to hide shadow content.
+        const direct = root.querySelector(`[id="${id.replace(/"/g, '')}"]`);
+        if (direct || depth > 25) return direct;
+        for (const e of Array.from(root.querySelectorAll('*'))) {
+          if (e.shadowRoot) {
+            const f = findDeep(e.shadowRoot, id, depth + 1);
+            if (f) return f;
+          }
+        }
+        return null;
+      };
+      const own = el.getRootNode() as Document | ShadowRoot;
+      const parts: string[] = [];
+      for (const id of ids) {
+        const n = findDeep(own, id) ?? findDeep(el.ownerDocument, id);
+        const t = n?.textContent.trim();
+        if (t) parts.push(t);
+      }
+      if (parts.length) return parts.join(' ');
+      // Fallback: the nearest form element's help text (slds-form-element__help).
+      let p: Element | null = el;
+      for (let k = 0; p && k < 8; k++, p = p.parentElement) {
+        const help = p.querySelector('.slds-form-element__help, [data-help-message]');
+        if (help?.textContent.trim()) return help.textContent.trim();
+      }
+      return '';
+    })
+    .catch(() => '');
+  return text.replace(/\s+/g, ' ').slice(0, MAX_TEXT);
 }
 
-async function visibleTexts(scope: Locator): Promise<string[]> {
+/**
+ * Fallback for a field message the DOM keeps out of reach (closed shadow roots): Playwright's ARIA snapshot of the form
+ * lists the help text right after the invalid textbox (`- textbox "Last Name" [invalid]` then `- text: Last Name
+ * Complete this field.`). The label prefix is dropped. Exported for unit tests.
+ */
+export function messageFromAriaSnapshot(yaml: string, label: string): string {
+  const lines = yaml.split('\n');
+  const esc = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const at = lines.findIndex((l) => new RegExp(`- textbox "${esc}" \\[invalid\\]`).test(l));
+  if (at < 0) return '';
+  const indent = /^(\s*)/.exec(lines[at] ?? '')?.[1]?.length ?? 0;
+  // Siblings only: deeper lines are the textbox's own children (placeholder, typed value).
+  for (const l of lines.slice(at + 1, at + 8)) {
+    const ind = /^(\s*)/.exec(l)?.[1]?.length ?? 0;
+    if (ind < indent) break;
+    if (ind > indent) continue;
+    const m = /^\s*- text: (.+)$/.exec(l);
+    if (!m?.[1]) continue;
+    const t = m[1]
+      .trim()
+      .replace(new RegExp(`^${esc}\\s*`), '')
+      .trim();
+    if (t) return t.slice(0, MAX_TEXT);
+  }
+  return '';
+}
+
+/**
+ * Lightning's save popovers in the record form footer: "We hit a snag." (errors) and "Similar Records Exist"
+ * (duplicate alert). On live Lightning each is its OWN modal dialog named by its heading (while it is open the record
+ * form is hidden from the accessibility tree); the fixture renders an alert inside the form. Read by heading only —
+ * never page-wide text (the record page behind the modal has its own duplicate widget).
+ */
+async function popoverTexts(page: Page, form: Locator, heading: RegExp): Promise<string[]> {
   const out: string[] = [];
-  for (const el of await scope.all()) {
-    if (!(await el.isVisible().catch(() => false))) continue;
-    const t = (await el.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
-    if (t && !out.includes(t)) out.push(t.slice(0, MAX_TEXT));
+  const add = (t: string): void => {
+    const clean = t
+      .replace(/Close error dialog/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, MAX_TEXT);
+    if (clean && !out.includes(clean)) out.push(clean);
+  };
+  // The duplicate check answers asynchronously: give the popover a moment before reading — unless the form already
+  // shows the error inline (fixture) or the form is gone (the save went through).
+  const inline = (await form.getByText(heading).count()) > 0;
+  if (!inline && (await form.count()) > 0)
+    await page
+      .getByRole('dialog', { name: heading })
+      .first()
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(() => undefined);
+  for (const d of await page.getByRole('dialog', { name: heading }).all()) {
+    if (await d.isVisible().catch(() => false)) add(await d.innerText().catch(() => ''));
+  }
+  if (out.length) return out;
+  for (const h of await form.getByText(heading).all()) {
+    if (!(await h.isVisible().catch(() => false))) continue;
+    add(
+      await h
+        .evaluate((el) => {
+          let p: Element | null = el;
+          for (let k = 0; p && k < 6; k++, p = p.parentElement) {
+            const role = p.getAttribute('role');
+            if (role === 'dialog' || role === 'alertdialog' || role === 'alert') break;
+          }
+          return (p ?? el).textContent;
+        })
+        .catch(() => ''),
+    );
   }
   return out;
 }
+
+/** Close Lightning's save popovers so the record form is back in the accessibility tree (nothing is saved). */
+async function closePopovers(page: Page): Promise<void> {
+  for (const d of await page.getByRole('dialog', { name: POPOVER }).all()) {
+    const close = d.getByRole('button', { name: 'Close error dialog' });
+    if ((await close.count()) === 1 && (await close.isVisible().catch(() => false))) {
+      await close.click().catch(() => undefined);
+    }
+  }
+}
+
+/** Headings of Lightning's save popovers: errors / duplicate alert. */
+const POPOVER = /^\s*(We hit a snag|Similar Records Exist)/;
+const DUPLICATE = /^\s*Similar Records Exist/;
+const field = (dialog: Locator, name: string): Locator => dialog.getByRole('textbox', { name, exact: true });
 
 export async function observeMessages(i: ObserveMessagesInput): Promise<ObserveMessagesResult> {
   const log = i.log ?? (() => undefined);
@@ -153,7 +265,8 @@ export async function observeMessages(i: ObserveMessagesInput): Promise<ObserveM
       .catch(() => undefined);
     await probe
       .or(dialog.getByRole('alert'))
-      .or(page.getByText(/duplicate/i))
+      .or(page.getByRole('dialog', { name: POPOVER }))
+      .or(dialog.getByText(POPOVER))
       .first()
       .waitFor({ state: 'visible', timeout: 20_000 })
       .catch(() => undefined);
@@ -163,8 +276,10 @@ export async function observeMessages(i: ObserveMessagesInput): Promise<ObserveM
   async function attempt(
     name: AttemptOutcome['attempt'],
     fill: (dialog: Locator) => Promise<string[]>,
-    read: (page: Page, dialog: Locator) => Promise<ObservedMessage[]>,
+    read: (page: Page, dialog: Locator, before: string) => Promise<ObservedMessage[]>,
     probe: (dialog: Locator) => Locator,
+    /** Field whose description is read before the Save (baseline: only new text is a message). */
+    baselineField?: string,
   ): Promise<void> {
     const page = await context.newPage();
     const out: AttemptOutcome = { attempt: name, before: 0, after: 0, created: false, messages: [], notes: [] };
@@ -174,12 +289,32 @@ export async function observeMessages(i: ObserveMessagesInput): Promise<ObserveM
       out.before = beforeIds.length;
       const dialog = await openDialog(page);
       out.notes.push(...(await fill(dialog)));
+      const before = baselineField ? await describedText(field(dialog, baselineField)) : '';
       await i.sf.uiAttempt('save-attempt', 'Contact', async () => {
         await dialog.getByRole('button', { name: 'Save', exact: true }).click();
         await settle(page, dialog, probe(dialog));
         return { attempt: name };
       });
-      out.messages = await read(page, dialog);
+      out.messages = await read(page, dialog, before);
+      // Diagnostics (local evidence, redacted): what the reader saw, so a missed message can be explained.
+      const probeField = baselineField ? field(dialog, baselineField) : undefined;
+      const diag = {
+        fieldCount: probeField ? await probeField.count() : null,
+        ariaInvalid: probeField ? await probeField.getAttribute('aria-invalid').catch(() => null) : null,
+        describedBy: probeField ? await probeField.getAttribute('aria-describedby').catch(() => null) : null,
+        describedText: probeField ? await describedText(probeField) : null,
+        popoverDialogs: await page.getByRole('dialog', { name: POPOVER }).count(),
+      };
+      writeFileSync(
+        join(i.evidenceDir, `${name}.diag.json`),
+        `${JSON.stringify(diag, null, 2)}
+`,
+      );
+      const aria = await page
+        .locator('body')
+        .ariaSnapshot({ timeout: 15_000 })
+        .catch(() => '');
+      writeFileSync(join(i.evidenceDir, `${name}.aria.yml`), i.redactor.redactText(aria));
       const shot = join(i.evidenceDir, `${name}.png`);
       await page.screenshot({ path: shot }).catch(() => undefined);
       out.screenshot = relative(i.root, shot).split('\\').join('/');
@@ -204,22 +339,26 @@ export async function observeMessages(i: ObserveMessagesInput): Promise<ObserveM
     }
   }
 
-  const field = (dialog: Locator, name: string): Locator => dialog.getByRole('textbox', { name, exact: true });
+  const SNAG = /^\s*We hit a snag/;
   const fieldMessages = async (
     page: Page,
     dialog: Locator,
     label: string,
     apiName: string,
     kind: ObservedMessage['kind'],
+    before: string,
   ): Promise<ObservedMessage[]> => {
     const out: ObservedMessage[] = [];
-    const f = field(dialog, label);
-    const text =
-      (await f.getAttribute('aria-invalid').catch(() => null)) === 'true' ? await describedText(page, f) : '';
-    if (text) out.push(msg({ page: 'contact-new', field: apiName, kind, placement: 'field', text }));
-    for (const t of await visibleTexts(dialog.getByRole('alert'))) {
+    // The save went through (form closed, no popover): nothing to read.
+    if ((await dialog.count()) === 0 && (await page.getByRole('dialog', { name: POPOVER }).count()) === 0) return out;
+    for (const t of await popoverTexts(page, dialog, SNAG)) {
       out.push(msg({ page: 'contact-new', field: apiName, kind, placement: 'page', text: t }));
     }
+    await closePopovers(page);
+    let text = await describedText(field(dialog, label));
+    if (!text) text = messageFromAriaSnapshot(await dialog.ariaSnapshot({ timeout: 15_000 }).catch(() => ''), label);
+    // Only text that appeared with the Save (inline help that was already there is not a message).
+    if (text && text !== before) out.push(msg({ page: 'contact-new', field: apiName, kind, placement: 'field', text }));
     return out;
   };
   const uniqueName = (label: string): string => `QA-${i.runId}-${label}`;
@@ -229,8 +368,9 @@ export async function observeMessages(i: ObserveMessagesInput): Promise<ObserveM
     await attempt(
       'required-last-name',
       async () => Promise.resolve(['Last Name left empty']),
-      (page, d) => fieldMessages(page, d, 'Last Name', 'Contact.LastName', 'required'),
+      (page, d, before) => fieldMessages(page, d, 'Last Name', 'Contact.LastName', 'required', before),
       (d) => field(d, 'Last Name').and(d.locator('[aria-invalid="true"]')),
+      'Last Name',
     );
     // 2. Invalid email format (standard Salesforce validation of an Email field).
     await attempt(
@@ -240,8 +380,9 @@ export async function observeMessages(i: ObserveMessagesInput): Promise<ObserveM
         await field(d, 'Email').fill('not-an-email');
         return ['Email "not-an-email" with a run-unique Last Name'];
       },
-      (page, d) => fieldMessages(page, d, 'Email', 'Contact.Email', 'validation'),
+      (page, d, before) => fieldMessages(page, d, 'Email', 'Contact.Email', 'validation', before),
       (d) => field(d, 'Email').and(d.locator('[aria-invalid="true"]')),
+      'Email',
     );
     // 3. Last Name with 81 characters (field length 80): does the input truncate, or does Save show an error?
     await attempt(
@@ -252,8 +393,9 @@ export async function observeMessages(i: ObserveMessagesInput): Promise<ObserveM
         const kept = (await field(d, 'Last Name').inputValue()).length;
         return [`typed 81 characters; the input kept ${String(kept)}`];
       },
-      (page, d) => fieldMessages(page, d, 'Last Name', 'Contact.LastName', 'validation'),
+      (page, d, before) => fieldMessages(page, d, 'Last Name', 'Contact.LastName', 'validation', before),
       (d) => field(d, 'Last Name').and(d.locator('[aria-invalid="true"]')),
+      'Last Name',
     );
     // 4. Duplicate warning (same Email on the same Account as the seed Contact). "Save anyway" is never pressed.
     if (typeof seedEmail === 'string' && seedEmail) {
@@ -264,8 +406,9 @@ export async function observeMessages(i: ObserveMessagesInput): Promise<ObserveM
           await field(d, 'Email').fill(seedEmail);
           return ['Email of the seed Contact on the same Account'];
         },
-        async (page) => {
-          const texts = await visibleTexts(page.getByText(/duplicate/i));
+        async (page, d) => {
+          const texts = await popoverTexts(page, d, DUPLICATE);
+          await closePopovers(page);
           return texts.map((t) =>
             msg({
               page: 'contact-new',
@@ -277,7 +420,7 @@ export async function observeMessages(i: ObserveMessagesInput): Promise<ObserveM
             }),
           );
         },
-        (d) => d.getByText(/duplicate/i),
+        (d) => d.page().getByRole('dialog', { name: DUPLICATE }).or(d.getByText(DUPLICATE)),
       );
     } else {
       log('  duplicate-email: skipped — the approved recipe gives the seed Contact no Email');

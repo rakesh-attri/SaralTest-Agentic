@@ -111,6 +111,7 @@ export function registerObserve(loc: Command, rootOf: () => string, say: Say): v
         await browser.close().catch(() => undefined);
       }
       const store = new ObservedMessageStore(observedMessagesFile(root));
+      store.removeRun(ctx.org.orgId, runId);
       for (const m of result.messages) store.add(m);
       store.close();
       const dir = join(ctx.run.dir, 'observe');

@@ -35,6 +35,21 @@ export class ObservedMessageStore {
       .run(v.id, v.org, v.page, v.field ?? '', v.kind, v.persona, v.observedAt, JSON.stringify(v));
   }
 
+  /** Delete every observation of a run (a re-run of the same run id replaces it; wrong captures are withdrawn). */
+  removeRun(org: string, runId: string): number {
+    const rows = this.db.prepare('SELECT id, row FROM observed_messages WHERE org = ?').all(org) as {
+      id: string;
+      row: string;
+    }[];
+    let n = 0;
+    for (const r of rows) {
+      if ((JSON.parse(r.row) as { runId?: string }).runId !== runId) continue;
+      this.db.prepare('DELETE FROM observed_messages WHERE id = ?').run(r.id);
+      n++;
+    }
+    return n;
+  }
+
   /** Latest observation per (page, field, kind, placement, persona) of an org. */
   latest(org: string): ObservedMessage[] {
     const rows = this.db
