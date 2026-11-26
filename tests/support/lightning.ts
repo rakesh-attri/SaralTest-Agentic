@@ -67,10 +67,13 @@ export function relatedListRecord(list: Locator, name: string): Locator {
  */
 export async function closeSavePopover(page: Page, timeout = 10_000): Promise<void> {
   const popover = page.getByRole('dialog', { name: /^(We hit a snag|Similar Records Exist)/ });
-  for (const b of await popover.getByRole('button', { name: 'Close error dialog' }).all()) {
-    if (await b.isVisible().catch(() => false)) await b.click();
-  }
-  await expect(popover).toHaveCount(0, { timeout });
+  // The popover can render a moment after the field turns invalid (qa-prod run-p5-live-2): retry close + check.
+  await expect(async () => {
+    for (const b of await popover.getByRole('button', { name: 'Close error dialog' }).all()) {
+      if (await b.isVisible().catch(() => false)) await b.click();
+    }
+    await expect(popover).toHaveCount(0, { timeout: 1_000 });
+  }).toPass({ timeout });
 }
 
 /**
@@ -86,6 +89,10 @@ export async function expectFieldError(field: Locator, message?: string): Promis
     .getByRole('button', { name: 'Close error dialog' });
   await expect(popoverClose.or(field.and(page.locator('[aria-invalid="true"]'))))
     .not.toHaveCount(0, { timeout: 15_000 })
+    .catch(() => undefined);
+  // The field can turn invalid a moment before Lightning's popover renders: give it a short window, then close it.
+  await expect(popoverClose)
+    .not.toHaveCount(0, { timeout: 3_000 })
     .catch(() => undefined);
   await closeSavePopover(page);
   await expect(field).toHaveAttribute('aria-invalid', 'true');
