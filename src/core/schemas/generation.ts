@@ -209,6 +209,23 @@ export type TestIR = z.infer<typeof TestIR>;
 
 export const ArtifactKind = z.enum(['spec', 'page-object', 'api-test', 'fixture', 'support']);
 
+/**
+ * One org component a spec depends on, with its content hash when the spec was built: `ValidationRule:<Obj.Rule>`,
+ * `Field:<Obj.Field>` (snapshot hashes) or `Locator:<page>/<element>` (hash of the registry expression).
+ */
+export const SpecDependency = z.object({ component: z.string().min(1), hash: z.string().min(1) });
+export type SpecDependency = z.infer<typeof SpecDependency>;
+
+/** A spec whose dependencies changed after it was built: never executed until rebuilt. */
+export const SpecStale = z.object({
+  /** `<component> changed` / `removed` / `RE_VERIFY` lines. */
+  components: z.array(z.string()).min(1),
+  /** Snapshot in which the change was found. */
+  snapshotId: z.string(),
+  markedAt: z.string(),
+});
+export type SpecStale = z.infer<typeof SpecStale>;
+
 export const GeneratedArtifact = z.object({
   kind: ArtifactKind,
   /** Repo-relative path with forward slashes. */
@@ -228,6 +245,11 @@ export const GeneratedArtifact = z.object({
   /** Test Reviewer pass 2 verdict (specs only). */
   reviewStatus: ReviewStatus.optional(),
   reviewReasons: z.array(z.string()).default([]),
+  /** Org components (with hashes) the spec depends on; `snapshotId` is the snapshot they were read from. Absent on
+   * specs built before dependency tracking (2026-11-26): their staleness is unknown until rebuilt or backfilled. */
+  dependsOn: z.array(SpecDependency).optional(),
+  /** Set by `qa discover` / `qa build` when a dependency changed; cleared only by a rebuild of the spec. */
+  stale: SpecStale.optional(),
 });
 export type GeneratedArtifact = z.infer<typeof GeneratedArtifact>;
 

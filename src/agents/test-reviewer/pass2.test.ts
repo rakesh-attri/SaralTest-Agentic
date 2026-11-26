@@ -9,6 +9,7 @@ import { locatorsUsed, renderSkeleton, renderSpec, specPath } from '../test-gene
 import type { ToolchainResult } from '../test-generator/toolchain.js';
 import {
   astViolations,
+  messageMismatches,
   pass2Findings,
   reviewPass2Round,
   settlePass2,
@@ -330,5 +331,37 @@ describe('expected error text needs org evidence (operator 2026-11-26)', () => {
     ).toEqual([0]);
     // no message expected → presence-only is fine
     expect(unevidencedMessageSteps(tc('The Last Name field is marked invalid'), ir())).toEqual([]);
+  });
+});
+
+describe('case quote vs org rule message (operator 2026-11-26)', () => {
+  it('flags a step that quotes a message other than the org rule text the spec asserts', () => {
+    const ev = { caseStep: 0, evidenceIds: ['SF-219#AC2'] };
+    const ir = {
+      ...GOOD_IR,
+      steps: [
+        {
+          caseStep: 0,
+          title: 'Save',
+          actions: [],
+          assertions: [
+            {
+              check: 'fieldError' as const,
+              element: 'contact-new.phone',
+              message: { rule: 'Phone_Must_Be_10_Digits' },
+              expect: ev,
+            },
+          ],
+        },
+      ],
+    };
+    const tc = (text: string): typeof CASE => ({
+      ...CASE,
+      steps: [{ ...CASE.steps[0]!, expected: { ...CASE.steps[0]!.expected, text } }],
+    });
+    expect(messageMismatches(tc("error 'Phone must be exactly 10 digits.' is shown"), ir, ctx)[0]?.text).toMatch(
+      /quotes "Phone must be exactly 10 digits\." but Contact\.Phone_Must_Be_10_Digits says "Enter a 10-digit phone number\."/,
+    );
+    expect(messageMismatches(tc("error 'Enter a 10-digit phone number.' is shown"), ir, ctx)).toEqual([]);
   });
 });

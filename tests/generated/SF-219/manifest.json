@@ -1,7 +1,7 @@
 {
   "storyKey": "SF-219",
   "designRun": "run-p4-design-decided-1",
-  "buildRun": "run-p4-build-decided-8",
+  "buildRun": "run-p4-build-decided-10",
   "org": "qa-prod",
   "environment": "LIVE",
   "artifacts": [
@@ -33,18 +33,60 @@
         "RF-003 message-unevidenced: step 9 expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-8"
+      "buildRun": "run-p4-build-decided-8",
+      "dependsOn": [
+        {
+          "component": "Field:Account.Name",
+          "hash": "Field:82930747c1bd9a73fc410bb90f2f4f50"
+        },
+        {
+          "component": "Field:Contact.AccountId",
+          "hash": "Field:7097a7088bba51478a3dd7aff829dba1"
+        },
+        {
+          "component": "Field:Contact.FirstName",
+          "hash": "Field:e5825cd31e06d509bdd16bc4b1d0702f"
+        },
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Account Name",
+          "hash": "fc0da302649ea221"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/First Name",
+          "hash": "217765c57a55ade0"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        }
+      ]
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-007-create-contact-with-valid-10-digit-phone-and-non-w.spec.ts",
-      "hash": "cbaf7cd87ae4df1d",
+      "hash": "51279247db8bb36d",
       "testCaseIds": [
         "TC-SF-219-007"
       ],
       "caseHash": "624d82503c46ba33",
-      "irHash": "881f83fff7aa8183",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "irHash": "9c4f43b7b064de89",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
@@ -55,24 +97,70 @@
         "contact-new.root",
         "contact-new.saveButton"
       ],
+      "dependsOn": [
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Field:Contact.LeadSource",
+          "hash": "Field:f04eaf5eaaea2efee53cd2848afc122e"
+        },
+        {
+          "component": "Field:Contact.Phone",
+          "hash": "Field:8ce6380903fc80ca3135b42c9fd971b4"
+        },
+        {
+          "component": "ValidationRule:Contact.Phone_Must_Be_10_Digits",
+          "hash": "ValidationRule:fbf98f75d4aed5e95b40a29c6731b725"
+        },
+        {
+          "component": "ValidationRule:Contact.Phone_Required_For_Web",
+          "hash": "ValidationRule:053a1be27a2146f9d1b3982b2e8ae6c7"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Lead Source",
+          "hash": "5b60e5cecbe7c70b"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Phone",
+          "hash": "78a5085367bf6036"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        }
+      ],
       "dataBindings": [
         "account-contact"
       ],
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-8"
+      "buildRun": "run-p4-build-decided-9"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-008-create-contact-with-lead-source-web-and-blank-phon.spec.ts",
-      "hash": "6acb4ef399aefeaf",
+      "hash": "aa75a4272e1afa5d",
       "testCaseIds": [
         "TC-SF-219-008"
       ],
       "caseHash": "add925ad4aa92798",
-      "irHash": "daca320f43a5c09b",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "irHash": "197f82116a0da91a",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
@@ -83,24 +171,70 @@
         "contact-new.root",
         "contact-new.saveButton"
       ],
+      "dependsOn": [
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Field:Contact.LeadSource",
+          "hash": "Field:f04eaf5eaaea2efee53cd2848afc122e"
+        },
+        {
+          "component": "Field:Contact.Phone",
+          "hash": "Field:8ce6380903fc80ca3135b42c9fd971b4"
+        },
+        {
+          "component": "ValidationRule:Contact.Phone_Must_Be_10_Digits",
+          "hash": "ValidationRule:fbf98f75d4aed5e95b40a29c6731b725"
+        },
+        {
+          "component": "ValidationRule:Contact.Phone_Required_For_Web",
+          "hash": "ValidationRule:053a1be27a2146f9d1b3982b2e8ae6c7"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Lead Source",
+          "hash": "5b60e5cecbe7c70b"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Phone",
+          "hash": "78a5085367bf6036"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        }
+      ],
       "dataBindings": [
         "account-contact"
       ],
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-8"
+      "buildRun": "run-p4-build-decided-9"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-009-create-contact-with-invalid-phone-format-not-10-di.spec.ts",
-      "hash": "389f9c138f9b9882",
+      "hash": "d282589a79064b41",
       "testCaseIds": [
         "TC-SF-219-009"
       ],
-      "caseHash": "284349d6ea378b6f",
-      "irHash": "c19a46eface7b783",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "caseHash": "688a947e697adf52",
+      "irHash": "629e147e3f70750b",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
@@ -111,34 +245,125 @@
         "contact-new.root",
         "contact-new.saveButton"
       ],
+      "dependsOn": [
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Field:Contact.LeadSource",
+          "hash": "Field:f04eaf5eaaea2efee53cd2848afc122e"
+        },
+        {
+          "component": "Field:Contact.Phone",
+          "hash": "Field:8ce6380903fc80ca3135b42c9fd971b4"
+        },
+        {
+          "component": "ValidationRule:Contact.Phone_Must_Be_10_Digits",
+          "hash": "ValidationRule:fbf98f75d4aed5e95b40a29c6731b725"
+        },
+        {
+          "component": "ValidationRule:Contact.Phone_Required_For_Web",
+          "hash": "ValidationRule:053a1be27a2146f9d1b3982b2e8ae6c7"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Lead Source",
+          "hash": "5b60e5cecbe7c70b"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Phone",
+          "hash": "78a5085367bf6036"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        }
+      ],
       "dataBindings": [
         "account-contact"
       ],
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-8"
+      "buildRun": "run-p4-build-decided-9"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-010-boundary-value-test-for-phone-field-9-10-and-11-di.spec.ts",
-      "hash": "2c44981ce5b7aaa6",
+      "hash": "5c058f20fafd3a99",
       "testCaseIds": [
         "TC-SF-219-010"
       ],
-      "caseHash": "09f7633d66669ef2",
-      "irHash": "c52e211988178269",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "caseHash": "8dd2248aed59c6d0",
+      "irHash": "8887d465c28f22a7",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
         "account-record.relatedTab",
-        "contact-new.firstName",
         "contact-new.lastName",
         "contact-new.leadSource",
         "contact-new.phone",
         "contact-new.root",
         "contact-new.saveButton"
+      ],
+      "dependsOn": [
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Field:Contact.LeadSource",
+          "hash": "Field:f04eaf5eaaea2efee53cd2848afc122e"
+        },
+        {
+          "component": "Field:Contact.Phone",
+          "hash": "Field:8ce6380903fc80ca3135b42c9fd971b4"
+        },
+        {
+          "component": "ValidationRule:Contact.Phone_Must_Be_10_Digits",
+          "hash": "ValidationRule:fbf98f75d4aed5e95b40a29c6731b725"
+        },
+        {
+          "component": "ValidationRule:Contact.Phone_Required_For_Web",
+          "hash": "ValidationRule:053a1be27a2146f9d1b3982b2e8ae6c7"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Lead Source",
+          "hash": "5b60e5cecbe7c70b"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Phone",
+          "hash": "78a5085367bf6036"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        }
       ],
       "dataBindings": [
         "account-contact"
@@ -146,7 +371,7 @@
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-8"
+      "buildRun": "run-p4-build-decided-9"
     },
     {
       "kind": "spec",
@@ -175,7 +400,41 @@
         "RF-005 judge: Step action differs from test case - API update used instead of UI edit: Step 3 of the test case specifies 'On the created Contact record, click Edit, change Last Name to AdminTestEdited, and click Save' but the test uses `await data.update('Contact', { LastName: 'AdminTestEdited' });` which is an API update, not a UI edit action. The step's action differs from the case."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-8"
+      "buildRun": "run-p4-build-decided-8",
+      "dependsOn": [
+        {
+          "component": "Field:Account.Name",
+          "hash": "Field:82930747c1bd9a73fc410bb90f2f4f50"
+        },
+        {
+          "component": "Field:Contact.AccountId",
+          "hash": "Field:7097a7088bba51478a3dd7aff829dba1"
+        },
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        },
+        {
+          "component": "Locator:contact-record/button:Details/Edit Account Name",
+          "hash": "26d6215ad3c83cf2"
+        }
+      ]
     },
     {
       "kind": "spec",
@@ -202,7 +461,41 @@
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-8"
+      "buildRun": "run-p4-build-decided-8",
+      "dependsOn": [
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Field:Contact.Title",
+          "hash": "Field:7915cd23878a6ceaf7fc4406fae6cc5b"
+        },
+        {
+          "component": "ValidationRule:Contact.Title_Must_Be_Approved",
+          "hash": "ValidationRule:f9f41760ea8989a3a2611899403ac9db"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Title",
+          "hash": "3ebec4aa0e1e860a"
+        }
+      ]
     },
     {
       "kind": "spec",
@@ -225,7 +518,17 @@
         "RF-006 judge: Multiple expected results not asserted or assertions weaker than expected: Step 1: Expected result states 'Contact detail page shows the initial Email and Phone values' but test only asserts emailField, not phoneField. Step 3: Expected result specifies detailed SOQL query checking Field, OldValue, NewValue, CreatedById, CreatedDate for both Email and Phone changes, but test only asserts `historyFields` array contains 'Email' and 'Phone'. Step 4: Expected result states 'Field History related list shows two entries with old/new values, timestamp, and user' but test only opens the page with no assertions on the related list."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-8"
+      "buildRun": "run-p4-build-decided-8",
+      "dependsOn": [
+        {
+          "component": "Field:Contact.Email",
+          "hash": "Field:1ff1e49584a3d3298e477de73bc32c71"
+        },
+        {
+          "component": "Locator:contact-record/button:Details/Edit Email",
+          "hash": "c0bafb6c095839d0"
+        }
+      ]
     },
     {
       "kind": "spec",
@@ -253,18 +556,60 @@
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-8"
+      "buildRun": "run-p4-build-decided-8",
+      "dependsOn": [
+        {
+          "component": "Field:Account.Name",
+          "hash": "Field:82930747c1bd9a73fc410bb90f2f4f50"
+        },
+        {
+          "component": "Field:Contact.AccountId",
+          "hash": "Field:7097a7088bba51478a3dd7aff829dba1"
+        },
+        {
+          "component": "Field:Contact.FirstName",
+          "hash": "Field:e5825cd31e06d509bdd16bc4b1d0702f"
+        },
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Account Name",
+          "hash": "fc0da302649ea221"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/First Name",
+          "hash": "217765c57a55ade0"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        }
+      ]
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-032-create-contact-from-account-related-list-contact-l.spec.ts",
-      "hash": "10d8548d314c15a3",
+      "hash": "35637ccfb7464fc3",
       "testCaseIds": [
         "TC-SF-219-032"
       ],
       "caseHash": "d768593bb35038a0",
-      "irHash": "d44f0e82a667d017",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "irHash": "2c8ee311427f8ddc",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
@@ -279,17 +624,98 @@
         "contact-new.title",
         "contact-record.accountNameField"
       ],
+      "dependsOn": [
+        {
+          "component": "Field:Account.Name",
+          "hash": "Field:82930747c1bd9a73fc410bb90f2f4f50"
+        },
+        {
+          "component": "Field:Contact.AccountId",
+          "hash": "Field:7097a7088bba51478a3dd7aff829dba1"
+        },
+        {
+          "component": "Field:Contact.Email",
+          "hash": "Field:1ff1e49584a3d3298e477de73bc32c71"
+        },
+        {
+          "component": "Field:Contact.FirstName",
+          "hash": "Field:e5825cd31e06d509bdd16bc4b1d0702f"
+        },
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Field:Contact.Phone",
+          "hash": "Field:8ce6380903fc80ca3135b42c9fd971b4"
+        },
+        {
+          "component": "Field:Contact.Title",
+          "hash": "Field:7915cd23878a6ceaf7fc4406fae6cc5b"
+        },
+        {
+          "component": "ValidationRule:Contact.Phone_Must_Be_10_Digits",
+          "hash": "ValidationRule:fbf98f75d4aed5e95b40a29c6731b725"
+        },
+        {
+          "component": "ValidationRule:Contact.Phone_Required_For_Web",
+          "hash": "ValidationRule:053a1be27a2146f9d1b3982b2e8ae6c7"
+        },
+        {
+          "component": "ValidationRule:Contact.Title_Must_Be_Approved",
+          "hash": "ValidationRule:f9f41760ea8989a3a2611899403ac9db"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Account Name",
+          "hash": "fc0da302649ea221"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Email",
+          "hash": "a05d25896cd2610a"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/First Name",
+          "hash": "217765c57a55ade0"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Phone",
+          "hash": "78a5085367bf6036"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Title",
+          "hash": "3ebec4aa0e1e860a"
+        },
+        {
+          "component": "Locator:contact-record/button:Details/Edit Account Name",
+          "hash": "26d6215ad3c83cf2"
+        }
+      ],
       "dataBindings": [
         "account-contact"
       ],
       "origin": "generated",
       "reviewReasons": [
         "RF-001 locator-unresolved: locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep",
-        "RF-007 judge: Missing field value assertions in step 3: Step 3 expected result 'All fields accept the entered values without validation errors' requires verification of all entered fields (First Name, Last Name, Email, Phone, Title). Test only asserts firstName and lastName have values; email, phone, and title field values are not asserted."
+        "RF-004 judge: Missing assertion for read-only Account Name field in step 2: Case step 2 expects 'New Contact modal opens with Account Name field pre-populated with \"Acme Test\" and read-only'. The test only verifies the value (`toHaveValue`) but does not assert the field is read-only/disabled."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-8",
-      "reviewedBy": "review2-20261126-095851-512d"
+      "buildRun": "run-p4-build-decided-9"
     },
     {
       "kind": "spec",
@@ -316,18 +742,52 @@
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-8"
+      "buildRun": "run-p4-build-decided-8",
+      "dependsOn": [
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Field:Contact.Title",
+          "hash": "Field:7915cd23878a6ceaf7fc4406fae6cc5b"
+        },
+        {
+          "component": "ValidationRule:Contact.Title_Must_Be_Approved",
+          "hash": "ValidationRule:f9f41760ea8989a3a2611899403ac9db"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Title",
+          "hash": "3ebec4aa0e1e860a"
+        }
+      ]
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-044-create-contact-with-valid-data-from-account-regres.spec.ts",
-      "hash": "4604562a67a012e0",
+      "hash": "db0c0f6ded9543bf",
       "testCaseIds": [
         "TC-SF-219-044"
       ],
       "caseHash": "9f38bfa3d259aad2",
-      "irHash": "9293233404de48de",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "irHash": "5a9b81977c5128d1",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
@@ -341,21 +801,109 @@
         "contact-new.saveButton",
         "contact-new.title",
         "contact-record.accountNameField",
+        "contact-record.emailField",
         "contact-record.titleField"
+      ],
+      "dependsOn": [
+        {
+          "component": "Field:Account.Name",
+          "hash": "Field:82930747c1bd9a73fc410bb90f2f4f50"
+        },
+        {
+          "component": "Field:Contact.AccountId",
+          "hash": "Field:7097a7088bba51478a3dd7aff829dba1"
+        },
+        {
+          "component": "Field:Contact.Email",
+          "hash": "Field:1ff1e49584a3d3298e477de73bc32c71"
+        },
+        {
+          "component": "Field:Contact.FirstName",
+          "hash": "Field:e5825cd31e06d509bdd16bc4b1d0702f"
+        },
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Field:Contact.Phone",
+          "hash": "Field:8ce6380903fc80ca3135b42c9fd971b4"
+        },
+        {
+          "component": "Field:Contact.Title",
+          "hash": "Field:7915cd23878a6ceaf7fc4406fae6cc5b"
+        },
+        {
+          "component": "ValidationRule:Contact.Phone_Must_Be_10_Digits",
+          "hash": "ValidationRule:fbf98f75d4aed5e95b40a29c6731b725"
+        },
+        {
+          "component": "ValidationRule:Contact.Phone_Required_For_Web",
+          "hash": "ValidationRule:053a1be27a2146f9d1b3982b2e8ae6c7"
+        },
+        {
+          "component": "ValidationRule:Contact.Title_Must_Be_Approved",
+          "hash": "ValidationRule:f9f41760ea8989a3a2611899403ac9db"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Account Name",
+          "hash": "fc0da302649ea221"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Email",
+          "hash": "a05d25896cd2610a"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/First Name",
+          "hash": "217765c57a55ade0"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Phone",
+          "hash": "78a5085367bf6036"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Title",
+          "hash": "3ebec4aa0e1e860a"
+        },
+        {
+          "component": "Locator:contact-record/button:Details/Edit Account Name",
+          "hash": "26d6215ad3c83cf2"
+        },
+        {
+          "component": "Locator:contact-record/button:Details/Edit Email",
+          "hash": "c0bafb6c095839d0"
+        },
+        {
+          "component": "Locator:contact-record/button:Details/Edit Title",
+          "hash": "8fc510bf67bd9044"
+        }
       ],
       "dataBindings": [
         "account-contact"
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-002 locator-unresolved: locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep",
-        "RF-008 judge: Missing field value assertions in step 3: Step 3 expected result 'All required fields accept the entered values' requires verification of all entered fields (First Name, Last Name, Email, Phone, Title). Test only asserts firstName, lastName, and title; email and phone field values are not asserted.",
-        "RF-009 judge: Missing assertion that Contact detail page opens in step 4: Step 4 expected result 'Contact record is created and the Contact detail page opens' is not asserted. Test clicks save and captures record ID but does not verify navigation to Contact detail page (e.g., via expectRecordTitle or URL check).",
-        "RF-010 judge: Missing field value assertions on Contact detail page in step 5: Step 5 expected result 'Contact detail page shows the correct Account Name and all entered field values are displayed' requires verification of all entered fields. Test only asserts Account Name and Title on UI, and FirstName/LastName via SOQL; Email and Phone are not verified on the detail page."
+        "RF-001 locator-unresolved: locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep",
+        "RF-003 judge: Missing field verifications on Contact detail page in step 5: Step 5 expects 'Contact detail page shows the correct Account Name and all entered field values are displayed' but only asserts Account Name and Title. First Name, Last Name, Email, and Phone are not verified on the detail page."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-8",
-      "reviewedBy": "review2-20261126-095851-512d"
+      "buildRun": "run-p4-build-decided-10"
     },
     {
       "kind": "spec",
@@ -374,7 +922,8 @@
         "RF-001 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-8"
+      "buildRun": "run-p4-build-decided-8",
+      "dependsOn": []
     },
     {
       "kind": "spec",
@@ -404,7 +953,49 @@
         "RF-002 message-unevidenced: step 3 expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-8"
+      "buildRun": "run-p4-build-decided-8",
+      "dependsOn": [
+        {
+          "component": "Field:Account.Name",
+          "hash": "Field:82930747c1bd9a73fc410bb90f2f4f50"
+        },
+        {
+          "component": "Field:Contact.AccountId",
+          "hash": "Field:7097a7088bba51478a3dd7aff829dba1"
+        },
+        {
+          "component": "Field:Contact.FirstName",
+          "hash": "Field:e5825cd31e06d509bdd16bc4b1d0702f"
+        },
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Account Name",
+          "hash": "fc0da302649ea221"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/First Name",
+          "hash": "217765c57a55ade0"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        }
+      ]
     },
     {
       "kind": "spec",
@@ -435,7 +1026,37 @@
       ],
       "reviewStatus": "REVIEW_REQUIRED",
       "buildRun": "run-p4-build-decided-8",
-      "reviewedBy": "review2-20261126-095851-512d"
+      "reviewedBy": "review2-20261126-095851-512d",
+      "dependsOn": [
+        {
+          "component": "Field:Contact.Email",
+          "hash": "Field:1ff1e49584a3d3298e477de73bc32c71"
+        },
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Email",
+          "hash": "a05d25896cd2610a"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        }
+      ]
     },
     {
       "kind": "spec",
@@ -467,7 +1088,45 @@
       ],
       "reviewStatus": "REVIEW_REQUIRED",
       "buildRun": "run-p4-build-decided-8",
-      "reviewedBy": "review2-20261126-095851-512d"
+      "reviewedBy": "review2-20261126-095851-512d",
+      "dependsOn": [
+        {
+          "component": "Field:Contact.Email",
+          "hash": "Field:1ff1e49584a3d3298e477de73bc32c71"
+        },
+        {
+          "component": "Field:Contact.FirstName",
+          "hash": "Field:e5825cd31e06d509bdd16bc4b1d0702f"
+        },
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Email",
+          "hash": "a05d25896cd2610a"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/First Name",
+          "hash": "217765c57a55ade0"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        }
+      ]
     },
     {
       "kind": "spec",
@@ -502,18 +1161,72 @@
       ],
       "reviewStatus": "REVIEW_REQUIRED",
       "buildRun": "run-p4-build-decided-8",
-      "reviewedBy": "review2-20261126-095851-512d"
+      "reviewedBy": "review2-20261126-095851-512d",
+      "dependsOn": [
+        {
+          "component": "Field:Account.Name",
+          "hash": "Field:82930747c1bd9a73fc410bb90f2f4f50"
+        },
+        {
+          "component": "Field:Contact.AccountId",
+          "hash": "Field:7097a7088bba51478a3dd7aff829dba1"
+        },
+        {
+          "component": "Field:Contact.Email",
+          "hash": "Field:1ff1e49584a3d3298e477de73bc32c71"
+        },
+        {
+          "component": "Field:Contact.FirstName",
+          "hash": "Field:e5825cd31e06d509bdd16bc4b1d0702f"
+        },
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Account Name",
+          "hash": "fc0da302649ea221"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Email",
+          "hash": "a05d25896cd2610a"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/First Name",
+          "hash": "217765c57a55ade0"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        },
+        {
+          "component": "Locator:contact-record/button:Details/Edit Email",
+          "hash": "c0bafb6c095839d0"
+        }
+      ]
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-053-contact-pages-accessibility-wcag-2-1-aa-keyboard-n.spec.ts",
-      "hash": "df7c1c5d8ec09f3c",
+      "hash": "1458d3ab4b74714d",
       "testCaseIds": [
         "TC-SF-219-053"
       ],
       "caseHash": "9da99fc66ed302a5",
-      "irHash": "a3e140e73fbbdefe",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "irHash": "8077158ff5f3c2c8",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
@@ -554,22 +1267,302 @@
         "contact-new.saveButton",
         "contact-new.title",
         "contact-record.activityTab",
-        "contact-record.casesNewButton",
+        "contact-record.casesRelatedList",
         "contact-record.chatterTab",
         "contact-record.deleteButton",
         "contact-record.detailsTab",
         "contact-record.editButton",
-        "contact-record.opportunitiesNewButton",
+        "contact-record.opportunitiesRelatedList",
         "contact-record.relatedTab",
         "contact-record.root"
+      ],
+      "dependsOn": [
+        {
+          "component": "Field:Contact.AccountId",
+          "hash": "Field:7097a7088bba51478a3dd7aff829dba1"
+        },
+        {
+          "component": "Field:Contact.AssistantPhone",
+          "hash": "Field:481a699149716dd51c83d50056207cbb"
+        },
+        {
+          "component": "Field:Contact.Birthdate",
+          "hash": "Field:542f1392fd3706241c364cde5c4b26c6"
+        },
+        {
+          "component": "Field:Contact.Department",
+          "hash": "Field:ba6ff4d9f22c0f85866866f9857ce3ef"
+        },
+        {
+          "component": "Field:Contact.Description",
+          "hash": "Field:8b0cd917d379bd3e2b2ab00c46e6dbb4"
+        },
+        {
+          "component": "Field:Contact.Email",
+          "hash": "Field:1ff1e49584a3d3298e477de73bc32c71"
+        },
+        {
+          "component": "Field:Contact.Fax",
+          "hash": "Field:882d4dcf27712453c0cc76dcc599cfbc"
+        },
+        {
+          "component": "Field:Contact.FirstName",
+          "hash": "Field:e5825cd31e06d509bdd16bc4b1d0702f"
+        },
+        {
+          "component": "Field:Contact.HomePhone",
+          "hash": "Field:99d2ad405d057b58916ce859be6c88a2"
+        },
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
+        {
+          "component": "Field:Contact.LeadSource",
+          "hash": "Field:f04eaf5eaaea2efee53cd2848afc122e"
+        },
+        {
+          "component": "Field:Contact.MailingCity",
+          "hash": "Field:509617df995ffd31ba980a9d219b0c3b"
+        },
+        {
+          "component": "Field:Contact.MailingCountry",
+          "hash": "Field:eba088a13e5c6445bd81f426679e29c4"
+        },
+        {
+          "component": "Field:Contact.MailingPostalCode",
+          "hash": "Field:14e15168ea069a1bce9b0c3752e1bc34"
+        },
+        {
+          "component": "Field:Contact.MailingState",
+          "hash": "Field:89466ffdb8415124269988b748c0089f"
+        },
+        {
+          "component": "Field:Contact.MailingStreet",
+          "hash": "Field:2d278c8b0e55e3350ce2c3f60e2d1459"
+        },
+        {
+          "component": "Field:Contact.OtherCity",
+          "hash": "Field:e98ba58c0a099ff846c3d2d9cfee3b76"
+        },
+        {
+          "component": "Field:Contact.OtherCountry",
+          "hash": "Field:46514cefdd07d2cca8681f0f03b60f0f"
+        },
+        {
+          "component": "Field:Contact.OtherPhone",
+          "hash": "Field:4c71985a7658567d3e5754f1b634c629"
+        },
+        {
+          "component": "Field:Contact.OtherPostalCode",
+          "hash": "Field:6e4ec42a837419fb7dc2e521e4288612"
+        },
+        {
+          "component": "Field:Contact.OtherState",
+          "hash": "Field:ae00af1670c056f7e0e9af4224495a4f"
+        },
+        {
+          "component": "Field:Contact.OtherStreet",
+          "hash": "Field:ddba85cd0db9f58d7b500f3c3251720f"
+        },
+        {
+          "component": "Field:Contact.Phone",
+          "hash": "Field:8ce6380903fc80ca3135b42c9fd971b4"
+        },
+        {
+          "component": "Field:Contact.ReportsToId",
+          "hash": "Field:35223e7c909e5f4c2df2edc972438889"
+        },
+        {
+          "component": "Field:Contact.Salutation",
+          "hash": "Field:bb41adb60c140cb41ed40669ddb94dae"
+        },
+        {
+          "component": "Field:Contact.Title",
+          "hash": "Field:7915cd23878a6ceaf7fc4406fae6cc5b"
+        },
+        {
+          "component": "ValidationRule:Contact.Phone_Must_Be_10_Digits",
+          "hash": "ValidationRule:fbf98f75d4aed5e95b40a29c6731b725"
+        },
+        {
+          "component": "ValidationRule:Contact.Phone_Required_For_Web",
+          "hash": "ValidationRule:053a1be27a2146f9d1b3982b2e8ae6c7"
+        },
+        {
+          "component": "ValidationRule:Contact.Title_Must_Be_Approved",
+          "hash": "ValidationRule:f9f41760ea8989a3a2611899403ac9db"
+        },
+        {
+          "component": "Locator:account-record/button:Related/Contacts/New",
+          "hash": "931058942e02bcd1"
+        },
+        {
+          "component": "Locator:account-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Account Name",
+          "hash": "fc0da302649ea221"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Assistant",
+          "hash": "234c88658e902bd1"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Asst. Phone",
+          "hash": "00bc6478a121caa4"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Birthdate",
+          "hash": "161da66bc869cfa4"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Cancel",
+          "hash": "14ac717ee6f7220c"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Department",
+          "hash": "a24c4574fd8eb24b"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Description",
+          "hash": "c636c2743ae2b44e"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Email",
+          "hash": "a05d25896cd2610a"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Fax",
+          "hash": "8067824ff8c02c59"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/First Name",
+          "hash": "217765c57a55ade0"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Home Phone",
+          "hash": "f331d1ac60fcea84"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
+          "hash": "c2740cf09b7467bb"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Lead Source",
+          "hash": "5b60e5cecbe7c70b"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Mailing Address/Address Search",
+          "hash": "5d2f00c843409591"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Mailing Address/Mailing City",
+          "hash": "3049218c0f89a50c"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Mailing Address/Mailing Country",
+          "hash": "685d930d33d27725"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Mailing Address/Mailing Zip/Postal Code",
+          "hash": "4cea3c451bb6b930"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Mailing Address/Mailing State/Province",
+          "hash": "8befc1cabb540291"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Mailing Address/Mailing Street",
+          "hash": "dbc50e0dfe730ea5"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Mobile",
+          "hash": "f16a5af18ce37ea5"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Other Address/Address Search",
+          "hash": "351b96561459bc08"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Other Address/Other City",
+          "hash": "92c899b17b9b3f3e"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Other Address/Other Country",
+          "hash": "21501ef173e16500"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Other Phone",
+          "hash": "3531568ea1744c6a"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Other Address/Other Zip/Postal Code",
+          "hash": "daf8c19bbab4e183"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Other Address/Other State/Province",
+          "hash": "639dfeab16510980"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Other Address/Other Street",
+          "hash": "0fd861124ae15750"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Phone",
+          "hash": "78a5085367bf6036"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Reports To",
+          "hash": "9a57591196eaabd1"
+        },
+        {
+          "component": "Locator:contact-new/combobox:New Contact/Name required/Salutation",
+          "hash": "221a3080786e8810"
+        },
+        {
+          "component": "Locator:contact-new/button:New Contact/Save",
+          "hash": "388393889e843b68"
+        },
+        {
+          "component": "Locator:contact-new/textbox:New Contact/Title",
+          "hash": "3ebec4aa0e1e860a"
+        },
+        {
+          "component": "Locator:contact-record/tab:Tabs/Activity",
+          "hash": "61481a3014ec34ec"
+        },
+        {
+          "component": "Locator:contact-record/tab:Tabs/Chatter",
+          "hash": "418cdec1c070bb76"
+        },
+        {
+          "component": "Locator:contact-record/button:Delete",
+          "hash": "05dac2c8d5a3e2e3"
+        },
+        {
+          "component": "Locator:contact-record/tab:Tabs/Details",
+          "hash": "afa1b106adff68e1"
+        },
+        {
+          "component": "Locator:contact-record/button:Edit",
+          "hash": "e7bd844a13e7539c"
+        },
+        {
+          "component": "Locator:contact-record/tab:Tabs/Related",
+          "hash": "e327cfbcc3f048de"
+        }
       ],
       "dataBindings": [
         "account-contact"
       ],
       "origin": "generated",
-      "reviewReasons": [],
-      "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-8"
+      "reviewReasons": [
+        "RF-005 judge: Step 5 tests Contact detail page instead of Contact list view: Case step 5: 'Tab through Contact list view and verify row actions are keyboard accessible'. The test calls `contactRecordPage.open(viewed['Contact'])` which opens the detail page, then runs the same tab-order check as step 4. No list view is visited and no row actions (Edit, Delete) are verified."
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p4-build-decided-9"
     }
   ],
   "manualOnly": [

@@ -480,3 +480,52 @@ unavailable):
     - skeleton: TC-045.
   - Nothing has been executed; execution is Phase 5.
 - **Phase 4 is closed.**
+
+## Spec staleness (2026-11-26, operator request — Phase 4 follow-up)
+
+- **What happened:**
+  - The operator changed `Contact.Phone_Must_Be_10_Digits` back to "Phone must be exactly 10 digits." after
+    snapshot `…93cc`, so build 8's TC-009/010 still asserted "Enter a 10-digit phone number."
+  - Nothing noticed this: discovery marked locators, manual tests and requirements RE_VERIFY, but not specs, and
+    `qa build` used the latest snapshot without saying that existing specs were older.
+  - `qa discover` (`run-p4-discover-5`, snapshot `…adbb`): 1 changed, `errorMessage` only.
+- **Dependency records:**
+  - Every generated spec now records in `dependsOn` the content hashes of the fields it types, selects, reads or
+    queries; of the validation rules whose message it asserts or whose formula reads those fields; and of every
+    locator it uses (registry expression + status). `snapshotId` is now the snapshot the spec was built on.
+  - `scripts/backfill-spec-deps.ts` recorded the 18 build-8 specs deterministically: each spec's IR, its build
+    snapshot and the committed page catalog. No model was used.
+- **STALE marks:**
+  - `qa discover` and `qa build` compare every spec's dependencies with the latest snapshot and the locator
+    registry, then mark changed, removed or RE_VERIFY dependencies as `stale` in the manifest.
+  - Marks are only added; a rebuild clears them. The discovery report gets a "Generated specs" section.
+- **`qa build`:**
+  - It warns when a newer snapshot exists than the specs were built on, and lists the STALE specs.
+  - `--stale` rebuilds exactly those.
+  - Case wording that quotes an outdated validation-rule message is refreshed from the latest snapshot (exact quotes
+    only), and the case moves to that snapshot.
+  - A partial rebuild now keeps the manifest's manual-only rulings. Build 9 ran the old code and lost them; they
+    were restored from the previous commit.
+- **Gate:**
+  - `src/runner/gate.ts` re-checks staleness first. A stale spec is BLOCKED with
+    "stale: <component> changed in <snapshot>", and a spec without a dependency record is BLOCKED; only APPROVED,
+    current specs execute.
+  - `qa run --story <key> --org <alias> --plan-only` shows the plan; execution itself is Phase 5.
+  - Pass 2 gained `message-mismatch`: a case that quotes a message other than the org rule text the spec asserts.
+- **Unit test** (`build.test.ts`): a spec typing Phone depends on `ValidationRule:Contact.Phone_Must_Be_10_Digits`.
+  A fixture snapshot with a changed message marks it STALE, the gate BLOCKs it with the exact reason, and a rebuild
+  from the new snapshot clears it.
+- **Live, step by step:**
+  1. `qa run --plan-only` (`run-p4-gate-1`) found 7 stale specs: TC-007, 008, 009, 010, 032, 044 and 053, which
+     all depend on the Phone rule; the Phone locator was also RE_VERIFY.
+  2. `qa locators discover --org qa-prod` (observe only) set the Phone locators back to ACTIVE.
+  3. `qa build --stale` (`run-p4-build-decided-9`) printed the newer-snapshot warning and refreshed TC-009 and
+     TC-010 (3 steps) to "Phone must be exactly 10 digits.". The rebuilt specs assert that text, and their header
+     names snapshot `…adbb`. Dry-run 48/48; 4 APPROVED.
+  4. TC-044 degraded to a skeleton (invalid coder output). It was retried in `run-p4-build-decided-10`: generated,
+     REVIEW_REQUIRED.
+  5. `qa run --plan-only` (`run-p4-gate-2`): 7 EXECUTE, 0 BLOCKED, 11 NOT_APPROVED, 2 MANUAL.
+- **SF-219 now:** 18 specs, **7 APPROVED** (TC-007, 008, 009, 010, 015, 026, 036) and **11 REVIEW_REQUIRED**. 17 are
+  coder-generated and 1 is a skeleton (TC-045); none are stale; TC-051 and 052 are manual-only.
+  - TC-053 dropped from APPROVED: the judge found its step 5 tests the record page, not the list view.
+  - `pnpm validate:build run-p4-build-decided-10`: all valid.

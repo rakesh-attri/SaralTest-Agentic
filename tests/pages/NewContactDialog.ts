@@ -23,59 +23,59 @@ export class NewContactDialog {
       .getByRole('group', { name: 'Other Address', exact: true });
   }
 
-  /** button:New Contact/Cancel · button "Cancel" · rank 1 · verified 2026-11-25 */
+  /** button:New Contact/Cancel · button "Cancel" · rank 1 · verified 2026-11-26 */
   get cancelButton(): Locator {
     return this.page.getByRole('dialog', { name: 'New Contact' }).getByRole('button', { name: 'Cancel', exact: true });
   }
 
-  /** button:New Contact/Cancel and close · button "Cancel and close" · rank 1 · verified 2026-11-25 */
+  /** button:New Contact/Cancel and close · button "Cancel and close" · rank 1 · verified 2026-11-26 */
   get cancelAndCloseButton(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('button', { name: 'Cancel and close', exact: true });
   }
 
-  /** button:New Contact/Clear Account Name Selection · button "Clear Account Name Selection" · rank 1 · verified 2026-11-25 */
+  /** button:New Contact/Clear Account Name Selection · button "Clear Account Name Selection" · rank 1 · verified 2026-11-26 */
   get clearAccountNameSelectionButton(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('button', { name: 'Clear Account Name Selection', exact: true });
   }
 
-  /** button:New Contact/Save · button "Save" · rank 1 · verified 2026-11-25 */
+  /** button:New Contact/Save · button "Save" · rank 1 · verified 2026-11-26 */
   get saveButton(): Locator {
     return this.page.getByRole('dialog', { name: 'New Contact' }).getByRole('button', { name: 'Save', exact: true });
   }
 
-  /** button:New Contact/Save & New · button "Save & New" · rank 1 · verified 2026-11-25 */
+  /** button:New Contact/Save & New · button "Save & New" · rank 1 · verified 2026-11-26 */
   get saveAndNewButton(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('button', { name: 'Save & New', exact: true });
   }
 
-  /** button:New Contact/Select a date for Birthdate · button "Select a date for Birthdate" · rank 1 · verified 2026-11-25 */
+  /** button:New Contact/Select a date for Birthdate · button "Select a date for Birthdate" · rank 1 · verified 2026-11-26 */
   get selectADateForBirthdateButton(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('button', { name: 'Select a date for Birthdate', exact: true });
   }
 
-  /** Contact.AccountId · combobox "Account Name" · rank 1 · verified 2026-11-25 */
+  /** Contact.AccountId · combobox "Account Name" · rank 1 · verified 2026-11-26 */
   get accountId(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('combobox', { name: 'Account Name', exact: true });
   }
 
-  /** Contact.LeadSource · combobox "Lead Source" · rank 1 · verified 2026-11-25 */
+  /** Contact.LeadSource · combobox "Lead Source" · rank 1 · verified 2026-11-26 */
   get leadSource(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('combobox', { name: 'Lead Source', exact: true });
   }
 
-  /** combobox:New Contact/Mailing Address/Address Search · combobox "Address Search" · rank 1 · verified 2026-11-25 */
+  /** combobox:New Contact/Mailing Address/Address Search · combobox "Address Search" · rank 1 · verified 2026-11-26 */
   get mailingAddressAddressSearch(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
@@ -83,14 +83,14 @@ export class NewContactDialog {
       .getByRole('combobox', { name: 'Address Search', exact: true });
   }
 
-  /** Contact.Salutation · combobox "Salutation" · rank 1 · verified 2026-11-25 */
+  /** Contact.Salutation · combobox "Salutation" · rank 1 · verified 2026-11-26 */
   get salutation(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('combobox', { name: 'Salutation', exact: true });
   }
 
-  /** combobox:New Contact/Other Address/Address Search · combobox "Address Search" · rank 1 · verified 2026-11-25 */
+  /** combobox:New Contact/Other Address/Address Search · combobox "Address Search" · rank 1 · verified 2026-11-26 */
   get otherAddressAddressSearch(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
@@ -98,167 +98,167 @@ export class NewContactDialog {
       .getByRole('combobox', { name: 'Address Search', exact: true });
   }
 
-  /** Contact.ReportsToId · combobox "Reports To" · rank 1 · verified 2026-11-25 */
+  /** Contact.ReportsToId · combobox "Reports To" · rank 1 · verified 2026-11-26 */
   get reportsToId(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('combobox', { name: 'Reports To', exact: true });
   }
 
-  /** textbox:New Contact/Assistant · textbox "Assistant" · rank 1 · verified 2026-11-25 */
+  /** textbox:New Contact/Assistant · textbox "Assistant" · rank 1 · verified 2026-11-26 */
   get assistant(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Assistant', exact: true });
   }
 
-  /** Contact.AssistantPhone · textbox "Asst. Phone" · rank 1 · verified 2026-11-25 */
+  /** Contact.AssistantPhone · textbox "Asst. Phone" · rank 1 · verified 2026-11-26 */
   get assistantPhone(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Asst. Phone', exact: true });
   }
 
-  /** Contact.Birthdate · textbox "Birthdate" · rank 1 · verified 2026-11-25 */
+  /** Contact.Birthdate · textbox "Birthdate" · rank 1 · verified 2026-11-26 */
   get birthdate(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Birthdate', exact: true });
   }
 
-  /** Contact.Department · textbox "Department" · rank 1 · verified 2026-11-25 */
+  /** Contact.Department · textbox "Department" · rank 1 · verified 2026-11-26 */
   get department(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Department', exact: true });
   }
 
-  /** Contact.Description · textbox "Description" · rank 1 · verified 2026-11-25 */
+  /** Contact.Description · textbox "Description" · rank 1 · verified 2026-11-26 */
   get description(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Description', exact: true });
   }
 
-  /** Contact.Email · textbox "Email" · rank 1 · verified 2026-11-25 */
+  /** Contact.Email · textbox "Email" · rank 1 · verified 2026-11-26 */
   get email(): Locator {
     return this.page.getByRole('dialog', { name: 'New Contact' }).getByRole('textbox', { name: 'Email', exact: true });
   }
 
-  /** Contact.Fax · textbox "Fax" · rank 1 · verified 2026-11-25 */
+  /** Contact.Fax · textbox "Fax" · rank 1 · verified 2026-11-26 */
   get fax(): Locator {
     return this.page.getByRole('dialog', { name: 'New Contact' }).getByRole('textbox', { name: 'Fax', exact: true });
   }
 
-  /** Contact.HomePhone · textbox "Home Phone" · rank 1 · verified 2026-11-25 */
+  /** Contact.HomePhone · textbox "Home Phone" · rank 1 · verified 2026-11-26 */
   get homePhone(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Home Phone', exact: true });
   }
 
-  /** Contact.MailingCity · textbox "Mailing City" · rank 1 · verified 2026-11-25 */
+  /** Contact.MailingCity · textbox "Mailing City" · rank 1 · verified 2026-11-26 */
   get mailingCity(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Mailing City', exact: true });
   }
 
-  /** Contact.MailingCountry · textbox "Mailing Country" · rank 1 · verified 2026-11-25 */
+  /** Contact.MailingCountry · textbox "Mailing Country" · rank 1 · verified 2026-11-26 */
   get mailingCountry(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Mailing Country', exact: true });
   }
 
-  /** Contact.MailingState · textbox "Mailing State/Province" · rank 1 · verified 2026-11-25 */
+  /** Contact.MailingState · textbox "Mailing State/Province" · rank 1 · verified 2026-11-26 */
   get mailingState(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Mailing State/Province', exact: true });
   }
 
-  /** Contact.MailingStreet · textbox "Mailing Street" · rank 1 · verified 2026-11-25 */
+  /** Contact.MailingStreet · textbox "Mailing Street" · rank 1 · verified 2026-11-26 */
   get mailingStreet(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Mailing Street', exact: true });
   }
 
-  /** Contact.MailingPostalCode · textbox "Mailing Zip/Postal Code" · rank 1 · verified 2026-11-25 */
+  /** Contact.MailingPostalCode · textbox "Mailing Zip/Postal Code" · rank 1 · verified 2026-11-26 */
   get mailingPostalCode(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Mailing Zip/Postal Code', exact: true });
   }
 
-  /** textbox:New Contact/Mobile · textbox "Mobile" · rank 1 · verified 2026-11-25 */
+  /** textbox:New Contact/Mobile · textbox "Mobile" · rank 1 · verified 2026-11-26 */
   get mobile(): Locator {
     return this.page.getByRole('dialog', { name: 'New Contact' }).getByRole('textbox', { name: 'Mobile', exact: true });
   }
 
-  /** Contact.FirstName · textbox "First Name" · rank 1 · verified 2026-11-25 */
+  /** Contact.FirstName · textbox "First Name" · rank 1 · verified 2026-11-26 */
   get firstName(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'First Name', exact: true });
   }
 
-  /** Contact.LastName · textbox "Last Name" · rank 1 · verified 2026-11-25 */
+  /** Contact.LastName · textbox "Last Name" · rank 1 · verified 2026-11-26 */
   get lastName(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Last Name', exact: true });
   }
 
-  /** Contact.OtherCity · textbox "Other City" · rank 1 · verified 2026-11-25 */
+  /** Contact.OtherCity · textbox "Other City" · rank 1 · verified 2026-11-26 */
   get otherCity(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Other City', exact: true });
   }
 
-  /** Contact.OtherCountry · textbox "Other Country" · rank 1 · verified 2026-11-25 */
+  /** Contact.OtherCountry · textbox "Other Country" · rank 1 · verified 2026-11-26 */
   get otherCountry(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Other Country', exact: true });
   }
 
-  /** Contact.OtherState · textbox "Other State/Province" · rank 1 · verified 2026-11-25 */
+  /** Contact.OtherState · textbox "Other State/Province" · rank 1 · verified 2026-11-26 */
   get otherState(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Other State/Province', exact: true });
   }
 
-  /** Contact.OtherStreet · textbox "Other Street" · rank 1 · verified 2026-11-25 */
+  /** Contact.OtherStreet · textbox "Other Street" · rank 1 · verified 2026-11-26 */
   get otherStreet(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Other Street', exact: true });
   }
 
-  /** Contact.OtherPostalCode · textbox "Other Zip/Postal Code" · rank 1 · verified 2026-11-25 */
+  /** Contact.OtherPostalCode · textbox "Other Zip/Postal Code" · rank 1 · verified 2026-11-26 */
   get otherPostalCode(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Other Zip/Postal Code', exact: true });
   }
 
-  /** Contact.OtherPhone · textbox "Other Phone" · rank 1 · verified 2026-11-25 */
+  /** Contact.OtherPhone · textbox "Other Phone" · rank 1 · verified 2026-11-26 */
   get otherPhone(): Locator {
     return this.page
       .getByRole('dialog', { name: 'New Contact' })
       .getByRole('textbox', { name: 'Other Phone', exact: true });
   }
 
-  /** Contact.Phone · textbox "Phone" · rank 1 · verified 2026-11-25 */
+  /** Contact.Phone · textbox "Phone" · rank 1 · verified 2026-11-26 */
   get phone(): Locator {
     return this.page.getByRole('dialog', { name: 'New Contact' }).getByRole('textbox', { name: 'Phone', exact: true });
   }
 
-  /** Contact.Title · textbox "Title" · rank 1 · verified 2026-11-25 */
+  /** Contact.Title · textbox "Title" · rank 1 · verified 2026-11-26 */
   get title(): Locator {
     return this.page.getByRole('dialog', { name: 'New Contact' }).getByRole('textbox', { name: 'Title', exact: true });
   }

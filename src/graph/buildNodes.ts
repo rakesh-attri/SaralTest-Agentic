@@ -245,11 +245,17 @@ export function createBuildNode(d: BuildDeps): {
         ? (JSON.parse(readFileSync(manifestFile, 'utf8')) as {
             artifacts?: (GeneratedArtifact & { buildRun?: string })[];
             buildRun?: string;
+            manualOnly?: { caseId: string; reason: string }[];
           })
         : undefined;
-    const manual = s.testCases
-      .filter((c) => c.execution === 'manual')
-      .map((c) => ({ caseId: c.id, reason: c.executionReason ?? 'manual-only' }));
+    // A partial rebuild keeps the manual-only rulings of cases it did not load (unless a loaded case changes them).
+    const loaded = new Set(s.testCases.map((c) => c.id));
+    const manual = [
+      ...(kept?.manualOnly ?? []).filter((m) => !loaded.has(m.caseId)),
+      ...s.testCases
+        .filter((c) => c.execution === 'manual')
+        .map((c) => ({ caseId: c.id, reason: c.executionReason ?? 'manual-only' })),
+    ].sort((a, b) => a.caseId.localeCompare(b.caseId));
     const keptArtifacts = (kept?.artifacts ?? [])
       .filter(
         (a) => a.kind === 'spec' && !a.testCaseIds.some((id) => rebuilt.has(id) || manual.some((m) => m.caseId === id)),

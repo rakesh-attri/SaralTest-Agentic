@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { CASE, GOOD_IR, generationContext } from '../../tests/helpers/generationFixtures.js';
+import { CASE, ENTRIES, GOOD_IR, generationContext, SNAPSHOT } from '../../tests/helpers/generationFixtures.js';
 import { mockRouter } from '../../tests/helpers/mockRouter.js';
 import { REPO_ROOT } from '../../tests/helpers/tempProject.js';
 import type { ToolchainResult } from '../agents/test-generator/toolchain.js';
@@ -16,9 +16,14 @@ import { SqliteCheckpointSaver } from './checkpointer.js';
 import { buildMainGraph, type GraphDeps } from './mainGraph.js';
 import type { QAGraphStateType } from './state.js';
 import { isGeneratedSpec } from './buildNodes.js';
+import { refreshStaleMarks, registryLookup } from '../agents/test-generator/staleness.js';
+import type { GeneratedArtifact } from '../core/schemas/generation.js';
+import { executionPlan } from '../runner/gate.js';
+import { SnapshotFacts } from '../sf/data/plan.js';
 
 const policy = await requireConfig('policy', projectPaths(REPO_ROOT));
 const roots: string[] = [];
+let runs = 0;
 const savers: SqliteCheckpointSaver[] = [];
 afterAll(() => {
   for (const s of savers) s.close();
@@ -59,12 +64,15 @@ async function run(o: {
   toolchain?: (files: string[]) => Promise<ToolchainResult>;
   judge?: (m: BaseMessage[]) => string;
   cases?: (typeof CASE)[];
+  root?: string;
+  ctx?: ReturnType<typeof generationContext>;
+  merge?: boolean;
 }) {
-  const root = mkdtempSync(join(tmpdir(), 'qa build graph '));
-  roots.push(root);
+  const root = o.root ?? mkdtempSync(join(tmpdir(), 'qa build graph '));
+  if (!o.root) roots.push(root);
   const checkpointer = new SqliteCheckpointSaver(join(root, '.qa-memory', 'checkpoints.db'));
   savers.push(checkpointer);
-  const ctx = generationContext();
+  const ctx = o.ctx ?? generationContext();
   const deps: GraphDeps = {
     root,
     policy,
@@ -93,9 +101,10 @@ async function run(o: {
       toolchain: o.toolchain ?? okToolchain,
       ...(o.dryRun === false ? {} : { dryRun: okDryRun }),
       judgeBackoffMs: [0, 0],
+      ...(o.merge ? { merge: true } : {}),
     },
   };
-  const runId = `run-build-${String(roots.length)}`;
+  const runId = `run-build-${String(roots.length)}-${String(++runs)}`;
   const state = {
     ...initialRunState({
       runId,
@@ -218,5 +227,67 @@ describe('manual-only cases (operator 2026-11-26: TC-051/052 are not automatable
       manualOnly: { caseId: string; reason: string }[];
     };
     expect(manifest.manualOnly).toEqual([{ caseId: 'TC-SF-219-051', reason: 'human check' }]);
+    // A partial rebuild of another case (qa build --stale / --cases) keeps the ruling.
+    await run({ router: true, cases: [CASE], root, merge: true });
+    const after = JSON.parse(readFileSync(join(root, 'tests', 'generated', 'SF-219', 'manifest.json'), 'utf8')) as {
+      manualOnly: { caseId: string }[];
+    };
+    expect(after.manualOnly.map((m) => m.caseId)).toEqual(['TC-SF-219-051']);
+  });
+});
+
+describe('stale specs (operator 2026-11-26: a changed Phone rule message went unnoticed)', () => {
+  it('a changed rule makes the dependent spec STALE, the run gate blocks it, and a rebuild clears it', async () => {
+    // A spec that types a Phone: it depends on Contact.Phone and on the rules reading Phone.
+    const phoneIr = structuredClone(GOOD_IR);
+    phoneIr.steps[0]!.actions.splice(1, 0, {
+      do: 'fill',
+      element: 'contact-new.phone',
+      value: { kind: 'unique', label: 'bad-phone', format: 'phone' },
+    });
+    const coder = (): string => JSON.stringify(phoneIr);
+    const first = await run({ router: true, coder });
+    const manifestOf = (): { artifacts: GeneratedArtifact[]; manualOnly?: { caseId: string; reason: string }[] } =>
+      JSON.parse(readFileSync(join(first.root, 'tests', 'generated', 'SF-219', 'manifest.json'), 'utf8')) as {
+        artifacts: GeneratedArtifact[];
+      };
+    const built = manifestOf().artifacts.find((a) => a.kind === 'spec');
+    expect(built?.snapshotId).toBe(SNAPSHOT.info.id);
+    expect(built?.dependsOn?.map((d) => d.component)).toEqual(
+      expect.arrayContaining([
+        'Field:Contact.Phone',
+        'ValidationRule:Contact.Phone_Must_Be_10_Digits',
+        'Locator:contact-new/textbox:Phone',
+      ]),
+    );
+
+    // The org changes the rule's message: a new snapshot with a new content hash for that rule.
+    const changed = structuredClone(SNAPSHOT);
+    changed.info.id = 'snap-test-2';
+    const vr = changed.components.find((c) => c.apiName === 'Contact.Phone_Must_Be_10_Digits')!;
+    vr.body = { ...vr.body, errorMessage: 'Phone must be exactly 10 digits.' };
+    vr.hash = 'ValidationRule:Contact.Phone_Must_Be_10_Digits#2';
+    const facts = new SnapshotFacts(changed);
+    const r = refreshStaleMarks({ root: first.root, facts, locator: registryLookup(ENTRIES) });
+    expect(r.stale.map((x) => x.caseId)).toEqual([CASE.id]);
+    const stale = manifestOf().artifacts.find((a) => a.kind === 'spec');
+    expect(stale?.stale?.components).toEqual(['ValidationRule:Contact.Phone_Must_Be_10_Digits changed']);
+    expect(executionPlan(manifestOf()).find((i) => i.caseId === CASE.id)).toMatchObject({
+      decision: 'BLOCKED',
+      reason: 'stale: ValidationRule:Contact.Phone_Must_Be_10_Digits changed in snap-test-2',
+    });
+
+    // Rebuild from the new snapshot: fresh dependencies, no mark, nothing stale any more.
+    await run({
+      router: true,
+      coder,
+      root: first.root,
+      ctx: { ...generationContext(), facts, snapshotId: 'snap-test-2' },
+    });
+    const rebuilt = manifestOf().artifacts.find((a) => a.kind === 'spec');
+    expect(rebuilt?.stale).toBeUndefined();
+    expect(rebuilt?.snapshotId).toBe('snap-test-2');
+    expect(refreshStaleMarks({ root: first.root, facts, locator: registryLookup(ENTRIES) }).stale).toEqual([]);
+    expect(executionPlan(manifestOf()).find((i) => i.caseId === CASE.id)?.decision).not.toBe('BLOCKED');
   });
 });

@@ -10,7 +10,7 @@ import { isAutomatable, type ReviewStatus, type TestCase } from '../../core/sche
 import type { ModelRouter } from '../../models/router.js';
 import type { Redactor } from '../../security/redact.js';
 import type { SkillLoader } from '../../skills/skillLoader.js';
-import { irProblems, type GenerationContext } from '../test-generator/context.js';
+import { fieldErrorRule, irProblems, type GenerationContext } from '../test-generator/context.js';
 import type { GeneratedSpec } from '../test-generator/graph.js';
 import { findMember } from '../test-generator/pageObjects.js';
 import { A11Y_SCOPE_NOTE } from '../test-generator/render.js';
@@ -143,6 +143,29 @@ export function unevidencedMessageSteps(tc: TestCase, ir: TestIR): number[] {
   return out;
 }
 
+/**
+ * Steps whose expected result quotes a message ('…' or "…") while the spec asserts a rule message that is none of
+ * the quotes — the case and the org disagree (e.g. the org rule changed after design).
+ */
+export function messageMismatches(tc: TestCase, ir: TestIR, ctx: GenerationContext): { step: number; text: string }[] {
+  const out: { step: number; text: string }[] = [];
+  for (const st of ir.steps) {
+    const exp = tc.steps[st.caseStep]?.expected.text ?? '';
+    const quotes = [...exp.matchAll(/'([^']+)'|"([^"]+)"/g)].map((m) => m[1] ?? m[2] ?? '');
+    if (!quotes.length) continue;
+    for (const a of st.assertions) {
+      if (a.check !== 'fieldError' || !a.message) continue;
+      const r = fieldErrorRule(ctx, a.element, a.message.rule);
+      if ('message' in r && !quotes.includes(r.message))
+        out.push({
+          step: st.caseStep,
+          text: `step ${String(st.caseStep + 1)} quotes ${quotes.map((q) => `"${q}"`).join(', ')} but ${r.rule} says "${r.message}" in the org snapshot — update the case (qa build refreshes quoted rule messages)`,
+        });
+    }
+  }
+  return out;
+}
+
 /** Pass-2 deterministic checklist; pure function of the current specs + tool results. */
 export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): (FindingDraft & { paths: string[] })[] {
   const out: (FindingDraft & { paths: string[] })[] = [];
@@ -194,6 +217,15 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
       }
       // Expected error text needs org evidence (a validation rule's message). A step whose expected result names an
       // error message but whose fieldError has none stays with a human (operator 2026-11-26: never invent text).
+      for (const mm of messageMismatches(tc, spec.ir, i.ctx)) {
+        add({
+          ...base,
+          key: `msg-mismatch:${tc.id}:${mm.text}`,
+          severity: 'M',
+          rule: 'message-mismatch',
+          text: mm.text,
+        });
+      }
       for (const n of unevidencedMessageSteps(tc, spec.ir)) {
         add({
           ...base,

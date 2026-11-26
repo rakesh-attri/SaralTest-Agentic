@@ -157,6 +157,8 @@ export const ReviewRule = z.enum([
   'mechanical',
   /** The case expects a specific error message but the org has no evidence for its text (operator 2026-11-26). */
   'message-unevidenced',
+  /** The case quotes an error message that differs from the org rule's message the spec asserts. */
+  'message-mismatch',
 ]);
 export type ReviewRule = z.infer<typeof ReviewRule>;
 

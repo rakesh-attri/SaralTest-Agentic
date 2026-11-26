@@ -20,6 +20,13 @@ import { LocatorRegistry } from '../knowledge/locatorRegistry.js';
 import { SnapshotStore } from '../knowledge/snapshotStore.js';
 import { createSfContext } from '../sf/context.js';
 import { applyCaseEdits, loadCaseEdits } from '../inputs/caseEdits.js';
+import { refreshCaseWording } from '../inputs/caseRefresh.js';
+import {
+  refreshStaleMarks,
+  registryLookup,
+  staleReason,
+  storyManifestFile,
+} from '../agents/test-generator/staleness.js';
 import { buildDataPlan, loadRecipe, RECIPE_DIR, SnapshotFacts } from '../sf/data/plan.js';
 import { createRuntime, parseModelChain } from './analyze.js';
 import { registryFile } from './locators.js';
@@ -196,6 +203,7 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
       '--case-edits <file>',
       'operator edits to case wording (YAML, src/inputs/caseEdits.ts), applied before generation',
     )
+    .option('--stale', 'rebuild only the specs marked STALE (a rule, field or locator they use changed)')
     .action(
       async (o: {
         fromRun: string;
@@ -207,6 +215,7 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
         coder?: string;
         cases?: string;
         caseEdits?: string;
+        stale?: boolean;
       }) => {
         const root = rootOf();
         const seed = loadDesignRun(root, o.fromRun);
@@ -221,10 +230,22 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
           say(`Applied ${String(editChanges.length)} operator case edit(s) from ${o.caseEdits}:`);
           for (const c of editChanges) say(`  ${c}`);
         }
-        const only = o.cases
-          ?.split(',')
-          .map((x) => x.trim())
-          .filter(Boolean);
+        // Snapshot currency: newer-snapshot warning, STALE marks, case wording refreshed from the latest snapshot.
+        const current = await snapshotCurrency(root, o.org, seed.storyKey, seed.testCases);
+        for (const n of current.notes) say(n);
+        seed.testCases = current.cases;
+        editChanges = [...editChanges, ...current.refreshChanges];
+        if (o.stale && o.cases) throw new QAError('DATA', 'use --stale or --cases, not both');
+        if (o.stale && !current.staleCases.length) {
+          say('No stale specs: nothing to rebuild.');
+          return;
+        }
+        const only = o.stale
+          ? current.staleCases
+          : o.cases
+              ?.split(',')
+              .map((x) => x.trim())
+              .filter(Boolean);
         if (only) {
           const unknown = only.filter(
             (id) => !seed.testCases.some((c) => c.id === id && c.reviewStatus === 'APPROVED'),
@@ -371,4 +392,76 @@ export function writeAutomationRtm(
   ].join('\n');
   writeFileSync(join(dir, 'rtm-automation.md'), md);
   return join(dir, 'rtm-automation.md');
+}
+
+/**
+ * How current the story's specs and cases are against the org's latest snapshot: STALE marks are refreshed (specs
+ * whose rules / fields / locators changed), a newer snapshot than the specs were built on is reported, and case
+ * wording that quotes an outdated rule message is refreshed from the latest snapshot.
+ */
+export async function snapshotCurrency(
+  root: string,
+  orgAlias: string,
+  storyKey: string,
+  cases: TestCase[],
+): Promise<{ notes: string[]; cases: TestCase[]; refreshChanges: string[]; staleCases: string[] }> {
+  const orgs = await requireConfig('orgs', projectPaths(root));
+  const org = orgs.orgs.find((x) => x.alias === orgAlias);
+  if (!org) throw new QAError('ENVIRONMENT', `org alias "${orgAlias}" is not in config/orgs.yaml`);
+  const store = new SnapshotStore(join(root, '.qa-memory', 'knowledge.db'));
+  const registry = new LocatorRegistry(registryFile(root));
+  try {
+    const info = store.latest(org.orgId);
+    const snap = info ? store.get(info.id) : undefined;
+    if (!snap) return { notes: [], cases, refreshChanges: [], staleCases: [] };
+    const latest = new SnapshotFacts(snap);
+    const notes: string[] = [];
+    const manifestFile = storyManifestFile(root, storyKey);
+    const built = existsSync(manifestFile)
+      ? z
+          .object({ artifacts: z.array(z.object({ kind: z.string(), snapshotId: z.string().optional() })) })
+          .parse(JSON.parse(readFileSync(manifestFile, 'utf8')))
+          .artifacts.filter((a) => a.kind === 'spec')
+          .map((a) => a.snapshotId ?? '?')
+      : [];
+    const older = [...new Set(built.filter((id) => id !== snap.info.id))];
+    if (older.length)
+      notes.push(
+        `WARNING: a newer snapshot exists — ${snap.info.id} (${snap.info.capturedAt}); specs of ${storyKey} were built on ${older.join(', ')}.`,
+      );
+    const st = refreshStaleMarks({
+      root,
+      facts: latest,
+      locator: registryLookup(registry.list({ org: org.orgId })),
+      stories: [storyKey],
+    });
+    for (const x of st.stale) notes.push(`STALE ${x.caseId}: ${staleReason(x.stale)}`);
+    if (st.untracked.length)
+      notes.push(
+        `Untracked (built before dependency tracking, staleness unknown): ${st.untracked.map((u) => u.caseId).join(', ')}`,
+      );
+    if (st.stale.length)
+      notes.push(`Rebuild the stale specs with: pnpm qa build --from-run <design run> --org ${orgAlias} --stale`);
+    const r = refreshCaseWording(
+      cases,
+      (id) => {
+        const s = store.get(id);
+        return s ? new SnapshotFacts(s) : undefined;
+      },
+      latest,
+    );
+    if (r.changes.length) {
+      notes.push(`Case wording refreshed from ${snap.info.id}:`);
+      for (const c of r.changes) notes.push(`  ${c}`);
+    }
+    return {
+      notes,
+      cases: r.cases,
+      refreshChanges: r.changes,
+      staleCases: [...new Set(st.stale.map((x) => x.caseId))],
+    };
+  } finally {
+    store.close();
+    registry.close();
+  }
 }
