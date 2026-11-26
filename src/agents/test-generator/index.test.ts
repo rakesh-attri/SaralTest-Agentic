@@ -139,9 +139,7 @@ describe('Test Generator: rendering', () => {
     expect(text).toContain("tag: ['@negative', '@P2', '@SF-219', '@persona:system-admin', '@mandatory']");
     expect(text).toContain("await data.create('account-contact', ['Account']);");
     expect(text).toContain("await test.step('1. Save a new Contact without Last Name'");
-    expect(text).toContain(
-      'await showRelatedList(accountRecordPage.contactsRelatedList, accountRecordPage.relatedTab);',
-    );
+    expect(text).toContain('await accountRecordPage.listInRelated(accountRecordPage.contactsRelatedList);');
     expect(text).toContain('await expectFieldError(newContactDialog.lastName);');
     expect(text).toContain("const attempt = await data.attempt('Contact', {  }, ['LastName']);");
     expect(text).toMatch(/Expected \(DECLARED_CONFIG; OC-002, Field:Contact\.LastName\)/);

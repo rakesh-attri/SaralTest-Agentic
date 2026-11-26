@@ -15,7 +15,16 @@ import {
   type GenerationContext,
   type RecipeView,
 } from './context.js';
-import { camel, findMember, relatedListNewButton, type CatalogPage, type PageCatalog } from './pageObjects.js';
+import {
+  camel,
+  FIELD_IN_DETAILS,
+  findMember,
+  LIST_IN_RELATED,
+  recordTabs,
+  relatedListNewButton,
+  type CatalogPage,
+  type PageCatalog,
+} from './pageObjects.js';
 
 export const A11Y_SCOPE_NOTE =
   'a11y scope rule (operator, 2026-11-21): the axe scan is limited to the dialog; violations in Salesforce-owned ' +
@@ -106,6 +115,22 @@ export function renderSpec(i: RenderInput): string {
   const viewed = new Set<string>();
   const usesTestInfo = ir.steps.some((s) => s.assertions.some((a) => a.check === 'a11yScan'));
   const fixtures = new Set<string>();
+  // The shortest text field each unique label is typed into: the value must fit it (run-p5-live-5, TC-026).
+  const uniqueMax = new Map<string, number>();
+  for (const st of ir.steps)
+    for (const a of st.actions) {
+      if ((a.do !== 'fill' && a.do !== 'select') || a.value.kind !== 'unique') continue;
+      const [o, f] = findMember(cat, a.element)?.member.fieldApiName?.split('.') ?? [];
+      const len = o && f ? ctx.facts.field(o, f)?.length : undefined;
+      if (len) uniqueMax.set(a.value.label, Math.min(len, uniqueMax.get(a.value.label) ?? len));
+    }
+
+  /** Opens a related list through the page object's tab helper (operator rule 2026-11-26 (2)). */
+  const showList = (p: CatalogPage, list: string, tabs: { related?: string }): string[] => {
+    if (tabs.related) return [`await ${varOf(p)}.${LIST_IN_RELATED}(${varOf(p)}.${list});`];
+    imp.lightning.add('showRelatedList');
+    return [`await showRelatedList(${varOf(p)}.${list});`];
+  };
 
   const page = (ref: string): { v: string; member: string } => {
     const m = findMember(cat, ref);
@@ -133,7 +158,11 @@ export function renderSpec(i: RenderInput): string {
       }
       case 'unique': {
         const name = camel(`${v.label} ${v.format === 'text' ? '' : v.format}`);
-        consts.set(name, `data.unique(${q(v.label)}${v.format === 'text' ? '' : `, ${q(v.format)}`})`);
+        const max = v.format === 'phone' ? undefined : uniqueMax.get(v.label);
+        consts.set(
+          name,
+          `data.unique(${q(v.label)}${v.format === 'text' && max === undefined ? '' : `, ${q(v.format)}`}${max === undefined ? '' : `, ${String(max)}`})`,
+        );
         return name;
       }
     }
@@ -165,12 +194,11 @@ export function renderSpec(i: RenderInput): string {
         if (!p || !dlg || !list || !btn) throw new Error(`cannot open New from ${a.relatedList}`);
         imp.pages.set(p.className, p);
         imp.pages.set(dlg.className, dlg);
-        imp.lightning.add('showRelatedList');
-        const tab = p.members.find((m) => m.role === 'tab' && m.accessibleName === 'Related');
+        const tabs = recordTabs(p);
         dialog = { object: dlg.object, parentRef: a.parentRef, parentPage: p, list, typed: new Map() };
         return [
           ...(justOpened === a.parentRef ? [] : [`await ${varOf(p)}.open(${recordIdExpr(a.parentRef)});`]),
-          `await showRelatedList(${varOf(p)}.${list}${tab ? `, ${varOf(p)}.${tab.name}` : ''});`,
+          ...showList(p, list, tabs),
           `await ${varOf(p)}.${btn.name}.click();`,
           `await expect(${varOf(dlg)}.root).toBeVisible();`,
         ];
@@ -237,6 +265,7 @@ export function renderSpec(i: RenderInput): string {
     dialog = undefined;
     return [
       `await expectToast(page, ${name}); // 1. the success toast names the record`,
+      ...showList(d.parentPage, d.list, recordTabs(d.parentPage)),
       `await expect(relatedListRecord(${listExpr}, ${name})).toBeVisible(); // 2. in the related list with that name`,
       `await data.adopt(${q(as)}, ${q(object)}, ${q(nameField)}, ${name}); // code-owned cleanup: tagged by its run-unique name`,
       `await relatedListRecord(${listExpr}, ${name}).click(); // 3. opened from the related list`,
@@ -307,8 +336,16 @@ export function renderSpec(i: RenderInput): string {
         imp.pages.set(p.className, p);
         return [`await expect(${varOf(p)}.root).toBeVisible();`];
       }
-      case 'recordField':
-        return [`await expect(${el(a.element)}).toContainText(${val(a.contains)});`];
+      case 'recordField': {
+        // Operator rule 2026-11-26 (2): a field is read through the page object's tab helper — a record page opens on
+        // Related (run-p5-live-5, TC-036 / TC-050). Navigation only; the assertion is unchanged.
+        const m = findMember(cat, a.element);
+        const target =
+          m && recordTabs(m.page).details
+            ? `await ${varOf(m.page)}.${FIELD_IN_DETAILS}(${el(a.element)})`
+            : el(a.element);
+        return [`await expect(${target}).toContainText(${val(a.contains)});`];
+      }
       case 'recordTitle':
         imp.lightning.add('expectRecordTitle');
         return [`await expectRecordTitle(page, ${val(a.contains)});`];
@@ -318,7 +355,10 @@ export function renderSpec(i: RenderInput): string {
         if (!p || !list) throw new Error(`no related list ${a.relatedList}`);
         imp.pages.set(p.className, p);
         imp.lightning.add('relatedListRecord');
-        return [`await expect(relatedListRecord(${varOf(p)}.${list}, ${val(a.name)})).toBeVisible();`];
+        return [
+          ...showList(p, list, recordTabs(p)),
+          `await expect(relatedListRecord(${varOf(p)}.${list}, ${val(a.name)})).toBeVisible();`,
+        ];
       }
       case 'soqlField':
         fixtures.add('sf');

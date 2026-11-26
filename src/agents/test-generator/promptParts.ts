@@ -33,6 +33,7 @@ type Action =
 // NEVER assert URLs or record ids. After a successful create-dialog Save assert recordView ("as"); code checks
 // toast, related list, header and SOQL by run tag, and cleans up. Its name field: a "unique" value.
 // Preconditions come from the recipe ("data" refs). Never write cleanup or adopt.
+// One "unique" per created record; never a QA-run-… value.
 type Assertion =
   | { check: "visible" | "hidden"; element: Ref; expect: Expect }
   // message: a "rule ..." or "observed ..." id from the org facts (code supplies the text); else omit it

@@ -284,6 +284,19 @@ export function buildCatalog(input: {
 
 const doc = (s: string): string => s.replace(/\*\//g, '*\\/');
 
+/** Record-page helper names (generated page objects + the renderer + pass 2 use the same names). */
+export const FIELD_IN_DETAILS = 'fieldInDetails';
+export const LIST_IN_RELATED = 'listInRelated';
+
+/** The Details / Related tab members of a record page (by role + accessible name). */
+export function recordTabs(p: CatalogPage): { details?: string; related?: string } {
+  const tab = (n: string): string | undefined =>
+    p.members.find((m) => m.role === 'tab' && m.accessibleName === n)?.name;
+  const details = tab('Details');
+  const related = tab('Related');
+  return { ...(details ? { details } : {}), ...(related ? { related } : {}) };
+}
+
 /** Render one page object (TypeScript). Locator expressions are the registry's, prefixed with `this.page.`. */
 export function renderPageObject(p: CatalogPage, cat: PageCatalog): string {
   const lines: string[] = [];
@@ -292,7 +305,11 @@ export function renderPageObject(p: CatalogPage, cat: PageCatalog): string {
     `// Org ${cat.orgAlias} (${cat.environment}), persona ${cat.persona}. ${p.title}.`,
     `import type { Locator, Page } from '@playwright/test';`,
   );
-  if (p.kind === 'record') lines.push(`import { openRecord } from '../support/lightning.js';`);
+  const tabs = p.kind === 'record' ? recordTabs(p) : {};
+  if (p.kind === 'record')
+    lines.push(
+      `import { ${['openRecord', ...(tabs.details ? ['selectTab'] : []), ...(tabs.related ? ['showRelatedList'] : [])].join(', ')} } from '../support/lightning.js';`,
+    );
   lines.push('', `export class ${p.className} {`, '  readonly root: Locator;', '');
   lines.push('  constructor(readonly page: Page) {', `    this.root = page.${p.rootExpr};`, '  }', '');
   if (p.kind === 'record') {
@@ -303,6 +320,26 @@ export function renderPageObject(p: CatalogPage, cat: PageCatalog): string {
       '  }',
       '',
     );
+    // Operator rule 2026-11-26 (2): a field is read on the tab that shows it — a record page opens on Related
+    // (run-p5-live-5: Title / Email checks found nothing). Generated tests always read through these helpers.
+    if (tabs.details)
+      lines.push(
+        '  /** Opens the Details tab (field values are shown there) and returns the field. */',
+        `  async ${FIELD_IN_DETAILS}(field: Locator): Promise<Locator> {`,
+        `    await selectTab(this.${tabs.details});`,
+        '    return field;',
+        '  }',
+        '',
+      );
+    if (tabs.related)
+      lines.push(
+        '  /** Opens the Related tab when the related list is not shown, and returns the list. */',
+        `  async ${LIST_IN_RELATED}(list: Locator): Promise<Locator> {`,
+        `    await showRelatedList(list, this.${tabs.related});`,
+        '    return list;',
+        '  }',
+        '',
+      );
   }
   for (const m of p.members) {
     if (m.name === 'root') continue; // the constructor's `root`

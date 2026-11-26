@@ -557,7 +557,7 @@ describe('record-page field values, duplicate expects (operator 2026-11-26)', ()
     expect(irProblems(tc, ir, ctx, recipe).join('\n')).not.toMatch(/recordField|titleField/);
     const text = renderSpec({ tc, ir, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
     expect(text).toContain(
-      "await expect(contactRecordPage.titleField).toContainText(data.value('Contact', 'LastName'));",
+      "await expect(await contactRecordPage.fieldInDetails(contactRecordPage.titleField)).toContainText(data.value('Contact', 'LastName'));",
     );
     const phone = structuredClone(ir);
     phone.steps[0]!.assertions[0] = { ...ir.steps[0]!.assertions[0]!, element: 'contact-record.phoneField' } as never;

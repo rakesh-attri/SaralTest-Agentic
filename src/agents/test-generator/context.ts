@@ -29,6 +29,8 @@ export interface GenerationContext {
 }
 
 const norm = (t: string): string => t.toLowerCase().replace(/\s+/g, ' ').trim();
+/** A value made for one run (data factory names `QA-<run>-…`, emails `qa+<run>-…`): never fixed in a test. */
+export const BUILD_TIME_VALUE = /(^|[^A-Za-z])(QA-run-|qa\+run-)/i;
 
 /** Objects a case talks about (catalog page objects named in its text). */
 export function caseObjects(tc: TestCase, ctx: Pick<GenerationContext, 'catalog'>): string[] {
@@ -262,6 +264,11 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         recordRef(v.ref, where);
         break;
       case 'literal':
+        // Operator rule 2026-11-26 (3): run-specific values are made at run time, never written into a test.
+        if (BUILD_TIME_VALUE.test(v.value) || (recipe?.plan.runId && v.value.includes(recipe.plan.runId)))
+          p.push(
+            `${where}: literal "${v.value}" is a run-specific value — use {"kind":"unique","label":"<label>"} (made at run time) or a "data" ref`,
+          );
         if (!v.evidenceIds.length) p.push(`${where}: literal "${v.value}" cites no evidence`);
         if (!corpus.includes(norm(v.value))) {
           p.push(`${where}: literal "${v.value}" is not in the case text, recipe or UI labels (never invent values)`);
@@ -608,6 +615,8 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
     return steps.find((s) => s.object.toLowerCase() === v.toLowerCase())?.object;
   };
   const ref = (v: string): string => {
+    const renamedAs = asRenamed.get(v);
+    if (renamedAs) return renamedAs;
     if (named.has(v) || steps.some((s) => s.stepId === v)) return v;
     const obj = objectOf(v);
     const matches = obj ? steps.filter((s) => s.object === obj) : [];
@@ -635,9 +644,16 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
   // Each record the test creates needs its own name: the SOQL check expects exactly one record with it, and a later
   // "not saved" check of the same name would find the earlier record (run-p5-build-1: TC-036 typed one name into 4
   // create dialogs, TC-010 reused it after a successful Save). A reused unique label gets a suffix from then on.
-  const usedNames = new Set<string>(); // unique labels of records already created
+  // Operator rule 2026-11-26 (3): unique values are made at run time per test and never shared between records —
+  // names and every other unique field (emails …). A reuse is kept only where the step expects a duplicate warning.
+  const usedNames = new Set<string>(); // unique labels typed into records already created
   const relabel = new Map<string, string>();
-  let currentName: string | undefined; // unique label typed into the open create dialog's name field
+  const dialogLabels = new Set<string>(); // unique labels typed into create dialogs since the last created record
+  let stepWarns = false; // the step being normalised expects a save warning (a reuse may be the test's intent)
+  // recordView "as" names: identifiers, one per created record (run-p5-live-5, TC-036: a build-time value was used as
+  // the name of 4 records). A renamed one is followed by every later reference.
+  const asRenamed = new Map<string, string>();
+  const createdNames = new Set<string>();
   const val = (x: ValueRef): ValueRef => {
     const v = val0(x);
     if (v.kind !== 'unique') return v;
@@ -682,17 +698,17 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
             v = u;
           }
         }
-        if (nameFill && v.kind === 'unique') {
+        if (v.kind === 'unique' && m?.page.kind === 'dialog' && (nameFill || !stepWarns)) {
           const base = v.label;
           if (usedNames.has(base)) {
             let n = 2;
             while (usedNames.has(`${base}-${String(n)}`)) n++;
             relabel.set(base, `${base}-${String(n)}`);
             notes.push(
-              `data: '${base}' already names a record this test created — this dialog types '${base}-${String(n)}' so each record is found by its own name (by code)`,
+              `data: '${base}' was already typed into a record this test created — this dialog types '${base}-${String(n)}' so no two records share a unique value (by code)`,
             );
           } else relabel.delete(base);
-          currentName = relabel.get(base) ?? base;
+          dialogLabels.add(relabel.get(base) ?? base);
         }
         return { ...a, value: val(v) };
       }
@@ -781,19 +797,32 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
   let unnamed = 0;
   const out = ir.steps.map((st) => {
     caseStep = st.caseStep;
+    stepWarns = st.assertions.some((a) => a.check === 'saveWarning');
     const actions = navigationShorthand(st.actions.map(action), ctx, nav, notes);
     const dropped = actions.filter((a) => a.do === 'adopt');
     if (dropped.length) notes.push(`cleanup: ${dropped.length} model-written adopt(s) removed — cleanup is code-owned`);
     const saves = actions.some((a) => a.do === 'click' && isCreateSave(ctx, a.element));
+    // The created record's name: an identifier, not a recipe step (TC-036: "Contact"), not a value (run-p5-live-5:
+    // a build-time 'QA-run-…' value), not the name of an earlier created record. Decided before the step's
+    // assertions are normalised so their references follow it.
+    const rawView = saves ? st.assertions.find((a) => a.check === 'recordView') : undefined;
+    let viewName: string | undefined;
+    if (rawView?.check === 'recordView') {
+      const raw = rawView.as;
+      const isStep = raw !== undefined && steps.some((s) => s.stepId === raw);
+      const ok = raw !== undefined && !isStep && /^[A-Za-z][A-Za-z0-9_]*$/.test(raw) && !createdNames.has(raw);
+      viewName = ok ? raw : `created${rawView.object}${String(++unnamed)}`;
+      if (raw && !ok) {
+        if (!isStep) asRenamed.set(raw, viewName); // a recipe step id keeps meaning the recipe record elsewhere
+        notes.push(
+          `recordView: the model's record name ${BUILD_TIME_VALUE.test(raw) ? '(a run-specific value)' : `'${raw}'`} is not usable here (a value, a recipe step or an earlier record) — the record is '${viewName}' (by code)`,
+        );
+      } else asRenamed.delete(viewName);
+      createdNames.add(viewName);
+    }
     let assertions = st.assertions
       .map(assertion)
-      .map((a) =>
-        a.check === 'recordView' &&
-        saves &&
-        (!a.as || steps.some((s) => s.stepId === a.as)) /* "as" must not shadow a recipe step (TC-036: "Contact") */
-          ? { ...a, as: `created${a.object}${String(++unnamed)}` }
-          : a,
-      );
+      .map((a) => (a.check === 'recordView' && viewName ? { ...a, as: viewName } : a));
     const createdView = saves
       ? assertions.find((a): a is Extract<IrAssertion, { check: 'recordView' }> => a.check === 'recordView')
       : undefined;
@@ -815,7 +844,8 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
         notes.push(`soqlField ${a.object}.${a.field}: checked on ${as}, the record this step created (by code)`);
         return { ...a, ref: as };
       });
-      if (currentName) usedNames.add(currentName);
+      for (const l of dialogLabels) usedNames.add(l);
+      dialogLabels.clear();
     }
     const n = { ...st, actions: actions.filter((a) => a.do !== 'adopt'), assertions };
     for (const a of n.assertions) if (a.check === 'recordView' && a.as) nav.record = { ref: a.as, object: a.object };

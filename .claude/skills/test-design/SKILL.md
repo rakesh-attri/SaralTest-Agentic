@@ -64,6 +64,13 @@ Output: findings with severity; Planner must fix or justify each. Max 2 rounds, 
 - `meta()` and tags match the case (priority, severity, story, type, persona).
 - Locators come from page objects/registry; API tests verify outcomes with SOQL.
 - RTM updated: every case has a generated test or a reason it is manual.
+- No URL or record-id assertion (`dynamic-assertion`); after a create Save: toast → related list → header → SOQL by run tag.
+- Values fit their fields: a literal longer than the field, or a run-unique value without the field length, is
+  rejected (`field-length`).
+- Record fields are read through `fieldInDetails(…)`, related lists opened (`listInRelated` / `showRelatedList`)
+  before a record in them is read (`tab-unaware-read`).
+- Unique values are made at run time: no `QA-run-…` value in a test (`build-time-value`), no unique value shared by
+  two created records unless the step expects a duplicate warning (`shared-unique`).
 Output per test: `APPROVED` | `REVIEW_REQUIRED` | `BLOCKED` (+ findings). Only APPROVED tests run. Also check: correct
 persona, required data recipe exists, no unauthorized actions, no duplicates, execution readiness.
 Generator fixes findings → re-review (max 2 rounds).

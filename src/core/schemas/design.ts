@@ -169,6 +169,14 @@ export const ReviewRule = z.enum([
    * toast → related list → header → SOQL by run tag instead. Blocking.
    */
   'dynamic-assertion',
+  /** Operator rule 2026-11-26 (1): a value typed into a field must fit the field's length (org snapshot). */
+  'field-length',
+  /** Operator rule 2026-11-26 (2): record fields / related lists are read through the page object's tab helper. */
+  'tab-unaware-read',
+  /** Operator rule 2026-11-26 (3): a run-specific value (QA-run-…) written into a test instead of made at run time. */
+  'build-time-value',
+  /** Operator rule 2026-11-26 (3): two records the test creates share a unique value (one per record). */
+  'shared-unique',
 ]);
 export type ReviewRule = z.infer<typeof ReviewRule>;
 

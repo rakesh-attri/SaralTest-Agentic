@@ -13,6 +13,7 @@ import type { GuardedSalesforce } from '../../src/sf/client.js';
 import { createSfContext, type SfContext } from '../../src/sf/context.js';
 import { DataEngine, soqlString } from '../../src/sf/data/engine.js';
 import { dataDir, planData, recipeApproval, writeDataOutputs } from '../../src/sf/dataFactory.js';
+import { fitUnique } from '../../src/sf/data/unique.js';
 import { runSettings, type RunSettings } from '../support/runConfig.js';
 
 export { expect };
@@ -30,7 +31,8 @@ export interface TestData {
    * A run-unique value for data the test types itself. `text` contains the run id; `email` is at example.invalid;
    * `phone` is 10 digits (the org's phone format rule).
    */
-  unique(label: string, format?: 'text' | 'email' | 'phone'): string;
+  /** Run-unique value; `maxLength` (the field's length) shortens the label so the value is never cut by the field. */
+  unique(label: string, format?: 'text' | 'email' | 'phone', maxLength?: number): string;
   /** API oracle: create a variant of a step (fields set/removed); returns whether it was saved and the error codes. */
   attempt(
     stepId: string,
@@ -155,11 +157,20 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         if (typeof v !== 'string') throw new QAError('DATA', `no planned string value for ${stepId}.${field}`);
         return v;
       },
-      unique(label, format = 'text') {
+      unique(label, format = 'text', maxLength) {
         const token = randomBytes(3).toString('hex');
-        if (format === 'email') return `qa+${runId}-${label}-${token}@example.invalid`.toLowerCase();
+        if (format === 'email') {
+          const domain = '@example.invalid';
+          const local = fitUnique(
+            `qa+${runId}`,
+            label,
+            token,
+            maxLength === undefined ? undefined : maxLength - domain.length,
+          );
+          return `${local}${domain}`.toLowerCase();
+        }
         if (format === 'phone') return `55${String(parseInt(token, 16) % 100_000_000).padStart(8, '0')}`;
-        return `QA-${runId}-${label}-${token}`;
+        return fitUnique(`QA-${runId}`, label, token, maxLength);
       },
       attempt: (stepId, set, remove) => find(stepId).attempt(stepId, set, remove),
       ofLength(length) {
@@ -190,9 +201,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
           ...Object.entries(where).map(([k, v]) => `${k} = ${soqlString(v)}`),
         ];
         const fields = [...new Set(['Id', ...select])];
-        const rows = await sf.query(
-          `SELECT ${fields.join(', ')} FROM ${object} WHERE ${conds.join(' AND ')}`,
-        );
+        const rows = await sf.query(`SELECT ${fields.join(', ')} FROM ${object} WHERE ${conds.join(' AND ')}`);
         return rows.map((r) => {
           const out: Record<string, unknown> = {};
           for (const f of select) {

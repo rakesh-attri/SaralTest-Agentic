@@ -10,9 +10,21 @@ import { isAutomatable, type ReviewStatus, type TestCase } from '../../core/sche
 import type { ModelRouter } from '../../models/router.js';
 import type { Redactor } from '../../security/redact.js';
 import type { SkillLoader } from '../../skills/skillLoader.js';
-import { fieldErrorRule, irProblems, type GenerationContext } from '../test-generator/context.js';
+import {
+  BUILD_TIME_VALUE,
+  fieldErrorRule,
+  irProblems,
+  isCreateSave,
+  type GenerationContext,
+} from '../test-generator/context.js';
 import type { GeneratedSpec } from '../test-generator/graph.js';
-import { findMember, type PageCatalog } from '../test-generator/pageObjects.js';
+import {
+  FIELD_IN_DETAILS,
+  findMember,
+  LIST_IN_RELATED,
+  recordTabs,
+  type PageCatalog,
+} from '../test-generator/pageObjects.js';
 import type { ObservedMessage } from '../../core/schemas/execution.js';
 import { A11Y_SCOPE_NOTE, AFTER_SAVE_NOTE } from '../test-generator/render.js';
 import type { ToolchainResult } from '../test-generator/toolchain.js';
@@ -34,6 +46,10 @@ const BLOCKING = new Set([
   'data-binding',
   'ast-violation',
   'dynamic-assertion',
+  'field-length',
+  'tab-unaware-read',
+  'build-time-value',
+  'shared-unique',
 ]);
 /** Only high-severity findings of blocking rules block (e.g. "no dry-run yet" is M: review, not block). */
 const isBlocking = (f: Pick<ReviewFinding, 'rule' | 'severity'>): boolean => BLOCKING.has(f.rule) && f.severity === 'H';
@@ -49,6 +65,10 @@ const REGENERABLE = new Set([
   'raw-locator',
   'ast-violation',
   'dynamic-assertion',
+  'field-length',
+  'tab-unaware-read',
+  'build-time-value',
+  'shared-unique',
   'typecheck',
   'lint',
   'not-listed',
@@ -143,6 +163,11 @@ export function astViolations(text: string): { rule: ReviewFinding['rule']; text
       if (/\/lightning\/r\/|lightning\\\/r\\\//.test(t))
         out.push({ rule: 'dynamic-assertion', text: `${at(n)}: record URL in a test (${t.slice(0, 60)})` });
       const v = ts.isRegularExpressionLiteral(n) ? '' : n.text;
+      if (BUILD_TIME_VALUE.test(v))
+        out.push({
+          rule: 'build-time-value',
+          text: `${at(n)}: run-specific value '${v.slice(0, 40)}' fixed in the test — make it at run time (data.unique / data.value)`,
+        });
       if (/^(0[0-9A-Za-z]{2}|a0[0-9A-Za-z])[0-9A-Za-z]{12}([0-9A-Za-z]{3})?$/.test(v) && /\d{3}/.test(v))
         out.push({ rule: 'dynamic-assertion', text: `${at(n)}: hard-coded record id '${v}'` });
     }
@@ -373,6 +398,8 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
     });
     for (const v of astViolations(spec.text))
       add({ ...base, key: `ast:${tc.id}:${v.text}`, severity: 'H', rule: v.rule, text: v.text });
+    for (const v of [...valueRuleViolations(spec.ir, spec.text, i.ctx), ...tabReadViolations(spec.text, i.ctx.catalog)])
+      add({ ...base, key: `rule:${tc.id}:${v.text}`, severity: 'H', rule: v.rule, text: v.text });
     // Locators: catalog members only; RE_VERIFY members need a human; dry-run must resolve each.
     for (const ref of spec.artifact.locatorsUsed) {
       const m = findMember(i.ctx.catalog, ref);
@@ -473,6 +500,92 @@ export function memberLegend(cat: PageCatalog, refs: readonly string[]): string 
     );
   }
   return lines.join('\n') || '(none)';
+}
+
+type RuleViolation = { rule: ReviewFinding['rule']; text: string };
+const reEsc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Operator rules 2026-11-26 (1) and (3), from the IR + spec text: a value typed into a field fits the field's length
+ * (literals; run-unique values pass the length to data.unique), and no two records the test creates share a unique
+ * value (kept only where the step expects a duplicate warning — the reuse is the test).
+ */
+export function valueRuleViolations(ir: TestIR | undefined, text: string, ctx: GenerationContext): RuleViolation[] {
+  if (!ir) return [];
+  const out: RuleViolation[] = [];
+  const used = new Set<string>();
+  let dialog = new Set<string>();
+  for (const st of ir.steps) {
+    const warns = st.assertions.some((a) => a.check === 'saveWarning');
+    let saves = false;
+    for (const a of st.actions) {
+      if (a.do === 'click' && isCreateSave(ctx, a.element)) saves = true;
+      if (a.do !== 'fill' && a.do !== 'select') continue;
+      const m = findMember(ctx.catalog, a.element);
+      const [o, f] = m?.member.fieldApiName?.split('.') ?? [];
+      const len = o && f ? ctx.facts.field(o, f)?.length : undefined;
+      if (a.value.kind === 'unique' && m?.page.kind === 'dialog') dialog.add(a.value.label);
+      if (!len) continue;
+      if (a.value.kind === 'literal' && a.value.value.length > len)
+        out.push({
+          rule: 'field-length',
+          text: `step ${String(st.caseStep + 1)}: '${a.value.value.slice(0, 30)}…' (${String(a.value.value.length)} chars) does not fit ${o ?? ''}.${f ?? ''} (${String(len)})`,
+        });
+      if (a.value.kind === 'unique' && a.value.format !== 'phone') {
+        const call = new RegExp(`data\\.unique\\('${reEsc(a.value.label)}'(?:, '\\w+')?(?:, (\\d+))?\\)`).exec(text);
+        const max = call?.[1] ? Number(call[1]) : undefined;
+        if (!call || max === undefined || max > len)
+          out.push({
+            rule: 'field-length',
+            text: `step ${String(st.caseStep + 1)}: run-unique '${a.value.label}' typed into ${o ?? ''}.${f ?? ''} (${String(len)}) is not limited to the field length (data.unique(…, ${String(len)}))`,
+          });
+      }
+    }
+    if (saves && st.assertions.some((a) => a.check === 'recordView')) {
+      const shared = [...dialog].filter((l) => used.has(l));
+      if (shared.length && !warns)
+        out.push({
+          rule: 'shared-unique',
+          text: `step ${String(st.caseStep + 1)}: unique value(s) ${shared.join(', ')} already used by a record this test created — one per record`,
+        });
+      for (const l of dialog) used.add(l);
+      dialog = new Set();
+    }
+  }
+  return out;
+}
+
+/**
+ * Operator rule 2026-11-26 (2), from the spec text: a record field is read through `<page>.fieldInDetails(…)` and a
+ * related list is opened (listInRelated / showRelatedList) before a record in it is read.
+ */
+export function tabReadViolations(text: string, cat: PageCatalog): RuleViolation[] {
+  const out: RuleViolation[] = [];
+  for (const p of cat.pages.filter((x) => x.kind === 'record')) {
+    const v = p.className.charAt(0).toLowerCase() + p.className.slice(1);
+    if (!text.includes(`${v}.`)) continue;
+    const tabs = recordTabs(p);
+    if (tabs.details)
+      for (const m of p.members.filter((x) => x.fieldApiName && x.role === 'listitem')) {
+        if (new RegExp(`expect\\(\\s*${reEsc(v)}\\.${reEsc(m.name)}\\s*\\)`).test(text))
+          out.push({
+            rule: 'tab-unaware-read',
+            text: `${v}.${m.name} is read without ${v}.${FIELD_IN_DETAILS}(…) — the record page may show another tab`,
+          });
+      }
+    for (const hit of text.matchAll(new RegExp(`relatedListRecord\\(\\s*${reEsc(v)}\\.(\\w+)`, 'g'))) {
+      const list = hit[1] ?? '';
+      const before = text.slice(0, hit.index);
+      const opened =
+        before.includes(`${v}.${LIST_IN_RELATED}(${v}.${list})`) || before.includes(`showRelatedList(${v}.${list}`);
+      if (!opened)
+        out.push({
+          rule: 'tab-unaware-read',
+          text: `${v}.${list} is read before it is opened (${v}.${LIST_IN_RELATED}(…))`,
+        });
+    }
+  }
+  return [...new Map(out.map((x) => [x.text, x])).values()];
 }
 
 const nextId = (fs: readonly ReviewFinding[]): string => {

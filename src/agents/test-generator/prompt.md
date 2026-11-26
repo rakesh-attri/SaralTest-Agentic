@@ -23,6 +23,14 @@ Rules (from the playwright-standards, salesforce-lightning-locators and salesfor
   typed; the record is in the related list with that exact name; it is opened from the related list and its header
   shows the name; SOQL by the run tag returns exactly that record with the values typed. Fill the dialog's name field
   (Last Name / Name) with a `unique` value so the record is found by the run tag. Cleanup is code-owned: never adopt.
+- **Values the test types are made at run time and fit their field** (operator rule 2026-11-26): names, emails and
+  other run-unique values are `unique` values — one per record the test creates (never the same `unique` label in two
+  records, unless the step expects the duplicate warning), never a `QA-run-…` value copied from a preview, never a
+  literal longer than the field. Code passes the field length to `data.unique` from the org snapshot.
+- **Record fields are read on the tab that shows them** (operator rule 2026-11-26): a record page opens on Related;
+  `recordField` is rendered through the page object's `fieldInDetails(…)` and related-list reads through
+  `listInRelated(…)` — never write tab clicks for this yourself.
+- `recordView` `as` is a short identifier (e.g. `newContact`), one per created record — never a value.
 - A parent of a saved record is checked by its name (`soqlField` field `Account.Name` equals `data Account.Name`),
   never by comparing ids.
 - Prefer an independent API/SOQL oracle in addition to the UI check when the expectation is about saved data
