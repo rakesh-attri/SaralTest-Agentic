@@ -772,7 +772,7 @@ describe('records created in the UI (run-p5-build-1: TC-010, 036, 046, 050)', ()
     expect(none.steps[0]!.assertions[0]).not.toHaveProperty('message');
   });
 
-  it('a SOQL check on a recipe record of another object, or of a value against itself, targets the created record', () => {
+  it('a SOQL check is never re-pointed by code: another object is refused, a recipe record stays (run-p5-build-3)', () => {
     const later: TestIR['steps'][number] = {
       caseStep: 1,
       title: 'Verify by SOQL',
@@ -802,13 +802,10 @@ describe('records created in the UI (run-p5-build-1: TC-010, 036, 046, 050)', ()
       recipe,
       CASE,
     );
-    expect(n.steps[1]!.assertions.map((a) => ('ref' in a ? a.ref : ''))).toEqual([
-      'createdContact1',
-      'createdContact1',
-    ]);
-    // without a created record it is refused
-    expect(irProblems(CASE, withSteps([later]), ctx, recipe).join('\n')).toMatch(
-      /Account is a Account record, not a Contact/,
+    // the pre-existing recipe Contact checked against its own value proves it still exists: not re-pointed
+    expect(n.steps[1]!.assertions.map((a) => ('ref' in a ? a.ref : ''))).toEqual(['Account', 'Contact']);
+    expect(irProblems(CASE, n, ctx, recipe).join('\n')).toMatch(
+      /Account is a Account record, not a Contact — use a Contact record: recipe step "Contact" or a recordView "as" name/,
     );
   });
 });

@@ -500,7 +500,9 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         {
           const st = steps.find((x) => x.stepId === a.ref);
           if (st && st.object !== a.object)
-            p.push(`${where}: ${a.ref} is a ${st.object} record, not a ${a.object} — query a ${a.object} record`);
+            p.push(
+              `${where}: ${a.ref} is a ${st.object} record, not a ${a.object} — use a ${a.object} record: ${[...steps.filter((x) => x.object === a.object).map((x) => `recipe step "${x.stepId}"`), `a recordView "as" name`].join(' or ')}`,
+            );
         }
         value(a.equals, where, cs);
         // Operator rule 2026-11-26: never assert on record ids (dynamic) — compare a parent by its name.
@@ -636,7 +638,6 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
   const usedNames = new Set<string>(); // unique labels of records already created
   const relabel = new Map<string, string>();
   let currentName: string | undefined; // unique label typed into the open create dialog's name field
-  const lastCreated = new Map<string, string>(); // object → recordView `as` of the last record created in the UI
   const val = (x: ValueRef): ValueRef => {
     const v = val0(x);
     if (v.kind !== 'unique') return v;
@@ -757,17 +758,8 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
                 equals: { kind: 'data' as const, ref: parent.stepId, field: 'Name' },
               }
             : { ...a, ref: ref(a.ref), equals: val(a.equals) };
-        // A recipe record of another object (TC-050: the Account's id as a Contact), or a recipe field compared with
-        // itself, cannot be what the step verifies: it is the record this test created in the UI, when there is one.
-        const st = steps.find((x) => x.stepId === s.ref);
-        const target = lastCreated.get(s.object);
-        const self = s.equals.kind === 'data' && s.equals.ref === s.ref && s.equals.field === s.field;
-        if (st && target && (st.object !== s.object || self)) {
-          notes.push(
-            `soqlField ${s.object}.${s.field}: ${s.ref} is ${st.object !== s.object ? `a ${st.object}, not a ${s.object}` : 'compared with its own value'} — checked on ${target}, the ${s.object} this test created (by code)`,
-          );
-          return { ...s, ref: target };
-        }
+        // A recipe record of another object is NOT re-pointed by code (run-p5-build-3, TC-050: the model meant the
+        // pre-existing recipe Contact, a guess pointed it at the created one): irProblems refuses it and names the steps.
         return s;
       }
       case 'soqlNoRecord':
@@ -823,7 +815,6 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
         notes.push(`soqlField ${a.object}.${a.field}: checked on ${as}, the record this step created (by code)`);
         return { ...a, ref: as };
       });
-      lastCreated.set(createdView.object, as);
       if (currentName) usedNames.add(currentName);
     }
     const n = { ...st, actions: actions.filter((a) => a.do !== 'adopt'), assertions };
