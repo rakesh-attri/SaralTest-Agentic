@@ -9,6 +9,7 @@ import { parseSoql } from '../../src/fixture/soql.js';
 import { REPO_ROOT } from '../helpers/tempProject.js';
 import {
   expectFieldError,
+  expectSavePopover,
   expectToast,
   openRecord,
   pageError,
@@ -145,6 +146,33 @@ describe('Lightning + a11y helpers on the offline fixture (real Chromium, FIXTUR
     expect(server.store.query(parseSoql(`SELECT Id FROM Contact WHERE LastName = '${name}'`)).totalSize).toBe(0);
     // Billing → Mailing defaults (BR-05 as implemented by the fixture)
     expect(await dialog.getByRole('textbox', { name: 'Mailing City', exact: true }).inputValue()).toBe('Bengaluru');
+  });
+
+  it('expectSavePopover: Lightning rendering the popover twice is one warning; every copy is closed (qa-prod run-p5-live-6)', async () => {
+    await page.setContent(
+      [1, 2]
+        .map(
+          (n) =>
+            `<div role="dialog" aria-label="Similar Records Exist" id="p${String(n)}"><button aria-label="Close error dialog" onclick="document.getElementById('p${String(n)}').remove()">x</button><h2>Similar Records Exist</h2><p>This record looks like an existing record.</p></div>`,
+        )
+        .join(''),
+    );
+    await expectSavePopover(page, 'Similar Records Exist', 'This record looks like an existing record.');
+    await pwExpect(page.getByRole('dialog', { name: 'Similar Records Exist' })).toHaveCount(0);
+    // the text is still checked: a popover with other text is not this warning
+    await page.setContent(
+      '<div role="dialog" aria-label="Similar Records Exist"><h2>Similar Records Exist</h2><p>Other text</p></div>',
+    );
+    await expect(
+      Promise.race([
+        expectSavePopover(page, 'Similar Records Exist', 'This record looks like an existing record.'),
+        new Promise((_, rej) => {
+          setTimeout(() => {
+            rej(new Error('not shown'));
+          }, 3_000);
+        }),
+      ]),
+    ).rejects.toThrow();
   });
 
   it('selectPicklist falls back to the keyboard when the option is covered (docked footer on live Lightning)', async () => {

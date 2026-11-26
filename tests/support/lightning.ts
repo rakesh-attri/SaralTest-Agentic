@@ -81,9 +81,12 @@ export async function closeSavePopover(page: Page, timeout = 10_000): Promise<vo
  * then it is closed so the record form is reachable again (closing it saves nothing).
  */
 export async function expectSavePopover(page: Page, heading: string, text: string): Promise<void> {
-  const popover = page.getByRole('dialog', { name: heading });
-  await expect(popover).toBeVisible({ timeout: 20_000 });
-  await expect(popover).toContainText(text);
+  // Lightning sometimes renders the same popover twice (qa-prod run-p5-live-6, TC-050: two "Similar Records Exist"
+  // dialogs, strict-mode violation). The check is unchanged — a popover with this heading shows this text — and
+  // every copy is closed afterwards.
+  // Accessible (visible) popovers with this heading that show the text: one or more.
+  const withText = page.getByRole('dialog', { name: heading }).filter({ hasText: text });
+  await expect(withText).not.toHaveCount(0, { timeout: 20_000 });
   await closeSavePopover(page);
 }
 
