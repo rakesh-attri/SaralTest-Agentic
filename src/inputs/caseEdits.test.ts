@@ -37,6 +37,31 @@ describe('operator case edits', () => {
     expect(() => applyCaseEdits([CASE], { ...f, manualOnly: [{ caseId: 'TC-X', reason: 'r' }] })).toThrow(/TC-X/);
   });
 
+  it('drops a step the operator rules not automatable; never the last one, never an unknown one', () => {
+    const f = {
+      ...file(CASE.steps[0]!.action.slice(0, 5)),
+      dropSteps: [{ caseId: CASE.id, step: 2, reason: 'human check' }],
+    };
+    const r = applyCaseEdits([CASE], f);
+    expect(r.cases[0]!.steps).toHaveLength(CASE.steps.length - 1);
+    expect(r.cases[0]!.steps[0]!.action.startsWith('EDITED')).toBe(true);
+    expect(CASE.steps).toHaveLength(2); // input untouched
+    expect(r.changes.join(' ')).toContain(`${CASE.id} step 2 removed:`);
+    expect(r.changes.join(' ')).toContain('(human check)');
+    expect(() =>
+      applyCaseEdits([CASE], {
+        ...f,
+        dropSteps: [
+          { caseId: CASE.id, step: 1, reason: 'r' },
+          { caseId: CASE.id, step: 2, reason: 'r' },
+        ],
+      }),
+    ).toThrow(/no step left/);
+    expect(() => applyCaseEdits([CASE], { ...f, dropSteps: [{ caseId: CASE.id, step: 9, reason: 'r' }] })).toThrow(
+      /no step 9/,
+    );
+  });
+
   it('the SF-219 edit file parses', () => {
     const f = loadCaseEdits(join(REPO_ROOT, 'examples', 'case-edits', 'SF-219.yaml'));
     expect(f.edits.map((e) => e.caseId)).toContain('TC-SF-219-009');
