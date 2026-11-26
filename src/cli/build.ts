@@ -434,6 +434,7 @@ export async function snapshotCurrency(
       facts: latest,
       locator: registryLookup(registry.list({ org: org.orgId })),
       stories: [storyKey],
+      orgAlias,
     });
     for (const x of st.stale) notes.push(`STALE ${x.caseId}: ${staleReason(x.stale)}`);
     if (st.untracked.length)

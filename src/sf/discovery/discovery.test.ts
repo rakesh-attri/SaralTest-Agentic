@@ -88,7 +88,13 @@ describe('runDiscovery on the offline fixture (FIXTURE)', () => {
     const byType = (t: string): string[] => r.components.filter((c) => c.type === t).map((c) => c.apiName);
     expect(byType('SObject')).toEqual(['Account', 'Contact']);
     expect(byType('Field')).toContain('Contact.Phone');
-    expect(byType('ValidationRule')).toEqual(['Contact.Phone_Format']);
+    // Phone_Format is the fixture's own rule; the other three are FIXTURE copies of qa-prod rules (Phase 5 parity).
+    expect(byType('ValidationRule')).toEqual([
+      'Contact.Phone_Format',
+      'Contact.Phone_Must_Be_10_Digits',
+      'Contact.Phone_Required_For_Web',
+      'Contact.Title_Must_Be_Approved',
+    ]);
     expect(byType('ApexTrigger')).toEqual(['Contact.ContactTrigger']);
     expect(byType('Flow')).toEqual(['Account_Contact_Count']);
     expect(byType('Layout')).toEqual(['Account.Account Layout', 'Contact.Contact Layout']);

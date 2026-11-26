@@ -59,6 +59,11 @@ export function refreshStaleMarks(o: {
   locator: LocatorLookup;
   stories?: string[];
   now?: Date;
+  /**
+   * Alias of the org `facts` belongs to. Manifests built for another org (`org` field) are skipped: their dependency
+   * hashes are that org's, so this snapshot can neither prove nor disprove that they are current.
+   */
+  orgAlias?: string;
 }): StaleRefresh {
   const out: StaleRefresh = { stale: [], untracked: [] };
   const at = (o.now ?? new Date()).toISOString();
@@ -66,6 +71,7 @@ export function refreshStaleMarks(o: {
     const file = storyManifestFile(o.root, story);
     if (!existsSync(file)) continue;
     const m = JSON.parse(readFileSync(file, 'utf8')) as ManifestFile;
+    if (o.orgAlias && typeof m['org'] === 'string' && m['org'] !== o.orgAlias) continue;
     let dirty = false;
     for (const a of m.artifacts ?? []) {
       if (a.kind !== 'spec') continue;

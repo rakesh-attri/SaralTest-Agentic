@@ -166,6 +166,30 @@
           "length": 80
         },
         {
+          "name": "Title",
+          "label": "Title",
+          "type": "string",
+          "length": 128
+        },
+        {
+          "name": "LeadSource",
+          "label": "Lead Source",
+          "type": "picklist",
+          "picklistValues": [
+            "Advertisement",
+            "Employee Referral",
+            "External Referral",
+            "Partner",
+            "Public Relations",
+            "Seminar - Internal",
+            "Seminar - Partner",
+            "Trade Show",
+            "Web",
+            "Word of mouth",
+            "Other"
+          ]
+        },
+        {
           "name": "AccountId",
           "label": "Account Name",
           "type": "reference",
@@ -194,7 +218,10 @@
         "Name": "Fixture Seed Account",
         "Industry": "Technology",
         "BillingCountry": "India",
-        "Phone": "+91 00000 00000"
+        "Phone": "+91 00000 00000",
+        "BillingStreet": "1 Fixture Lane",
+        "BillingCity": "Bengaluru",
+        "BillingPostalCode": "560001"
       }
     ],
     "Contact": [

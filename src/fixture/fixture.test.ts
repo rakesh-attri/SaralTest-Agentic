@@ -121,6 +121,57 @@ describe('fixture server', () => {
     expect(classifyError(Object.assign(new Error('x'), { body })).kind).toBe('DATA');
   });
 
+  it('enforces the validation rules in its metadata on create and update (every failing rule reported)', async () => {
+    const bad = await post('Contact', { LastName: 'QA-vr', AccountId: SEED_ACCOUNT, Phone: '123', Title: 'Intern' });
+    expect(bad.status).toBe(400);
+    const errs = (await bad.json()) as { errorCode: string; message: string; fields: string[] }[];
+    expect(errs.map((e) => e.message)).toEqual(
+      expect.arrayContaining(['Phone must be exactly 10 digits.', 'Title must be an approved title.']),
+    );
+    expect(errs.every((e) => e.errorCode === 'FIELD_CUSTOM_VALIDATION_EXCEPTION')).toBe(true);
+    const ok = (await (
+      await post('Contact', { LastName: 'QA-vr', AccountId: SEED_ACCOUNT, LeadSource: 'Web', Phone: '5551234567' })
+    ).json()) as { id: string };
+    // update is checked on the merged record: clearing Phone while Lead Source stays Web is rejected
+    const patch = await fetch(api(`/sobjects/Contact/${ok.id}`), {
+      method: 'PATCH',
+      headers: { ...ADMIN, 'content-type': 'application/json' },
+      body: JSON.stringify({ Phone: null }),
+    });
+    expect(patch.status).toBe(400);
+    expect(((await patch.json()) as { message: string }[])[0]?.message).toBe(
+      'Phone is required when Lead Source is Web.',
+    );
+    await fetch(api(`/sobjects/Contact/${ok.id}`), { method: 'DELETE', headers: ADMIN });
+  });
+
+  it('a rule formula the fixture cannot evaluate fails loudly (never a silent pass)', async () => {
+    const meta = fx.metadata;
+    const rules = meta.entities['ValidationRule'] ?? [];
+    fx.setMetadata({
+      ...meta,
+      entities: {
+        ...meta.entities,
+        ValidationRule: [
+          ...rules,
+          {
+            ValidationName: 'Uses_PriorValue',
+            Active: true,
+            EntityDefinition: { QualifiedApiName: 'Contact' },
+            Metadata: { active: true, errorConditionFormula: 'PRIORVALUE(Phone) <> Phone', errorMessage: 'x' },
+          },
+        ],
+      },
+    });
+    try {
+      const r = await post('Contact', { LastName: 'QA-unsupported', AccountId: SEED_ACCOUNT });
+      expect(r.status).toBe(500);
+      expect(((await r.json()) as { errorCode: string }[])[0]?.errorCode).toBe('FIXTURE_UNSUPPORTED_FORMULA');
+    } finally {
+      fx.setMetadata(meta);
+    }
+  });
+
   it('validates picklists, references and unknown fields', async () => {
     expect(
       ((await (await post('Account', { Name: 'x', Industry: 'Nope' })).json()) as { errorCode: string }[])[0]

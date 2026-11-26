@@ -19,6 +19,60 @@
           "errorDisplayField": "Phone",
           "errorMessage": "Phone must contain exactly 10 digits."
         }
+      },
+      {
+        "Id": "03dFX0000000002AAA",
+        "ValidationName": "Phone_Must_Be_10_Digits",
+        "Active": true,
+        "Description": "FIXTURE copy of the qa-prod rule (snapshot …adbb): formula and message as declared there",
+        "ErrorDisplayField": "Phone",
+        "ErrorMessage": "Phone must be exactly 10 digits.",
+        "EntityDefinition": {
+          "QualifiedApiName": "Contact"
+        },
+        "LastModifiedDate": "2026-11-26T04:44:03.000+0000",
+        "Metadata": {
+          "active": true,
+          "errorConditionFormula": "AND( NOT( ISBLANK( Phone ) ), NOT( REGEX( Phone, \"[0-9]{10}\" ) ) )",
+          "errorDisplayField": "Phone",
+          "errorMessage": "Phone must be exactly 10 digits."
+        }
+      },
+      {
+        "Id": "03dFX0000000003AAA",
+        "ValidationName": "Phone_Required_For_Web",
+        "Active": true,
+        "Description": "FIXTURE copy of the qa-prod rule (snapshot …adbb): formula and message as declared there",
+        "ErrorDisplayField": "Phone",
+        "ErrorMessage": "Phone is required when Lead Source is Web.",
+        "EntityDefinition": {
+          "QualifiedApiName": "Contact"
+        },
+        "LastModifiedDate": "2026-11-26T04:44:03.000+0000",
+        "Metadata": {
+          "active": true,
+          "errorConditionFormula": "AND( ISPICKVAL( LeadSource, \"Web\" ), ISBLANK( Phone ) )",
+          "errorDisplayField": "Phone",
+          "errorMessage": "Phone is required when Lead Source is Web."
+        }
+      },
+      {
+        "Id": "03dFX0000000004AAA",
+        "ValidationName": "Title_Must_Be_Approved",
+        "Active": true,
+        "Description": "FIXTURE copy of the qa-prod rule (snapshot …adbb): formula and message as declared there",
+        "ErrorDisplayField": "Title",
+        "ErrorMessage": "Title must be an approved title.",
+        "EntityDefinition": {
+          "QualifiedApiName": "Contact"
+        },
+        "LastModifiedDate": "2026-11-26T04:44:03.000+0000",
+        "Metadata": {
+          "active": true,
+          "errorConditionFormula": "AND( NOT( ISBLANK( Title ) ),\r\n     CASE( Title, \"Account Executive\", 1, \"Sales Manager\", 1, \"Director\", 1, \"VP Sales\", 1, 0 ) = 0 )",
+          "errorDisplayField": "Title",
+          "errorMessage": "Title must be an approved title."
+        }
       }
     ],
     "ApexTrigger": [

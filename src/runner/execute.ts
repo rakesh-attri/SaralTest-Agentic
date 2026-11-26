@@ -42,6 +42,8 @@ export interface ExecutePlan {
   snapshotId: string;
   org: OrgEntry;
   manifest: StoryManifest;
+  /** Why staleness was (not) re-checked for this org. */
+  stalenessNote: string;
 }
 
 /** Refresh STALE marks against the org's latest snapshot, then decide what may execute. */
@@ -56,14 +58,24 @@ export async function planStoryExecution(
   if (!org) throw new QAError('ENVIRONMENT', `org alias "${orgAlias}" is not in config/orgs.yaml`);
   const file = storyManifestFile(root, storyKey);
   if (!existsSync(file)) throw new QAError('DATA', `no generated specs for ${storyKey}`, { fix: 'run qa build first' });
+  // Specs record the hashes of the org they were BUILT for (manifest.org). Staleness is re-checked only against that
+  // org's latest snapshot: another org (e.g. the offline fixture) has different hashes for the same components, and
+  // its snapshot must never write STALE marks into the committed manifest. Other orgs use the marks as they are.
+  const builtFor = StoryManifest.parse(JSON.parse(readFileSync(file, 'utf8'))).org;
   const store = new SnapshotStore(join(root, '.qa-memory', 'knowledge.db'));
   let snapshotId: string;
+  let stalenessNote: string;
   try {
     const info = store.latest(org.orgId);
     const snap = info ? store.get(info.id) : undefined;
     if (!snap) throw new QAError('DATA', `no snapshot for ${orgAlias}`, { fix: `pnpm qa discover --org ${orgAlias}` });
     snapshotId = snap.info.id;
-    markStaleSpecs(root, org.orgId, new SnapshotFacts(snap));
+    if (!builtFor || builtFor === orgAlias) {
+      markStaleSpecs(root, org.orgId, new SnapshotFacts(snap), orgAlias);
+      stalenessNote = `staleness re-checked against ${orgAlias} snapshot ${snapshotId}`;
+    } else {
+      stalenessNote = `specs were built for ${builtFor}: staleness is tracked against ${builtFor} (marks used as they are), not re-checked against ${orgAlias}`;
+    }
   } finally {
     store.close();
   }
@@ -79,7 +91,7 @@ export async function planStoryExecution(
         : i,
     );
   }
-  return { items, snapshotId, org, manifest };
+  return { items, snapshotId, org, manifest, stalenessNote };
 }
 
 export interface ExecuteOptions {
@@ -163,6 +175,7 @@ export async function executeStory(o: ExecuteOptions, d: ExecuteDeps = {}): Prom
     `Gate for ${o.storyKey} on ${o.orgAlias} (${environment}): ${n('EXECUTE')} EXECUTE · ${n('BLOCKED')} BLOCKED · ${n('NOT_APPROVED')} NOT_APPROVED · ${n('MANUAL')} MANUAL${n('NOT_SELECTED') ? ` · ${n('NOT_SELECTED')} NOT_SELECTED` : ''}`,
   );
   for (const i of plan.items) say(`  ${i.decision.padEnd(12)} ${i.caseId}  ${i.reason}`);
+  say(`  (${plan.stalenessNote})`);
   const toRun = plan.items.filter((i) => i.decision === 'EXECUTE' && i.path);
   const byPath = new Map<string, ManifestArtifact>(plan.manifest.artifacts.map((a) => [a.path, a]));
 
@@ -308,11 +321,12 @@ export async function executeStory(o: ExecuteOptions, d: ExecuteDeps = {}): Prom
 
   // 6. Playwright Test runner
   const projects = personas.filter((p) => !sessionErrors.some((e) => e.startsWith(`${p}:`)));
+  // Spec file filters first: `--project` takes a variadic list and would swallow anything after it.
   const args = [
     'playwright',
     'test',
-    ...projects.flatMap((p) => ['--project', p]),
     ...toRun.map((t) => basename(t.path ?? '')),
+    ...projects.flatMap((p) => ['--project', p]),
   ];
   const env: Record<string, string> = {
     QA_ORG: o.orgAlias,
@@ -340,7 +354,8 @@ export async function executeStory(o: ExecuteOptions, d: ExecuteDeps = {}): Prom
   // 7. results
   const pwFile = join(runDir, 'playwright-results.json');
   let results: TestResult[];
-  if (existsSync(pwFile)) {
+  const reported = existsSync(pwFile);
+  if (reported) {
     const parsed = PlaywrightJson.safeParse(JSON.parse(readFileSync(pwFile, 'utf8')));
     if (!parsed.success) throw new QAError('UNKNOWN', `unreadable Playwright JSON report: ${parsed.error.message}`);
     results = toTestResults(parsed.data, {
@@ -376,9 +391,10 @@ export async function executeStory(o: ExecuteOptions, d: ExecuteDeps = {}): Prom
     `  data: ${reconcile.status} — ${reconcile.subRuns.length} sub-run(s), ${reconcile.remaining.length} record(s) remaining`,
   );
   const ran = results.filter((r) => toRun.some((t) => t.caseId === r.caseId));
+  // COMPLETE = Playwright reported every selected test with a definite outcome and the data is accounted for.
+  const definite = (r: TestResult): boolean =>
+    r.state === 'PASS' || r.state === 'FAIL' || r.state === 'SKIPPED' || r.flaky === true;
   const status: ExecutionOutcome['status'] =
-    ran.length && ran.every((r) => r.state !== 'UNCERTAIN' || r.flaky) && reconcile.status !== 'INCOMPLETE'
-      ? 'COMPLETE'
-      : 'PARTIAL';
+    reported && ran.length > 0 && ran.every(definite) && reconcile.status !== 'INCOMPLETE' ? 'COMPLETE' : 'PARTIAL';
   return outcome(status, results, { browser, reconcile, exitCode: res.code });
 }

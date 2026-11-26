@@ -70,43 +70,11 @@
     </main>
 
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title-{{rand}}" hidden>
-      <form novalidate data-account-id="{{Account.Id}}" data-account-name="{{Account.Name}}" data-billing-country="{{Account.BillingCountry}}">
+      <form novalidate data-mode="create" data-account-id="{{Account.Id}}" data-account-name="{{Account.Name}}"
+        data-billing-street="{{Account.BillingStreet}}" data-billing-city="{{Account.BillingCity}}"
+        data-billing-postal-code="{{Account.BillingPostalCode}}" data-billing-country="{{Account.BillingCountry}}">
         <h2 id="modal-title-{{rand}}">New Contact</h2>
-        <div class="page-error" role="alert" hidden>
-          <p>We hit a snag.</p>
-          <p class="page-error-detail"></p>
-        </div>
-        <div class="form-element">
-          <label for="input-{{rand}}-1">First Name</label>
-          <input id="input-{{rand}}-1" name="firstName" type="text" maxlength="40" />
-        </div>
-        <div class="form-element">
-          <label for="input-{{rand}}-2"><abbr title="required" aria-hidden="true">*</abbr>Last Name</label>
-          <input id="input-{{rand}}-2" name="lastName" type="text" maxlength="80" aria-required="true" />
-          <div class="field-error" id="err-{{rand}}-2" hidden>Complete this field.</div>
-        </div>
-        <div class="form-element">
-          <label for="input-{{rand}}-3">Email</label>
-          <input id="input-{{rand}}-3" name="email" type="email" maxlength="80" />
-        </div>
-        <div class="form-element">
-          <label for="input-{{rand}}-5">Phone</label>
-          <input id="input-{{rand}}-5" name="phone" type="tel" maxlength="40" />
-        </div>
-        <fieldset class="form-element" aria-label="Mailing Address">
-          <legend>Mailing Address</legend>
-          <label for="input-{{rand}}-6">Mailing Country</label>
-          <input id="input-{{rand}}-6" name="mailingCountry" type="text" maxlength="80" />
-        </fieldset>
-        <div class="form-element">
-          <label for="input-{{rand}}-4">Account Name</label>
-          <input id="input-{{rand}}-4" role="combobox" aria-expanded="false" aria-autocomplete="list" name="account"
-            value="{{Account.Name}}" readonly />
-        </div>
-        <footer>
-          <button type="button" name="CancelEdit">Cancel</button>
-          <button type="submit" name="SaveEdit" class="brand">Save</button>
-        </footer>
+        {{contactFormFields}}
       </form>
     </section>
 

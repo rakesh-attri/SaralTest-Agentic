@@ -10,7 +10,7 @@ import { SnapshotStore } from '../knowledge/snapshotStore.js';
 import { createSfContext } from '../sf/context.js';
 import { runDiscovery } from '../sf/discovery/index.js';
 import type { Runner } from '../util/exec.js';
-import { executeStory } from './execute.js';
+import { executeStory, planStoryExecution } from './execute.js';
 
 let server: FixtureServer;
 let root: string;
@@ -145,9 +145,9 @@ describe('Runner (qa run) preflight and execution on the offline fixture', () =>
     expect(calls[0]?.args).toEqual([
       'playwright',
       'test',
+      'TC-SF-9-001-create-contact.spec.ts',
       '--project',
       'system-admin',
-      'TC-SF-9-001-create-contact.spec.ts',
     ]);
     expect(calls[0]?.env).toMatchObject({
       QA_ORG: 'fixture',
@@ -176,6 +176,22 @@ describe('Runner (qa run) preflight and execution on the offline fixture', () =>
     expect(calls).toEqual([]);
     expect(out.results.find((r) => r.caseId === 'TC-SF-9-001')).toMatchObject({ state: 'BLOCKED' });
     expect(out.results.find((r) => r.caseId === 'TC-SF-9-001')?.reason).toMatch(/^stale: /);
+  });
+
+  it('specs built for another org: staleness is not re-checked against this org and the manifest is not modified', async () => {
+    manifest({ dependsOn: [{ component: 'ValidationRule:Contact.Phone_Must_Be_10_Digits', hash: 'qa-prod-hash' }] });
+    const file = join(root, 'tests', 'generated', 'SF-9', 'manifest.json');
+    const m = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+    writeFileSync(file, JSON.stringify({ ...m, org: 'qa-prod' }));
+    const before = readFileSync(file, 'utf8');
+    const plan = await planStoryExecution(root, 'fixture', 'SF-9');
+    expect(readFileSync(file, 'utf8')).toBe(before);
+    expect(plan.items.find((i) => i.caseId === 'TC-SF-9-001')?.decision).toBe('EXECUTE');
+    expect(plan.stalenessNote).toMatch(/built for qa-prod/);
+    // the build org itself still re-checks (fixture as build org: the qa-prod hash differs → STALE)
+    writeFileSync(file, JSON.stringify({ ...m, org: 'fixture' }));
+    const own = await planStoryExecution(root, 'fixture', 'SF-9');
+    expect(own.items.find((i) => i.caseId === 'TC-SF-9-001')?.decision).toBe('BLOCKED');
   });
 
   it('an identity mismatch is a hard stop (the run ends BLOCKED, nothing executes)', async () => {

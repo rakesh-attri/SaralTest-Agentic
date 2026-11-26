@@ -4,7 +4,7 @@
 // - data:    the data factory (src/sf/dataFactory.ts), one data sub-run per test: approved recipe → plan → create
 //            in order → … → reverse-order cleanup verified by re-query in teardown (salesforce-test-data skill).
 import { test as base, expect } from '@playwright/test';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { join } from 'node:path';
 import type { Persona } from '../../src/config/schemas.js';
 import { QAError } from '../../src/core/errors.js';
@@ -98,7 +98,8 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     await use(settings.execution.a11y);
   },
   data: async ({ sfContext, sf }, use, testInfo) => {
-    const hash = createHash('sha256').update(testInfo.testId).digest('hex').slice(0, 6);
+    // One data sub-run per ATTEMPT: a retry must not reuse the records (already cleaned) of the failed attempt.
+    const hash = createHash('sha256').update(`${testInfo.testId}#${testInfo.retry}`).digest('hex').slice(0, 6);
     const runId = `${sfContext.run.runId}-${hash}`.slice(-50);
     const dir = join(dataDir(sfContext.run.dir), hash);
     const ledger = new WriteLedger(join(dir, 'writes.jsonl'));
@@ -158,10 +159,10 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       attempt: (stepId, set, remove) => find(stepId).attempt(stepId, set, remove),
       ofLength(length) {
         const seed = `QA-${runId}-`;
-        if (length < seed.length)
-          return randomBytes(Math.ceil(length / 2))
-            .toString('hex')
-            .slice(0, length);
+        // Shorter than the run prefix: random DIGITS (Phase 5 fix, run-p5-fx-try-4). Hex mixed in letters, so a
+        // "10-digit phone" boundary value broke the phone rule for the wrong reason; digits are a valid value of that
+        // length for text and phone fields alike.
+        if (length < seed.length) return Array.from({ length }, () => String(randomInt(10))).join('');
         return (seed + 'x'.repeat(length)).slice(0, length);
       },
       update: (stepId, fields) => find(stepId).update(stepId, fields),

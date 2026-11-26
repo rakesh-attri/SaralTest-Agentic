@@ -3,16 +3,20 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { expect as pwExpect } from '@playwright/test';
 import { startFixtureServer, type FixtureServer } from '../../src/fixture/server.js';
+import { parseSoql } from '../../src/fixture/soql.js';
 import { REPO_ROOT } from '../helpers/tempProject.js';
 import {
   expectFieldError,
+  expectRecordTitle,
   expectToast,
   openRecord,
   pageError,
   recordIdFromView,
   relatedList,
   relatedListRecord,
+  selectPicklist,
   selectTab,
   waitForSpinners,
 } from '../support/lightning.js';
@@ -111,10 +115,57 @@ describe('Lightning + a11y helpers on the offline fixture (real Chromium, FIXTUR
     await lastName.fill(name);
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await waitForSpinners(page);
+    // As on live Lightning (Phase 5 parity): Save opens the new Contact's record page with a success toast.
+    const contactId = await recordIdFromView(page, 'Contact');
     await expectToast(page, /was created/);
-    const list = relatedList(page.getByRole('main'), 'Contacts');
+    await expectRecordTitle(page, name);
+    const main = await openRecord(page, 'Account', ACCOUNT);
+    await selectTab(main.getByRole('tab', { name: 'Related', exact: true }));
+    const list = relatedList(main, 'Contacts');
     await relatedListRecord(list, name).waitFor();
     expect(await relatedListRecord(list, name).count()).toBe(1);
+    expect(await relatedListRecord(list, name).getAttribute('href')).toContain(contactId);
+  });
+
+  it('validation rules (FIXTURE copies of qa-prod rules): picklist select, field error with the rule message, no record', async () => {
+    const dialog = await openDialog();
+    const name = `QA-web-${Date.now().toString(36)}`;
+    await dialog.getByRole('textbox', { name: 'Last Name', exact: true }).fill(name);
+    const leadSource = dialog.getByRole('combobox', { name: 'Lead Source', exact: true });
+    await selectPicklist(page, leadSource, 'Web');
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await waitForSpinners(page);
+    const phone = dialog.getByRole('textbox', { name: 'Phone', exact: true });
+    await expectFieldError(phone, 'Phone is required when Lead Source is Web.');
+    // an invalid phone and an unapproved title fail together (every failing rule is reported)
+    await phone.fill('12345');
+    await dialog.getByRole('textbox', { name: 'Title', exact: true }).fill('Intern');
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await waitForSpinners(page);
+    await expectFieldError(phone, 'Phone must be exactly 10 digits.');
+    await expectFieldError(
+      dialog.getByRole('textbox', { name: 'Title', exact: true }),
+      'Title must be an approved title.',
+    );
+    expect(server.store.query(parseSoql(`SELECT Id FROM Contact WHERE LastName = '${name}'`)).totalSize).toBe(0);
+    // Billing → Mailing defaults (BR-05 as implemented by the fixture)
+    expect(await dialog.getByRole('textbox', { name: 'Mailing City', exact: true }).inputValue()).toBe('Bengaluru');
+  });
+
+  it('Contact Edit dialog: pre-filled from the record, Save PATCHes it and the record page shows the change', async () => {
+    const dialog = await openDialog();
+    const name = `QA-edit-${Date.now().toString(36)}`;
+    await dialog.getByRole('textbox', { name: 'Last Name', exact: true }).fill(name);
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    const id = await recordIdFromView(page, 'Contact');
+    await page.getByRole('main').getByRole('button', { name: 'Edit', exact: true }).click();
+    const edit = page.getByRole('dialog', { name: /^Edit / });
+    await pwExpect(edit.getByRole('textbox', { name: 'Last Name', exact: true })).toHaveValue(name);
+    await pwExpect(edit.getByRole('textbox', { name: 'Mailing City', exact: true })).toHaveValue('Bengaluru');
+    await edit.getByRole('textbox', { name: 'Mailing Street', exact: true }).fill('7 Changed Road');
+    await edit.getByRole('button', { name: 'Save', exact: true }).click();
+    await pwExpect(page.getByRole('main')).toContainText('7 Changed Road');
+    expect(server.store.get('Contact', id)['MailingStreet']).toBe('7 Changed Road');
   });
 
   it('recordIdFromView extracts the id from a record URL', async () => {
