@@ -17,6 +17,7 @@ import {
   unevidencedMessageSteps,
   observedForStep,
   withoutJudge,
+  memberLegend,
 } from './pass2.js';
 
 const ctx = generationContext();
@@ -531,5 +532,39 @@ describe('judge per spec (run-p5-build-1/2: one call for 7 specs timed out at 12
     const approved = [s1, s2].map((s) => ({ ...s.artifact, reviewStatus: 'APPROVED' as const }));
     const out = withoutJudge(approved, r.unjudged);
     expect(out.map((a) => a.reviewStatus)).toEqual(['APPROVED', 'REVIEW_REQUIRED']);
+  });
+});
+
+describe('judge page-object legend (review2-20261126-213002-5ff7: `title` read as the dialog heading)', () => {
+  it('says what each member is: role, label, Salesforce field, scope; the page root once', () => {
+    const legend = memberLegend(ctx.catalog, [
+      'contact-new.lastName',
+      'contact-new.lastName',
+      'account-record.contactsNewButton',
+      'nope.x',
+    ]);
+    expect(legend).toMatch(/^accountRecordPage\.root = the record page "/m);
+    expect(legend).toMatch(/^newContactDialog\.root = the dialog "/m);
+    expect(legend).toMatch(/^newContactDialog\.lastName = textbox "Last Name" \(field Contact\.LastName\)$/m);
+    expect(legend).toMatch(/^accountRecordPage\.contactsNewButton = button "New" in "Contacts"$/m);
+    expect(legend.split('\n').filter((l) => l.startsWith('newContactDialog.lastName'))).toHaveLength(1);
+    expect(memberLegend(ctx.catalog, [])).toBe('(none)');
+  });
+
+  it('is part of every judge prompt', async () => {
+    const seen: string[] = [];
+    const router = await mockRouter({
+      judge: {
+        responder: (messages) => {
+          seen.push(messages.map((m) => (typeof m.content === 'string' ? m.content : '')).join('\n'));
+          return '{"findings":[]}';
+        },
+      },
+    });
+    const s = spec();
+    await reviewPass2Round({ ctx, cases: [CASE], specs: [s], prior: [], round: 1, mode: 'llm' }, { router });
+    expect(seen.some((p) => p.includes('Page objects:\n') && p.includes('newContactDialog.lastName = textbox'))).toBe(
+      true,
+    );
   });
 });

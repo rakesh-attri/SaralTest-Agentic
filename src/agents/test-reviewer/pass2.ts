@@ -12,7 +12,7 @@ import type { Redactor } from '../../security/redact.js';
 import type { SkillLoader } from '../../skills/skillLoader.js';
 import { fieldErrorRule, irProblems, type GenerationContext } from '../test-generator/context.js';
 import type { GeneratedSpec } from '../test-generator/graph.js';
-import { findMember } from '../test-generator/pageObjects.js';
+import { findMember, type PageCatalog } from '../test-generator/pageObjects.js';
 import type { ObservedMessage } from '../../core/schemas/execution.js';
 import { A11Y_SCOPE_NOTE, AFTER_SAVE_NOTE } from '../test-generator/render.js';
 import type { ToolchainResult } from '../test-generator/toolchain.js';
@@ -450,6 +450,31 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
   return out;
 }
 
+/**
+ * What each page-object member a spec uses is, as the judge must read it (review2-20261126-213002-5ff7, TC-036: the
+ * judge took `newContactDialog.title` — the Contact Title textbox — for the dialog heading). From the page catalog.
+ */
+export function memberLegend(cat: PageCatalog, refs: readonly string[]): string {
+  const lines: string[] = [];
+  const pages = new Set<string>();
+  for (const ref of [...new Set(refs)].sort()) {
+    const m = findMember(cat, ref);
+    if (!m) continue;
+    const v = m.page.className.charAt(0).toLowerCase() + m.page.className.slice(1);
+    if (!pages.has(v)) {
+      pages.add(v);
+      lines.push(`${v}.root = the ${m.page.kind === 'record' ? 'record page' : m.page.kind} "${m.page.title}"`);
+    }
+    const what = m.member.role ?? m.member.kind;
+    lines.push(
+      `${v}.${m.member.name} = ${what} "${m.member.accessibleName ?? ''}"` +
+        (m.member.fieldApiName ? ` (field ${m.member.fieldApiName})` : '') +
+        (m.member.scopeName ? ` in "${m.member.scopeName}"` : ''),
+    );
+  }
+  return lines.join('\n') || '(none)';
+}
+
 const nextId = (fs: readonly ReviewFinding[]): string => {
   const n = fs.reduce((m, f) => Math.max(m, Number(f.id.slice(3)) || 0), 0) + 1;
   return `RF-${String(n).padStart(3, '0')}`;
@@ -554,13 +579,15 @@ export async function reviewPass2Round(i: Pass2Input, deps: Pass2Deps): Promise<
               'Report only real problems: an expected result not asserted, an assertion weaker than the expectation, an ' +
               'assertion the case does not expect, a step whose action differs from the case, data that does not match the ' +
               "case's preconditions. Deterministic checks (lint, types, locators, evidence) are done by code: do not repeat them. " +
-              `Every finding's caseIds is ["${s.caseId}"]. Return an empty list when the test matches its case.\n\n` +
+              `Every finding's caseIds is ["${s.caseId}"]. Return an empty list when the test matches its case. ` +
+              'What each page-object member is (role, label, Salesforce field) is listed under "Page objects": trust that ' +
+              'list, not the member name (e.g. `title` of a dialog can be the Title field).\n\n' +
               'Operator scope rules (accepted decisions — never report them as findings): ' +
               A11Y_SCOPE_NOTE +
               ' The keyboard check (every field reachable by Tab, focus stays in the dialog, visual reading order) is the operator-mandated implementation of "reachable by keyboard".' +
               ' ' +
               AFTER_SAVE_NOTE,
-            user: `### ${s.caseId}\nCase: ${JSON.stringify({ title: tc?.title, preconditions: tc?.preconditions, steps: tc?.steps.map((x) => ({ action: x.action, expected: x.expected.text })) })}\nTest:\n${s.text}`,
+            user: `### ${s.caseId}\nCase: ${JSON.stringify({ title: tc?.title, preconditions: tc?.preconditions, steps: tc?.steps.map((x) => ({ action: x.action, expected: x.expected.text })) })}\nPage objects:\n${memberLegend(i.ctx.catalog, s.artifact.locatorsUsed)}\nTest:\n${s.text}`,
             ...(deps.skills ? { skills: { loader: deps.skills, names: PASS2_SKILLS } } : {}),
             check: (o) =>
               o.findings.flatMap((f) => f.caseIds.filter((id) => id !== s.caseId).map((id) => `unknown caseId ${id}`)),
