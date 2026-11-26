@@ -4,6 +4,13 @@
 storyKey: SF-219
 decidedBy: QA operator
 decidedOn: '2026-11-26'
+# Cases whose steps are a review of another manual test's execution record: not automatable. No spec; the RTM
+# automation view lists them as manual.
+manualOnly:
+  - caseId: TC-SF-219-051
+    reason: reviews the execution record of manual test MTC-005 — a human check, not automatable
+  - caseId: TC-SF-219-052
+    reason: reviews the execution record of manual test MTC-004 — a human check, not automatable
 edits:
   - caseId: TC-SF-219-007
     step: 2

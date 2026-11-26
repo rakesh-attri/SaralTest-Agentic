@@ -3,6 +3,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { A11Y_SCOPE_NOTE } from '../agents/test-generator/render.js';
+import { isAutomatable } from '../core/schemas/testCase.js';
 import type { QAGraphStateType } from './state.js';
 
 const md = (s: string): string => s.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
@@ -18,6 +19,8 @@ export interface BuildSummary {
   orgEnvironment: 'LIVE' | 'FIXTURE' | 'NONE';
   models: string[];
   approvedCases: number;
+  /** APPROVED cases ruled manual-only: no spec, RTM lists them as manual. */
+  manualCases: string[];
   specs: { caseId: string; path: string; origin: string; reviewStatus?: string; reasons: string[]; locators: number }[];
   counts: { APPROVED: number; REVIEW_REQUIRED: number; BLOCKED: number };
   pass2: { rounds: number; findings: number; open: number; resolved: number; justified: number; escalated: number };
@@ -38,7 +41,8 @@ export function summarizeBuild(s: QAGraphStateType, status: string): BuildSummar
     buildEnvironment: s.buildEnvironment,
     orgEnvironment: s.orgEnvironment,
     models: s.buildModels,
-    approvedCases: s.testCases.filter((c) => c.reviewStatus === 'APPROVED').length,
+    approvedCases: s.testCases.filter(isAutomatable).length,
+    manualCases: s.testCases.filter((c) => c.reviewStatus === 'APPROVED' && c.execution === 'manual').map((c) => c.id),
     specs: specs.map((a) => ({
       caseId: a.testCaseIds[0] ?? '',
       path: a.path,
@@ -103,7 +107,7 @@ export function renderBuildReport(s: QAGraphStateType, status: string): string {
   if (b.length) L.push('', ...b);
   L.push(
     '',
-    `Generated and checked only — **not executed** (execution is Phase 5). ${sum.approvedCases} APPROVED case(s) → ${sum.specs.length} spec(s): **${sum.counts.APPROVED} APPROVED · ${sum.counts.REVIEW_REQUIRED} REVIEW_REQUIRED · ${sum.counts.BLOCKED} BLOCKED**.`,
+    `Generated and checked only — **not executed** (execution is Phase 5). ${sum.approvedCases} APPROVED case(s) → ${sum.specs.length} spec(s): **${sum.counts.APPROVED} APPROVED · ${sum.counts.REVIEW_REQUIRED} REVIEW_REQUIRED · ${sum.counts.BLOCKED} BLOCKED**.${sum.manualCases.length ? ` Manual-only (no spec): ${sum.manualCases.join(', ')}.` : ''}`,
     '',
     '## Checks',
     '',

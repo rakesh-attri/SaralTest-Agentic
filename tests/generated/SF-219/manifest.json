@@ -1,19 +1,19 @@
 {
   "storyKey": "SF-219",
   "designRun": "run-p4-design-decided-1",
-  "buildRun": "run-p4-build-decided-7",
+  "buildRun": "run-p4-build-decided-8",
   "org": "qa-prod",
   "environment": "LIVE",
   "artifacts": [
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-004-create-contact-with-last-name-boundary-values-79-8.spec.ts",
-      "hash": "89dfc2c61d9a36aa",
+      "hash": "c19d631018748cc8",
       "testCaseIds": [
         "TC-SF-219-004"
       ],
       "caseHash": "43403159cec09c17",
-      "irHash": "12fa6b4925bae43b",
+      "irHash": "7644a86bddd76af1",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -30,20 +30,20 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-002 judge: Missing error message assertion for Last Name max length boundary (81 chars): Step 9 expects 'error message is displayed on the Last Name field indicating maximum length is exceeded' but the test only verifies the record is not saved via SOQL and the field remains visible. The field error assertion is omitted entirely."
+        "RF-003 message-unevidenced: step 9 expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-6"
+      "buildRun": "run-p4-build-decided-8"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-007-create-contact-with-valid-10-digit-phone-and-non-w.spec.ts",
-      "hash": "3eb6706e2e6f9b64",
+      "hash": "cbaf7cd87ae4df1d",
       "testCaseIds": [
         "TC-SF-219-007"
       ],
       "caseHash": "624d82503c46ba33",
-      "irHash": "7e883d5e07c290eb",
+      "irHash": "881f83fff7aa8183",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -61,17 +61,17 @@
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-7"
+      "buildRun": "run-p4-build-decided-8"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-008-create-contact-with-lead-source-web-and-blank-phon.spec.ts",
-      "hash": "975685c9354f5636",
+      "hash": "6acb4ef399aefeaf",
       "testCaseIds": [
         "TC-SF-219-008"
       ],
       "caseHash": "add925ad4aa92798",
-      "irHash": "9f71aa6994942059",
+      "irHash": "daca320f43a5c09b",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -89,18 +89,17 @@
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-6",
-      "reviewedBy": "review2-20261126-075709-a4ad"
+      "buildRun": "run-p4-build-decided-8"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-009-create-contact-with-invalid-phone-format-not-10-di.spec.ts",
-      "hash": "455bcd1797144d15",
+      "hash": "389f9c138f9b9882",
       "testCaseIds": [
         "TC-SF-219-009"
       ],
       "caseHash": "284349d6ea378b6f",
-      "irHash": "2869ed03bf770456",
+      "irHash": "c19a46eface7b783",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -118,23 +117,23 @@
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-6",
-      "reviewedBy": "review2-20261126-075908-19bd"
+      "buildRun": "run-p4-build-decided-8"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-010-boundary-value-test-for-phone-field-9-10-and-11-di.spec.ts",
-      "hash": "18a1504a49ae3a83",
+      "hash": "2c44981ce5b7aaa6",
       "testCaseIds": [
         "TC-SF-219-010"
       ],
       "caseHash": "09f7633d66669ef2",
-      "irHash": "35866a7f314224ff",
+      "irHash": "c52e211988178269",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
         "account-record.relatedTab",
+        "contact-new.firstName",
         "contact-new.lastName",
         "contact-new.leadSource",
         "contact-new.phone",
@@ -147,37 +146,46 @@
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-6",
-      "reviewedBy": "review2-20261126-080231-830c"
+      "buildRun": "run-p4-build-decided-8"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-012-system-administrator-can-create-and-edit-contacts.spec.ts",
-      "hash": "c83a58a6f39db37b",
+      "hash": "f69a4c324180235a",
       "testCaseIds": [
         "TC-SF-219-012"
       ],
       "caseHash": "cf6654e68fbadafb",
+      "irHash": "a28e835ff45c6e3b",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
-      "locatorsUsed": [],
-      "dataBindings": [],
-      "origin": "mechanical",
+      "locatorsUsed": [
+        "account-record.contactsNewButton",
+        "account-record.contactsRelatedList",
+        "account-record.relatedTab",
+        "contact-new.lastName",
+        "contact-new.root",
+        "contact-new.saveButton",
+        "contact-record.accountNameField"
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
       "reviewReasons": [
-        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
-        "RF-004 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
+        "RF-005 judge: Step action differs from test case - API update used instead of UI edit: Step 3 of the test case specifies 'On the created Contact record, click Edit, change Last Name to AdminTestEdited, and click Save' but the test uses `await data.update('Contact', { LastName: 'AdminTestEdited' });` which is an API update, not a UI edit action. The step's action differs from the case."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-4"
+      "buildRun": "run-p4-build-decided-8"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-015-create-contact-with-invalid-title-value-is-rejecte.spec.ts",
-      "hash": "b27a8a5e1a795094",
+      "hash": "0b79c95c812fda74",
       "testCaseIds": [
         "TC-SF-219-015"
       ],
       "caseHash": "17210f39ed88b398",
-      "irHash": "2371c3aabbb6976f",
+      "irHash": "8efc9ba641fcec00",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -194,42 +202,40 @@
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-7"
+      "buildRun": "run-p4-build-decided-8"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-023-field-history-tracking-for-email-and-phone-changes.spec.ts",
-      "hash": "60676ffb4aacab89",
+      "hash": "2dd21895f71c15de",
       "testCaseIds": [
         "TC-SF-219-023"
       ],
       "caseHash": "0420c9e04c8f0956",
-      "irHash": "5bd4d59b25b4c492",
+      "irHash": "085043808f983e33",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
-      "locatorsUsed": [],
+      "locatorsUsed": [
+        "contact-record.emailField"
+      ],
       "dataBindings": [
         "account-contact"
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-001 locator-unresolved: no locator dry-run for this build (offline): locators are unverified",
-        "RF-002 judge: Step 1 missing assertion for initial Email and Phone values: Test case step 1 expects verification that 'Contact detail page shows the initial Email and Phone values that were set during test data creation'. The generated test only verifies the record title (LastName) via expectRecordTitle, but has no assertions for the initial Email and Phone field values displayed on the Contact detail page.",
-        "RF-003 judge: Step 3 assertion weaker than expected result: Test case step 3 expects: 'Two ContactHistory records exist: one for Email change showing the previous and new Email values, and one for Phone change showing the previous and new Phone values, each with CreatedById matching the tester and recent CreatedDate'. The generated test only asserts that historyFields() returns an array containing 'Email' and 'Phone' field names. It does not verify: (a) exactly two history records exist, (b) OldValue and NewValue match the specific previous and new values for each field, (c) CreatedById matches the tester, (d) CreatedDate is recent.",
-        "RF-004 judge: Step 4 missing assertion for Field History related list content: Test case step 4 expects: 'Field History related list shows two entries: one documenting the Email change with old and new values, and one documenting the Phone change with old and new values, each with correct timestamp and user'. The generated test only opens the Contact record page and calls recordIdFromView, with zero assertions about the Field History related list contents."
+        "RF-006 judge: Multiple expected results not asserted or assertions weaker than expected: Step 1: Expected result states 'Contact detail page shows the initial Email and Phone values' but test only asserts emailField, not phoneField. Step 3: Expected result specifies detailed SOQL query checking Field, OldValue, NewValue, CreatedById, CreatedDate for both Email and Phone changes, but test only asserts `historyFields` array contains 'Email' and 'Phone'. Step 4: Expected result states 'Field History related list shows two entries with old/new values, timestamp, and user' but test only opens the page with no assertions on the related list."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-220004-6c23"
+      "buildRun": "run-p4-build-decided-8"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-026-create-contact-with-valid-last-name-positive.spec.ts",
-      "hash": "c8b17a3fc859e269",
+      "hash": "68e4bdee2b54d2ce",
       "testCaseIds": [
         "TC-SF-219-026"
       ],
       "caseHash": "752fd47a3b76454e",
-      "irHash": "3f3ea5668249bc8f",
+      "irHash": "ae084500893a1519",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -247,17 +253,17 @@
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-7"
+      "buildRun": "run-p4-build-decided-8"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-032-create-contact-from-account-related-list-contact-l.spec.ts",
-      "hash": "ad6bf5332e2ba194",
+      "hash": "10d8548d314c15a3",
       "testCaseIds": [
         "TC-SF-219-032"
       ],
       "caseHash": "d768593bb35038a0",
-      "irHash": "b91caf86f490fd36",
+      "irHash": "d44f0e82a667d017",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -270,27 +276,30 @@
         "contact-new.phone",
         "contact-new.root",
         "contact-new.saveButton",
-        "contact-new.title"
+        "contact-new.title",
+        "contact-record.accountNameField"
       ],
       "dataBindings": [
         "account-contact"
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-003 judge: Missing UI assertion for Account Name on Contact detail page: Step 4 expects 'Contact detail page opens showing Account Name = Acme Test' but the test only verifies the AccountId via SOQL. No assertion checks the Account Name is displayed on the Contact detail page UI."
+        "RF-001 locator-unresolved: locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep",
+        "RF-007 judge: Missing field value assertions in step 3: Step 3 expected result 'All fields accept the entered values without validation errors' requires verification of all entered fields (First Name, Last Name, Email, Phone, Title). Test only asserts firstName and lastName have values; email, phone, and title field values are not asserted."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-6"
+      "buildRun": "run-p4-build-decided-8",
+      "reviewedBy": "review2-20261126-095851-512d"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-036-create-contact-with-each-approved-title-value.spec.ts",
-      "hash": "598573c18c503d26",
+      "hash": "67cd568dc8512209",
       "testCaseIds": [
         "TC-SF-219-036"
       ],
       "caseHash": "cb659d2594451546",
-      "irHash": "3b0e6b6926eadcd6",
+      "irHash": "7d7d9b035ac02160",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -305,21 +314,19 @@
         "account-contact"
       ],
       "origin": "generated",
-      "reviewReasons": [
-        "RF-007 judge: Missing assertions for Title field value on Contact detail page: Steps 2-5 each expect 'Contact detail page shows Title X' (Account Executive, Sales Manager, Director, VP Sales), but test only verifies the record title (Last Name) via expectRecordTitle(). No assertion checks that the Title field actually displays the selected value on the detail page or via SOQL."
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-4"
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p4-build-decided-8"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-044-create-contact-with-valid-data-from-account-regres.spec.ts",
-      "hash": "6ed22bd3940bf195",
+      "hash": "4604562a67a012e0",
       "testCaseIds": [
         "TC-SF-219-044"
       ],
       "caseHash": "9f38bfa3d259aad2",
-      "irHash": "d8bf085bbc732f4f",
+      "irHash": "9293233404de48de",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -332,17 +339,23 @@
         "contact-new.phone",
         "contact-new.root",
         "contact-new.saveButton",
-        "contact-new.title"
+        "contact-new.title",
+        "contact-record.accountNameField",
+        "contact-record.titleField"
       ],
       "dataBindings": [
         "account-contact"
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-004 judge: UI verification of Contact detail page values missing: Step 5 expects 'Contact detail page shows the correct Account Name and all entered field values are displayed' but the test only performs SOQL verification of backend values. No UI assertions confirm the detail page displays First Name, Last Name, Email, Phone, Title, and Account Name."
+        "RF-002 locator-unresolved: locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep",
+        "RF-008 judge: Missing field value assertions in step 3: Step 3 expected result 'All required fields accept the entered values' requires verification of all entered fields (First Name, Last Name, Email, Phone, Title). Test only asserts firstName, lastName, and title; email and phone field values are not asserted.",
+        "RF-009 judge: Missing assertion that Contact detail page opens in step 4: Step 4 expected result 'Contact record is created and the Contact detail page opens' is not asserted. Test clicks save and captures record ID but does not verify navigation to Contact detail page (e.g., via expectRecordTitle or URL check).",
+        "RF-010 judge: Missing field value assertions on Contact detail page in step 5: Step 5 expected result 'Contact detail page shows the correct Account Name and all entered field values are displayed' requires verification of all entered fields. Test only asserts Account Name and Title on UI, and FirstName/LastName via SOQL; Email and Phone are not verified on the detail page."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-7"
+      "buildRun": "run-p4-build-decided-8",
+      "reviewedBy": "review2-20261126-095851-512d"
     },
     {
       "kind": "spec",
@@ -361,17 +374,17 @@
         "RF-001 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-6"
+      "buildRun": "run-p4-build-decided-8"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-046-create-contact-with-empty-last-name-negative.spec.ts",
-      "hash": "3a1d68d6ecb179fb",
+      "hash": "bbc0bf0173ca6f54",
       "testCaseIds": [
         "TC-SF-219-046"
       ],
       "caseHash": "3fa9bcc72b1f1fd8",
-      "irHash": "60760fb0b4b65192",
+      "irHash": "3588ab19969f4324",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -388,46 +401,25 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-001 message-unevidenced: step 3 expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid"
+        "RF-002 message-unevidenced: step 3 expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-6",
-      "reviewedBy": "review2-20261126-080707-bf1e"
+      "buildRun": "run-p4-build-decided-8"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-047-sales-rep-creates-contact-with-valid-email-contact.spec.ts",
-      "hash": "47f60d0387a81720",
+      "hash": "9119cf6276541454",
       "testCaseIds": [
         "TC-SF-219-047"
       ],
       "caseHash": "9ebd8502c3691689",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
-      "locatorsUsed": [],
-      "dataBindings": [],
-      "origin": "mechanical",
-      "reviewReasons": [
-        "mechanical skeleton: INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback",
-        "RF-002 mechanical: mechanical skeleton (test.fixme): INVALID_LLM_OUTPUT: test-generator: output still invalid after reflect-retries and fallback — a human must implement it"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-4"
-    },
-    {
-      "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-048-sales-rep-enters-syntactically-invalid-email-save.spec.ts",
-      "hash": "3bb8b0533956bfdd",
-      "testCaseIds": [
-        "TC-SF-219-048"
-      ],
-      "caseHash": "1816b6e234b04be4",
-      "irHash": "2411b6be0d29fb57",
+      "irHash": "35063c8c2bf73366",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
         "account-record.relatedTab",
-        "contact-new.cancelButton",
         "contact-new.email",
         "contact-new.lastName",
         "contact-new.root",
@@ -438,28 +430,27 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-001 judge: Missing assertion for required fields visibility: Step 1 expects 'New Contact modal opens with required fields visible' but the test only asserts the dialog root is visible (twice). No assertion verifies that required fields (Last Name, Email, etc.) are actually visible in the modal.",
-        "RF-002 judge: Field error assertion weaker than expected result: Steps 2 and 3 expect 'an inline error appears on the Email field indicating the address format is invalid' but the test only calls expectFieldError() which checks for any field error presence. The assertion does not verify the error message content indicates an invalid email format (e.g., missing @ symbol)."
+        "RF-003 locator-unresolved: locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep",
+        "RF-011 judge: Missing Email assertion on Contact detail page in step 2: Step 2 expected result 'Contact detail page opens and displays Last Name 'Doe' and Email '<EMAIL_1>'' requires Email to be visible on the detail page. Test only verifies Email via SOQL, not on the UI."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-220554-8b41"
+      "buildRun": "run-p4-build-decided-8",
+      "reviewedBy": "review2-20261126-095851-512d"
     },
     {
       "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-050-duplicate-contact-warning-shown-when-saving-contac.spec.ts",
-      "hash": "6fa152adbe7f74fc",
+      "path": "tests/generated/SF-219/TC-SF-219-048-sales-rep-enters-syntactically-invalid-email-save.spec.ts",
+      "hash": "82cbc0b738b23b82",
       "testCaseIds": [
-        "TC-SF-219-050"
+        "TC-SF-219-048"
       ],
-      "caseHash": "aa6cf9fc2b7bf878",
-      "irHash": "0c9d665cb6900d64",
+      "caseHash": "1816b6e234b04be4",
+      "irHash": "8304097dfe03df0f",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
         "account-record.relatedTab",
-        "contact-new.accountId",
         "contact-new.email",
         "contact-new.firstName",
         "contact-new.lastName",
@@ -471,73 +462,57 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-004 judge: Duplicate warning message content not verified: Step 2 expects 'A possible duplicate warning is displayed indicating a Contact with the same Email already exists on this Account' but the test only asserts a generic toast with any non-whitespace text (expectToast(page, /\\S/)). The specific duplicate warning message is not verified.",
-        "RF-005 judge: Email not verified on Contact detail page after duplicate save: Step 3 expects 'Contact detail page opens showing the entered Last Name Duplicate and Email <EMAIL_3>' but the test only asserts the record title (Last Name). The Email field on the detail page is not checked.",
-        "RF-006 judge: Step 5 assertion does not match case expectation for regression verification: Step 5 expects 'Test execution result shows PASS for the duplicate warning scenario, confirming RE_VERIFY status is satisfied' but the test only asserts the contact record page is visible. This does not verify the regression test MTC-009 passes."
+        "RF-004 message-unevidenced: step 2 expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid",
+        "RF-005 locator-unresolved: locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-6"
+      "buildRun": "run-p4-build-decided-8",
+      "reviewedBy": "review2-20261126-095851-512d"
     },
     {
       "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-051-regression-verification-mtc-005-read-only-user-can.spec.ts",
-      "hash": "139998a4981250fc",
+      "path": "tests/generated/SF-219/TC-SF-219-050-duplicate-contact-warning-shown-when-saving-contac.spec.ts",
+      "hash": "2b139d2e72711f44",
       "testCaseIds": [
-        "TC-SF-219-051"
+        "TC-SF-219-050"
       ],
-      "caseHash": "5817d070e48c8f2d",
-      "irHash": "009fa16f46f47938",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
-      "locatorsUsed": [],
-      "dataBindings": [
-        "account-contact"
-      ],
-      "origin": "generated",
-      "reviewReasons": [
-        "RF-001 locator-unresolved: no locator dry-run for this build (offline): locators are unverified",
-        "RF-002 judge: Step action does not match test case: Test case step action is 'Review test execution record for MTC-005' (manual review of test execution records in a test management tool). Generated test performs a SOQL poll on Account.QA_Run_Id__c instead. These are completely different actions — the test does not review any test execution record.",
-        "RF-003 judge: Expected result not asserted: Expected result: 'Test execution record shows MTC-005 passed; the test confirms Read Only user sees no New button in Contacts related list'. Generated test asserts only that Account.QA_Run_Id__c matches the recipe value. No assertion verifies MTC-005 passed, nor that a Read Only user sees no New button.",
-        "RF-004 judge: Persona mismatch: Test case does not specify a persona for this manual review step. Generated test is tagged @persona:system-admin. The test case notes explicitly state the original test incorrectly used system-admin persona for a UI check that contradicted the case action. This regression verification test should not be tied to a UI persona.",
-        "RF-005 judge: Test verifies wrong oracle: The test case is a regression verification that MTC-005 (Read Only user cannot create Contact) passed in the current build. The generated test verifies an Account record exists with a specific QA_Run_Id__c — this confirms the recipe data exists, not that MTC-005 passed. The evidence ID SF-219#AC6 references the MTC-005 test execution record, not the Account record."
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-4",
-      "reviewedBy": "review2-20261126-081238-83cd"
-    },
-    {
-      "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-052-new-contact-appears-in-account-s-contacts-related.spec.ts",
-      "hash": "07f0bb816695bb24",
-      "testCaseIds": [
-        "TC-SF-219-052"
-      ],
-      "caseHash": "15bd08519f0535a1",
-      "irHash": "eb37fef01629cb7e",
+      "caseHash": "aa6cf9fc2b7bf878",
+      "irHash": "b264aa751fc1663e",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
+        "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
-        "account-record.refreshButton"
+        "account-record.relatedTab",
+        "contact-new.accountId",
+        "contact-new.email",
+        "contact-new.firstName",
+        "contact-new.lastName",
+        "contact-new.root",
+        "contact-new.saveButton",
+        "contact-record.emailField"
       ],
       "dataBindings": [
         "account-contact"
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-001 judge: Missing assertion for regression marker MTC-004: Step 2 expects verification that 'Test execution record shows MTC-004 passed for the current build' (regression marker), but the generated test only re-asserts the Contact appears in the related list. The MTC-004 execution record check is not implemented."
+        "RF-006 message-unevidenced: step 2 expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid",
+        "RF-012 judge: Missing duplicate warning assertion in step 2: Step 2 expected result 'A possible duplicate warning is displayed indicating a Contact with the same Email already exists on this Account; the Save button remains enabled' requires assertion that the duplicate warning dialog/message appears. Test only checks saveButton is visible, not that the warning is displayed.",
+        "RF-013 judge: Step 5 assertion does not match expected result: Step 5 expected result 'Test execution result shows PASS for the duplicate warning scenario, confirming RE_VERIFY status is satisfied' is a meta-expectation about test execution status. Test implements it as a SOQL AccountId check, which does not match the stated expected result."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-3",
-      "reviewedBy": "review2-20261125-221106-c6d2"
+      "buildRun": "run-p4-build-decided-8",
+      "reviewedBy": "review2-20261126-095851-512d"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-053-contact-pages-accessibility-wcag-2-1-aa-keyboard-n.spec.ts",
-      "hash": "0f4df934589d1a5f",
+      "hash": "df7c1c5d8ec09f3c",
       "testCaseIds": [
         "TC-SF-219-053"
       ],
       "caseHash": "9da99fc66ed302a5",
-      "irHash": "231732e986af9ed2",
+      "irHash": "a3e140e73fbbdefe",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -557,6 +532,7 @@
         "contact-new.lastName",
         "contact-new.leadSource",
         "contact-new.mailingAddressAddressSearch",
+        "contact-new.mailingAddressGroup",
         "contact-new.mailingCity",
         "contact-new.mailingCountry",
         "contact-new.mailingPostalCode",
@@ -564,6 +540,7 @@
         "contact-new.mailingStreet",
         "contact-new.mobile",
         "contact-new.otherAddressAddressSearch",
+        "contact-new.otherAddressGroup",
         "contact-new.otherCity",
         "contact-new.otherCountry",
         "contact-new.otherPhone",
@@ -582,7 +559,6 @@
         "contact-record.deleteButton",
         "contact-record.detailsTab",
         "contact-record.editButton",
-        "contact-record.editNameButton",
         "contact-record.opportunitiesNewButton",
         "contact-record.relatedTab",
         "contact-record.root"
@@ -591,11 +567,19 @@
         "account-contact"
       ],
       "origin": "generated",
-      "reviewReasons": [
-        "RF-003 judge: Step 5 tests contact detail page related list buttons instead of Contact list view row actions: Test case step 5 says 'Tab through Contact list view and verify row actions are keyboard accessible' with expected result 'Contact list view rows and row-level actions (e.g., Edit, Delete) are reachable and operable by keyboard'. The generated test stays on the Contact record page and checks tab order for casesNewButton and opportunitiesNewButton (New buttons in related lists), not a Contact list view page (/lightning/o/Contact/list) with row-level Edit/Delete actions."
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-5"
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p4-build-decided-8"
+    }
+  ],
+  "manualOnly": [
+    {
+      "caseId": "TC-SF-219-051",
+      "reason": "reviews the execution record of manual test MTC-005 — a human check, not automatable"
+    },
+    {
+      "caseId": "TC-SF-219-052",
+      "reason": "reviews the execution record of manual test MTC-004 — a human check, not automatable"
     }
   ]
 }

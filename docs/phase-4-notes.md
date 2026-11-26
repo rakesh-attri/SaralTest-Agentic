@@ -437,3 +437,46 @@ unavailable):
   - "Review execution record of MTC-00x" steps (TC-051, 052) are not automatable: a case-design issue.
 - **Nit:** the generated dialog step asserts `newContactDialog.root` visible twice: once from
   `openNewFromRelatedList`, and once more when the model asks for it.
+
+## Final round and Phase 4 close (2026-11-26, operator request)
+
+- **Record-page field values.**
+  - Record pages get a derived member `<field>Field` per verified inline-edit button: the details list item that
+    holds it, `getByRole('main').getByRole('listitem').filter({ has: … 'Edit <Field>' … })`.
+  - The safe locator grammar gained `filter({ has })`.
+  - New IR check `recordField` renders `expect(<page>.<field>Field).toContainText(value)`.
+  - Phone, date and number fields are refused, because the record page shows them locale-formatted; those are
+    checked with `soqlField`.
+  - Used in TC-012, 023, 032, 044 and 050. The live dry-run resolved every derived member used (50/50).
+- **Duplicate assertions.** Identical assertion lines inside a step are rendered once, which removes the doubled
+  "dialog visible" check.
+- **Manual-only cases.**
+  - `manualOnly` in `examples/case-edits/SF-219.yaml` covers TC-051 and TC-052, whose steps review another manual
+    test's execution record.
+  - Neither case gets a spec, and pass 2 does not ask for one. The manifest lists both under `manualOnly`, and
+    `validate:build` checks that they have no spec.
+  - The build writes `build/rtm-automation.md|json`: per requirement, the automated cases with their spec status,
+    the manual-only cases, and the cases with no spec.
+- **Two deterministic pass-2 checks were added after build 8 approved specs they should not have.**
+  - `message-unevidenced` now also covers warnings and "error … indicating …". The build had approved TC-048
+    (email format error) and TC-050 (duplicate warning) with no evidence for the text.
+  - A spec whose case persona differs from the dry-run persona is REVIEW_REQUIRED: its locators are unverified for
+    that persona. This applies to the sales-rep cases TC-032, 044, 047 and 048 (the sales-rep user now exists in
+    `personas.yaml`; the dry-run ran as system-admin).
+  - These 5 specs were re-reviewed once (`review2-20261126-095851-512d`).
+- **Phase 5 plan.** The Application Explorer captures the Last Name required-field message and the duplicate-warning
+  text by observation (a rejected save creates no record; SOQL confirms none). Then TC-004, 046, 048 and 050 are
+  re-reviewed (PLAN.md Phase 5).
+- **Final SF-219 state** (`run-p4-build-decided-8` plus the re-review; story manifest `tests/generated/SF-219/manifest.json`):
+  - 26 design cases: 20 APPROVED at design, of which 18 are automated and 2 are manual-only (TC-051, 052).
+  - 18 specs: **8 APPROVED** (TC-007, 008, 009, 010, 015, 026, 036, 053) and **10 REVIEW_REQUIRED**, 0 BLOCKED.
+  - 17 specs are coder-generated; 1 is a skeleton (TC-045).
+  - tsc 0, ESLint 0, `playwright test --list` 18/18 SF-219 specs, live dry-run 50/50, `pnpm validate:build
+    run-p4-build-decided-8` all valid.
+  - Reasons the 10 specs need review:
+    - unevidenced message text: TC-004, 046, 048, 050;
+    - locators not dry-run as sales-rep: TC-032, 044, 047, 048;
+    - judge findings: field values and steps not fully asserted (TC-012, 023, 032, 044, 047, 050);
+    - skeleton: TC-045.
+  - Nothing has been executed; execution is Phase 5.
+- **Phase 4 is closed.**

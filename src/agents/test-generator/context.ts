@@ -107,6 +107,8 @@ export function derivableErrorCodes(
 
 const FILLABLE = new Set(['textbox', 'spinbutton', 'searchbox']);
 const VALUED = new Set([...FILLABLE, 'combobox']);
+/** Field types the record page displays exactly as stored (others are locale-formatted: phone, dates, numbers). */
+const DISPLAYED_AS_ENTERED = new Set(['string', 'textarea', 'email', 'picklist', 'reference', 'url', 'id']);
 
 /**
  * The error message a field must show for a validation rule — taken only from the org snapshot (DECLARED
@@ -407,6 +409,19 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
       case 'recordTitle':
         value(a.contains, where, cs);
         break;
+      case 'recordField': {
+        const pg = member(a.element, new Set(['listitem']));
+        const m = findMember(ctx.catalog, a.element);
+        if (pg && pg.kind !== 'record') p.push(`${where}: recordField needs a record-page field member`);
+        const [obj, f] = m?.member.fieldApiName?.split('.') ?? [];
+        const t = obj && f ? ctx.facts.field(obj, f)?.type : undefined;
+        if (t && !DISPLAYED_AS_ENTERED.has(t))
+          p.push(
+            `${where}: ${obj ?? ''}.${f ?? ''} is a ${t} field; the record page shows it locale-formatted — check it with soqlField instead`,
+          );
+        value(a.contains, where, cs);
+        break;
+      }
       case 'relatedListHasRecord': {
         recordRef(a.parentRef, where);
         const parent = steps.find((s) => s.stepId === a.parentRef)?.object;

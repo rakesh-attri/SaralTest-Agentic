@@ -215,4 +215,100 @@ export class AccountRecordPage {
   get relatedTab(): Locator {
     return this.page.getByRole('main').getByRole('tab', { name: 'Related', exact: true });
   }
+
+  /** Account.Name · listitem "Account Name" · rank 1 · verified 2026-11-25 */
+  get accountNameField(): Locator {
+    return this.page
+      .getByRole('main')
+      .getByRole('listitem')
+      .filter({ has: this.page.getByRole('button', { name: 'Edit Account Name', exact: true }) });
+  }
+
+  /** Account.AnnualRevenue · listitem "Annual Revenue" · rank 1 · verified 2026-11-25 */
+  get annualRevenueField(): Locator {
+    return this.page
+      .getByRole('main')
+      .getByRole('listitem')
+      .filter({ has: this.page.getByRole('button', { name: 'Edit Annual Revenue', exact: true }) });
+  }
+
+  /** Account.BillingAddress · listitem "Billing Address" · rank 1 · verified 2026-11-25 */
+  get billingAddressField(): Locator {
+    return this.page
+      .getByRole('main')
+      .getByRole('listitem')
+      .filter({ has: this.page.getByRole('button', { name: 'Edit Billing Address', exact: true }) });
+  }
+
+  /** Account.Description · listitem "Description" · rank 1 · verified 2026-11-25 */
+  get descriptionField(): Locator {
+    return this.page
+      .getByRole('main')
+      .getByRole('listitem')
+      .filter({ has: this.page.getByRole('button', { name: 'Edit Description', exact: true }) });
+  }
+
+  /** Account.NumberOfEmployees · listitem "Employees" · rank 1 · verified 2026-11-25 */
+  get employeesField(): Locator {
+    return this.page
+      .getByRole('main')
+      .getByRole('listitem')
+      .filter({ has: this.page.getByRole('button', { name: 'Edit Employees', exact: true }) });
+  }
+
+  /** Account.Fax · listitem "Fax" · rank 1 · verified 2026-11-25 */
+  get faxField(): Locator {
+    return this.page
+      .getByRole('main')
+      .getByRole('listitem')
+      .filter({ has: this.page.getByRole('button', { name: 'Edit Fax', exact: true }) });
+  }
+
+  /** Account.Industry · listitem "Industry" · rank 1 · verified 2026-11-25 */
+  get industryField(): Locator {
+    return this.page
+      .getByRole('main')
+      .getByRole('listitem')
+      .filter({ has: this.page.getByRole('button', { name: 'Edit Industry', exact: true }) });
+  }
+
+  /** Account.ParentId · listitem "Parent Account" · rank 1 · verified 2026-11-25 */
+  get parentAccountField(): Locator {
+    return this.page
+      .getByRole('main')
+      .getByRole('listitem')
+      .filter({ has: this.page.getByRole('button', { name: 'Edit Parent Account', exact: true }) });
+  }
+
+  /** Account.Phone · listitem "Phone" · rank 1 · verified 2026-11-25 */
+  get phoneField(): Locator {
+    return this.page
+      .getByRole('main')
+      .getByRole('listitem')
+      .filter({ has: this.page.getByRole('button', { name: 'Edit Phone', exact: true }) });
+  }
+
+  /** Account.ShippingAddress · listitem "Shipping Address" · rank 1 · verified 2026-11-25 */
+  get shippingAddressField(): Locator {
+    return this.page
+      .getByRole('main')
+      .getByRole('listitem')
+      .filter({ has: this.page.getByRole('button', { name: 'Edit Shipping Address', exact: true }) });
+  }
+
+  /** Account.Type · listitem "Type" · rank 1 · verified 2026-11-25 */
+  get typeField(): Locator {
+    return this.page
+      .getByRole('main')
+      .getByRole('listitem')
+      .filter({ has: this.page.getByRole('button', { name: 'Edit Type', exact: true }) });
+  }
+
+  /** Account.Website · listitem "Website" · rank 1 · verified 2026-11-25 */
+  get websiteField(): Locator {
+    return this.page
+      .getByRole('main')
+      .getByRole('listitem')
+      .filter({ has: this.page.getByRole('button', { name: 'Edit Website', exact: true }) });
+  }
 }

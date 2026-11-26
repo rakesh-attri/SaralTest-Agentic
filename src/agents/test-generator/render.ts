@@ -229,6 +229,8 @@ export function renderSpec(i: RenderInput): string {
           ...(created ? [`await data.adoptCreated(${q(as)}, ${q(a.object)}, viewed[${q(as)}]);`] : []),
         ];
       }
+      case 'recordField':
+        return [`await expect(${el(a.element)}).toContainText(${val(a.contains)});`];
       case 'recordTitle':
         imp.lightning.add('expectRecordTitle');
         return [`await expectRecordTitle(page, ${val(a.contains)});`];
@@ -302,7 +304,11 @@ export function renderSpec(i: RenderInput): string {
   const body: string[] = [];
   if (ir.data.length && i.recipe) body.push(`await data.create(${q(i.recipe.name)}, [${ir.data.map(q).join(', ')}]);`);
   ir.steps.forEach((st, n) => {
-    const lines = [...st.actions.flatMap(action), ...st.assertions.flatMap(assertion)];
+    // An assertion line identical to one already in the step (e.g. the model's "dialog visible" after
+    // openNewFromRelatedList, which already waits for the dialog) is dropped: web-first expects are side-effect free.
+    const lines = [...st.actions.flatMap(action), ...st.assertions.flatMap(assertion)].filter(
+      (l, k, all) => !l.startsWith('await expect(') || all.indexOf(l) === k,
+    );
     const exp = tc.steps[st.caseStep]?.expected;
     body.push(
       `await test.step(${q(`${n + 1}. ${st.title}`)}, async () => {`,

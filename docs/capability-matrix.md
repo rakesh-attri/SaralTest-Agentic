@@ -56,7 +56,10 @@ _Last updated: Phase 4 generation & data — 2026-11-21 (branch `claude/phase-4-
 | `REVIEW_REQUIRED` decided by code (no outcome / unclear / conflict / blocking lint / open question / unconfirmed assumption) | implemented | same | |
 | Operator decisions (`qa decide`): answers → approved evidence, deferred requirements → `DEFERRED` / RTM `excluded` | implemented (Phase 4) | `src/inputs/decisions.ts`, `src/cli/decide.ts` | Applied to SF-219 on 2026-11-25 |
 | Expected error messages from org evidence (validation rule `errorMessage` on its display field); pre-filled field values | implemented (Phase 4) | `src/agents/test-generator/context.ts` (`fieldErrorRule`), `render.ts`, `tests/support/lightning.ts` | Standard required-field text ("Complete this field.") has no captured org observation yet: those asserts stay presence-only / REVIEW_REQUIRED |
-| Operator case edits (`qa build --case-edits`) | implemented (Phase 4) | `src/inputs/caseEdits.ts` | SF-219: non-Web Lead Source wording (TC-007/009/010) |
+| Operator case edits (`qa build --case-edits`) | implemented (Phase 4) | `src/inputs/caseEdits.ts` | SF-219: non-Web Lead Source wording (TC-007/009/010); TC-051/052 manual-only |
+| Record-page field-value assertions (`recordField`, derived `<field>Field` members) | implemented (Phase 4) | `src/agents/test-generator/pageObjects.ts`, `expression.ts`, `render.ts` | Text/picklist/lookup/email only; phone, dates and numbers use SOQL |
+| Manual-only cases (no spec; RTM automation view lists them as manual) | implemented (Phase 4) | `src/core/schemas/testCase.ts` (`execution`), `src/cli/build.ts` (`writeAutomationRtm`) | |
+| Observed error-text capture by the Application Explorer | planned (Phase 5) | PLAN.md Phase 5 | Required-field message and duplicate warning have no org evidence yet |
 | Stable requirement ids across runs | implemented | `src/agents/spec-analyst/ids.ts` | Numbering can have gaps when the model splits or merges requirements differently |
 | Mechanical degrade path (no model / invalid output) | implemented | same | All REVIEW_REQUIRED, labelled "mechanical" |
 | QA Lead skeleton + policy-driven triage | implemented | `src/agents/qa-lead/triage.ts`, `src/graph/mainGraph.ts` | Only policy responses are used. Responses for later phases (investigate/heal/judge/file_bug) are skipped, and the issue is recorded as `report-only` |

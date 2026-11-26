@@ -101,6 +101,23 @@ describe('Test Reviewer pass 2: checklist + settlement', () => {
     expect(settlePass2([], [s]).artifacts[0]?.reviewStatus).toBe('APPROVED');
   });
 
+  it('locators dry-run as another persona than the case persona → REVIEW_REQUIRED (unverified for that persona)', () => {
+    const s = spec();
+    const rep = { ...CASE, persona: 'sales-rep' };
+    const f = pass2Findings({
+      ctx: { ...ctx, personas: ['system-admin', 'sales-rep'] },
+      cases: [rep],
+      specs: [s],
+      toolchain: toolchain(s),
+      dryRun: dryRun(s),
+    });
+    expect(f.map((x) => [x.rule, x.severity, x.text])).toContainEqual([
+      'locator-unresolved',
+      'M',
+      'locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep',
+    ]);
+  });
+
   it('typecheck / lint / not listed / unresolved locator → BLOCKED with reasons', async () => {
     const s = spec();
     const r = await reviewPass2Round(
@@ -301,6 +318,16 @@ describe('expected error text needs org evidence (operator 2026-11-26)', () => {
     expect(unevidencedMessageSteps(tc("validation error 'Enter a 10-digit phone number.' is shown"), ir())).toEqual([
       0,
     ]);
+    // a warning / "error … indicating" with no rule-evidenced text is held too (TC-050, TC-048)
+    expect(
+      unevidencedMessageSteps(
+        tc('A possible duplicate warning is displayed indicating a Contact already exists'),
+        ir(),
+      ),
+    ).toEqual([0]);
+    expect(
+      unevidencedMessageSteps(tc('an inline error appears on the Email field indicating the format is invalid'), ir()),
+    ).toEqual([0]);
     // no message expected → presence-only is fine
     expect(unevidencedMessageSteps(tc('The Last Name field is marked invalid'), ir())).toEqual([]);
   });

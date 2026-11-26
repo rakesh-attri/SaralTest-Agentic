@@ -92,7 +92,14 @@ async function validateBuild(runId: string): Promise<void> {
   const runSpecs = manifest.artifacts.filter((a) => a.kind === 'spec');
   // A partial rebuild (`qa build --cases`) holds only the rebuilt specs: coverage, hashes, lint and listing are then
   // checked on the merged story manifest the build wrote next to the specs (tests/generated/<story>/manifest.json).
-  const approved = cases?.filter((c) => c.reviewStatus === 'APPROVED') ?? [];
+  // Cases the operator ruled manual-only (qa build --case-edits) get no spec; they stay in the RTM as manual.
+  const storyManifest = parse(
+    join(root, 'tests', 'generated', manifest.storyKey ?? info.storyKey ?? '', 'manifest.json'),
+    z.object({ manualOnly: z.array(z.object({ caseId: z.string(), reason: z.string() })).default([]) }),
+  );
+  const manualIds = new Set((storyManifest?.manualOnly ?? []).map((m) => m.caseId));
+  const approved = cases?.filter((c) => c.reviewStatus === 'APPROVED' && !manualIds.has(c.id)) ?? [];
+  if (manualIds.size) ok(`manual-only (no spec, RTM manual): ${[...manualIds].join(', ')}`);
   const partial = cases !== undefined && runSpecs.length < approved.length;
   let specs = runSpecs;
   if (partial) {
@@ -112,6 +119,8 @@ async function validateBuild(runId: string): Promise<void> {
   if (cases) {
     const missing = approved.filter((c) => specs.filter((s) => s.testCaseIds.includes(c.id)).length !== 1);
     if (missing.length) fail(`APPROVED cases without exactly one spec: ${missing.map((c) => c.id).join(', ')}`);
+    const manualWithSpec = [...manualIds].filter((id) => specs.some((x) => x.testCaseIds.includes(id)));
+    if (manualWithSpec.length) fail(`manual-only cases still have a spec: ${manualWithSpec.join(', ')}`);
     else ok(`${approved.length}/${approved.length} APPROVED cases of ${designRun} have one spec each`);
   } else fail('design run of the build is unknown');
 

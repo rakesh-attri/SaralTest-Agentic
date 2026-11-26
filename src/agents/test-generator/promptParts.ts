@@ -42,6 +42,9 @@ type Assertion =
   | { check: "toast"; contains?: Value; expect: Expect }
   | { check: "recordView"; object: string; as?: string; expect: Expect }
   | { check: "recordTitle"; contains: Value; expect: Expect }
+  // what the record page shows for a field: element = a "<field>Field" member of the record page (text, email,
+  // picklist, lookup name). Phone / date / number values are locale-formatted there: check those with soqlField.
+  | { check: "recordField"; element: Ref; contains: Value; expect: Expect }
   | { check: "relatedListHasRecord"; parentRef: StepId; relatedList: string; name: Value; expect: Expect }
   | { check: "soqlField"; ref: StepId | string; object: string; field: string; equals: Value; expect: Expect }
   | { check: "soqlNoRecord"; object: string; field: string; value: Value; expect: Expect }

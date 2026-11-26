@@ -10,6 +10,8 @@ export const CaseEditsFile = z.object({
   storyKey: z.string().min(1),
   decidedBy: z.string().min(1),
   decidedOn: z.string().min(1),
+  /** Cases the operator rules not automatable: excluded from generation, kept in the RTM as manual. */
+  manualOnly: z.array(z.object({ caseId: z.string().min(1), reason: z.string().min(1) })).default([]),
   edits: z
     .array(
       z.object({
@@ -22,7 +24,7 @@ export const CaseEditsFile = z.object({
         reason: z.string().min(1),
       }),
     )
-    .min(1),
+    .default([]),
 });
 export type CaseEditsFile = z.infer<typeof CaseEditsFile>;
 
@@ -46,6 +48,13 @@ export function applyCaseEdits(cases: TestCase[], f: CaseEditsFile): { cases: Te
     if (e.field === 'action') st.action = next;
     else st.expected.text = next;
     changes.push(`${e.caseId} step ${String(e.step)} ${e.field}: "${e.from}" → "${e.to}" (${e.reason})`);
+  }
+  for (const m of f.manualOnly) {
+    const tc = out.find((c) => c.id === m.caseId);
+    if (!tc) throw new Error(`manual-only: ${m.caseId} is not a case of this design run`);
+    tc.execution = 'manual';
+    tc.executionReason = m.reason;
+    changes.push(`${m.caseId} manual-only (${m.reason})`);
   }
   return { cases: out, changes };
 }

@@ -128,6 +128,8 @@ export const IrAssertion = z.discriminatedUnion('check', [
     as: z.string().optional(),
     expect: ExpectationRef,
   }),
+  /** The record page's details show the value for a field (element = a `<field>Field` member of a record page). */
+  z.object({ check: z.literal('recordField'), element: ElementRef, contains: ValueRef, expect: ExpectationRef }),
   /** The record page header (h1) shows the value. */
   z.object({ check: z.literal('recordTitle'), contains: ValueRef, expect: ExpectationRef }),
   z.object({

@@ -6,7 +6,7 @@ import type { Logger } from 'pino';
 import { QAError } from '../../core/errors.js';
 import type { ReviewFinding } from '../../core/schemas/design.js';
 import type { DryRunReport, GeneratedArtifact, TestIR } from '../../core/schemas/generation.js';
-import type { ReviewStatus, TestCase } from '../../core/schemas/testCase.js';
+import { isAutomatable, type ReviewStatus, type TestCase } from '../../core/schemas/testCase.js';
 import type { ModelRouter } from '../../models/router.js';
 import type { Redactor } from '../../security/redact.js';
 import type { SkillLoader } from '../../skills/skillLoader.js';
@@ -124,9 +124,10 @@ export function astViolations(text: string): { rule: ReviewFinding['rule']; text
   return out;
 }
 
-const EXPECTS_MESSAGE = /\b(?:error|validation)\s+message\b|\bmessage\b.*\b(?:displayed|shown)\b|\berror\s+'[^']+'/i;
+const EXPECTS_MESSAGE =
+  /\b(?:error|validation|warning)\s+message\b|\bmessage\b.*\b(?:displayed|shown)\b|\b(?:error|warning)\s+'[^']+'|\b(?:error|warning)\b[^.;]*\b(?:indicating|stating|saying)\b/i;
 
-/** Case steps (0-based) that expect an error message but whose field errors assert no evidenced message text. */
+/** Case steps (0-based) that expect an error / warning message but assert no org-evidenced message text. */
 export function unevidencedMessageSteps(tc: TestCase, ir: TestIR): number[] {
   const out: number[] = [];
   tc.steps.forEach((st, n) => {
@@ -135,7 +136,9 @@ export function unevidencedMessageSteps(tc: TestCase, ir: TestIR): number[] {
       .filter((x) => x.caseStep === n)
       .flatMap((x) => x.assertions)
       .filter((a) => a.check === 'fieldError');
-    if (errs.length && !errs.some((a) => a.message)) out.push(n);
+    // Only a field error whose text comes from an org validation rule evidences the message (warnings and standard
+    // Salesforce messages have no captured evidence yet: Phase 5 Explorer capture).
+    if (!errs.some((a) => a.message)) out.push(n);
   });
   return out;
 }
@@ -148,7 +151,7 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
   ): void => {
     out.push({ refs: [], requirementIds: [], ...f });
   };
-  for (const tc of i.cases.filter((c) => c.reviewStatus === 'APPROVED')) {
+  for (const tc of i.cases.filter(isAutomatable)) {
     const spec = i.specs.find((s) => s.caseId === tc.id);
     const req = tc.requirementIds;
     if (!spec) {
@@ -271,13 +274,24 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
         });
       }
     }
+    // The dry-run verifies locators for one persona; a case run as another persona has unverified locators (the
+    // persona may see a different layout or no button at all).
+    if (i.dryRun && i.dryRun.persona !== tc.persona && spec.artifact.locatorsUsed.length) {
+      add({
+        ...base,
+        key: `dry-persona:${tc.id}`,
+        severity: 'M',
+        rule: 'locator-unresolved',
+        text: `locators were dry-run as ${i.dryRun.persona}, not as the case persona ${tc.persona}: unverified for ${tc.persona}`,
+      });
+    }
     if (!i.dryRun) {
       add({
         ...base,
         key: `dry:${tc.id}:none`,
         severity: 'M',
         rule: 'locator-unresolved',
-        text: 'no locator dry-run for this build (offline): locators are unverified',
+        text: 'no locator dry-run result for this review: locators are unverified',
       });
     }
     // Toolchain (typecheck / lint / list).

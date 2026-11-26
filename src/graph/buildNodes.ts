@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { dirname, join } from 'node:path';
 import type { Logger } from 'pino';
 import type { DryRunReport, GeneratedArtifact } from '../core/schemas/generation.js';
+import { isAutomatable } from '../core/schemas/testCase.js';
 import type { ModelRouter } from '../models/router.js';
 import type { Redactor } from '../security/redact.js';
 import type { SkillLoader } from '../skills/skillLoader.js';
@@ -102,16 +103,19 @@ export function createBuildNode(d: BuildDeps): {
           origin: 'deterministic',
           reviewReasons: [],
         });
-      // Old generated specs of this story that the current design no longer has are removed (generated files only).
+      // Old generated specs of this story that the current design no longer has are removed (generated files only);
+      // in a partial rebuild, only the specs of cases now ruled manual-only.
       const dir = abs(d.root, `tests/generated/${ctx.storyKey}`);
-      if (existsSync(dir) && !d.merge) {
+      const manualIds = s.testCases.filter((c) => c.execution === 'manual').map((c) => c.id);
+      if (existsSync(dir)) {
         for (const f of readdirSync(dir).filter((x) => x.endsWith('.spec.ts'))) {
+          if (d.merge && !manualIds.some((id) => f.startsWith(`${id}-`))) continue;
           if (isGeneratedSpec(readFileSync(join(dir, f), 'utf8'))) rmSync(join(dir, f));
         }
       }
     }
     const regenerate = first ? undefined : new Set(Object.keys(s.buildFeedback));
-    const cases = s.testCases.filter((c) => c.reviewStatus === 'APPROVED' && (!regenerate || regenerate.has(c.id)));
+    const cases = s.testCases.filter((c) => isAutomatable(c) && (!regenerate || regenerate.has(c.id)));
     d.say(
       first
         ? `Test Generator: ${cases.length} APPROVED case(s) of ${s.testCases.length}${mechanical ? ' (mechanical skeletons)' : ''}…`
@@ -243,15 +247,20 @@ export function createBuildNode(d: BuildDeps): {
             buildRun?: string;
           })
         : undefined;
+    const manual = s.testCases
+      .filter((c) => c.execution === 'manual')
+      .map((c) => ({ caseId: c.id, reason: c.executionReason ?? 'manual-only' }));
     const keptArtifacts = (kept?.artifacts ?? [])
-      .filter((a) => a.kind === 'spec' && !a.testCaseIds.some((id) => rebuilt.has(id)))
+      .filter(
+        (a) => a.kind === 'spec' && !a.testCaseIds.some((id) => rebuilt.has(id) || manual.some((m) => m.caseId === id)),
+      )
       .map((a) => ({ ...a, buildRun: a.buildRun ?? kept?.buildRun }));
     const artifacts = [...keptArtifacts, ...settled.artifacts.map((a) => ({ ...a, buildRun: s.runId }))].sort((a, b) =>
       a.path.localeCompare(b.path),
     );
     write(
       manifestPath(ctx.storyKey),
-      `${JSON.stringify({ storyKey: ctx.storyKey, designRun: ctx.designRunId, buildRun: s.runId, org: ctx.orgAlias, environment: ctx.environment, artifacts }, null, 2)}\n`,
+      `${JSON.stringify({ storyKey: ctx.storyKey, designRun: ctx.designRunId, buildRun: s.runId, org: ctx.orgAlias, environment: ctx.environment, artifacts, manualOnly: manual }, null, 2)}\n`,
     );
     return {
       pass2Findings: settled.findings,

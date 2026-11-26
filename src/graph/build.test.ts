@@ -58,6 +58,7 @@ async function run(o: {
   dryRun?: boolean;
   toolchain?: (files: string[]) => Promise<ToolchainResult>;
   judge?: (m: BaseMessage[]) => string;
+  cases?: (typeof CASE)[];
 }) {
   const root = mkdtempSync(join(tmpdir(), 'qa build graph '));
   roots.push(root);
@@ -106,7 +107,7 @@ async function run(o: {
       timeLimitMin: 30,
       inputs: [],
     }),
-    testCases: [CASE, { ...CASE, id: 'TC-SF-219-050', reviewStatus: 'REVIEW_REQUIRED' as const }],
+    testCases: o.cases ?? [CASE, { ...CASE, id: 'TC-SF-219-050', reviewStatus: 'REVIEW_REQUIRED' as const }],
     designRunId: 'run-p3-test',
     interactive: false,
   };
@@ -202,5 +203,20 @@ describe('judge outage inside qa build (2026-11-25: NIM + Gemini 503)', () => {
     };
     expect(manifest.artifacts.some((a) => a.reviewStatus === 'REVIEW_REQUIRED')).toBe(true);
     expect(v.issues.some((i) => i.node === 'review2' && i.resolution === 'DEGRADED')).toBe(true);
+  });
+});
+
+describe('manual-only cases (operator 2026-11-26: TC-051/052 are not automatable)', () => {
+  it('get no spec, are listed in the manifest as manual, and pass 2 does not ask for a spec', async () => {
+    const manual = { ...CASE, id: 'TC-SF-219-051', execution: 'manual' as const, executionReason: 'human check' };
+    const { v, root } = await run({ router: true, cases: [CASE, manual] });
+    expect(v.status).toBe('COMPLETE');
+    const specs = v.generated.filter((g) => g.kind === 'spec');
+    expect(specs.map((s) => s.testCaseIds[0])).toEqual([CASE.id]);
+    expect(v.pass2Findings.some((f) => f.rule === 'spec-missing')).toBe(false);
+    const manifest = JSON.parse(readFileSync(join(root, 'tests', 'generated', 'SF-219', 'manifest.json'), 'utf8')) as {
+      manualOnly: { caseId: string; reason: string }[];
+    };
+    expect(manifest.manualOnly).toEqual([{ caseId: 'TC-SF-219-051', reason: 'human check' }]);
   });
 });

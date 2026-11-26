@@ -11,7 +11,7 @@ import { runToolchain } from '../agents/test-generator/toolchain.js';
 import { projectPaths, requireConfig } from '../config/loader.js';
 import { QAError } from '../core/errors.js';
 import { newRunId, runPaths } from '../core/runFolder.js';
-import { TestCase } from '../core/schemas/testCase.js';
+import { isAutomatable, RtmRow, TestCase } from '../core/schemas/testCase.js';
 import { Autonomy, initialRunState } from '../core/state.js';
 import type { BuildHook, BuildDeps } from '../graph/buildNodes.js';
 import { summarizeBuild } from '../graph/buildReport.js';
@@ -238,7 +238,10 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
             `Coder chain for this run: ${coderChain.map((m) => `${m.provider}/${m.model}${m.responseFormat ? ' (JSON mode)' : ''}${m.tools === false ? ' (no tools)' : ''}`).join(' → ')} (no other fallback).`,
           );
         }
-        const approved = seed.testCases.filter((c) => c.reviewStatus === 'APPROVED');
+        const approved = seed.testCases.filter(isAutomatable);
+        const manualOnly = seed.testCases.filter((c) => c.reviewStatus === 'APPROVED' && c.execution === 'manual');
+        if (manualOnly.length)
+          say(`Manual-only (no spec generated; RTM lists them as manual): ${manualOnly.map((c) => c.id).join(', ')}`);
         say(
           `Build for ${seed.storyKey} from design run ${o.fromRun} (${seed.info.status}, ${seed.info.designEnvironment ?? '?'}): ${approved.length} APPROVED of ${seed.testCases.length} cases.`,
         );
@@ -303,10 +306,69 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
           await rt.graph.invoke(state, config);
           const v = (await rt.graph.getState(config)).values as QAGraphStateType;
           process.stdout.write(`${buildSummaryText(v, root)}\n`);
+          const rtm = writeAutomationRtm(root, runId, o.fromRun, seed.storyKey, seed.testCases);
+          if (rtm) say(`Automation RTM: ${rtm}`);
           process.exitCode = v.status === 'BLOCKED' ? 3 : 0;
         } finally {
           await rt.close();
         }
       },
     );
+}
+
+/**
+ * RTM automation view of a build: per requirement, which cases are automated (spec + review status from the story
+ * manifest), which are manual-only (operator ruling), and which have no spec (not APPROVED at design).
+ */
+export function writeAutomationRtm(
+  root: string,
+  runId: string,
+  designRun: string,
+  storyKey: string,
+  cases: readonly TestCase[],
+): string | undefined {
+  const rtmFile = join(root, 'runs', designRun, 'design', 'rtm.json');
+  const manifestFile = join(root, 'tests', 'generated', storyKey, 'manifest.json');
+  if (!existsSync(rtmFile) || !existsSync(manifestFile)) return undefined;
+  const rows = z.array(RtmRow).parse(JSON.parse(readFileSync(rtmFile, 'utf8')));
+  const specOf = z.object({
+    kind: z.string(),
+    testCaseIds: z.array(z.string()),
+    reviewStatus: z.string().optional(),
+  });
+  const artifacts = z
+    .object({ artifacts: z.array(specOf) })
+    .parse(JSON.parse(readFileSync(manifestFile, 'utf8')))
+    .artifacts.filter((a) => a.kind === 'spec');
+  const byId = new Map(cases.map((c) => [c.id, c]));
+  const out = rows.map((r) => ({
+    requirementId: r.requirementId,
+    status: r.status,
+    automated: r.testCaseIds.flatMap((id) => {
+      const a = artifacts.find((x) => x.testCaseIds.includes(id));
+      return a ? [{ caseId: id, reviewStatus: a.reviewStatus ?? 'REVIEW_REQUIRED' }] : [];
+    }),
+    manual: r.testCaseIds
+      .filter((id) => byId.get(id)?.execution === 'manual')
+      .map((id) => ({ caseId: id, reason: byId.get(id)?.executionReason ?? 'manual-only' })),
+    notAutomated: r.testCaseIds.filter(
+      (id) => byId.get(id)?.execution !== 'manual' && !artifacts.some((x) => x.testCaseIds.includes(id)),
+    ),
+  }));
+  const dir = join(runPaths(root, runId).dir, 'build');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'rtm-automation.json'), `${JSON.stringify(out, null, 2)}\n`);
+  const md = [
+    `# RTM — automation view (${storyKey}, design ${designRun}, build ${runId})`,
+    '',
+    '| Requirement | RTM status | Automated (spec status) | Manual-only | No spec |',
+    '|---|---|---|---|---|',
+    ...out.map(
+      (r) =>
+        `| ${r.requirementId} | ${r.status} | ${r.automated.map((a) => `${a.caseId} (${a.reviewStatus})`).join(', ')} | ${r.manual.map((m) => m.caseId).join(', ')} | ${r.notAutomated.join(', ')} |`,
+    ),
+    '',
+  ].join('\n');
+  writeFileSync(join(dir, 'rtm-automation.md'), md);
+  return join(dir, 'rtm-automation.md');
 }

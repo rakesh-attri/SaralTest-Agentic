@@ -60,6 +60,7 @@ export const SNAPSHOT: StoredSnapshot = {
     field('Contact', 'LastName', { type: 'string', length: 80, required: true }),
     field('Contact', 'Email', { type: 'email', length: 80 }),
     field('Contact', 'Phone', { type: 'phone', length: 40 }),
+    field('Contact', 'Title', { type: 'string', length: 128 }),
     field('Contact', 'MailingCountry', { type: 'string', length: 80 }),
     field('Contact', 'AccountId', { type: 'reference', referenceTo: ['Account'] }),
     field('Contact', 'LeadSource', {
@@ -151,6 +152,8 @@ export const ENTRIES: LocatorEntry[] = [
   entry('contact-new', DIALOG, 'button', 'Save'),
   entry('contact-new', DIALOG, 'button', 'Cancel'),
   entry('contact-record', MAIN, 'tab', 'Details'),
+  entry('contact-record', MAIN, 'button', 'Edit Title', { fieldApiName: 'Contact.Title' }),
+  entry('contact-record', MAIN, 'button', 'Edit Phone', { fieldApiName: 'Contact.Phone' }),
 ];
 
 export function generationContext(): GenerationContext {

@@ -5,8 +5,11 @@ import { QAError } from '../../core/errors.js';
 
 export type ArgValue = string | number | boolean | RegExp | { [k: string]: ArgValue };
 export interface LocatorCall {
-  method: 'getByRole' | 'getByLabel' | 'getByText' | 'getByTestId' | 'getByPlaceholder' | 'getByTitle' | 'locator';
+  method:
+    'getByRole' | 'getByLabel' | 'getByText' | 'getByTestId' | 'getByPlaceholder' | 'getByTitle' | 'locator' | 'filter';
   args: ArgValue[];
+  /** filter({ has: <chain> }): the inner chain, applied relative to each candidate. */
+  has?: LocatorCall[];
 }
 
 const METHODS = new Set<LocatorCall['method']>([
@@ -17,6 +20,7 @@ const METHODS = new Set<LocatorCall['method']>([
   'getByPlaceholder',
   'getByTitle',
   'locator',
+  'filter',
 ]);
 
 class Cursor {
@@ -99,6 +103,12 @@ function parseObject(c: Cursor): { [k: string]: ArgValue } {
 /** Parse `getByRole('main').getByRole('button', { name: 'New', exact: true })` (optionally prefixed by `page.`). */
 export function parseLocatorExpression(expr: string): LocatorCall[] {
   const c = new Cursor(expr.trim().replace(/^page\./, ''));
+  const calls = parseChain(c);
+  if (c.peek() !== '') throw c.err('unexpected text after the expression');
+  return calls;
+}
+
+function parseChain(c: Cursor): LocatorCall[] {
   const calls: LocatorCall[] = [];
   for (;;) {
     c.ws();
@@ -106,14 +116,30 @@ export function parseLocatorExpression(expr: string): LocatorCall[] {
     if (!name || !METHODS.has(name as LocatorCall['method'])) throw c.err(`method ${name ?? '?'} is not allowed`);
     c.i += name.length;
     c.eat('(');
-    const args: ArgValue[] = [];
-    while (c.peek() !== ')') {
-      args.push(parseValue(c));
+    if (name === 'filter') {
+      // only filter({ has: page.<chain> }) — the inner chain is relative to each candidate
+      c.eat('{');
+      c.ws();
+      if (!c.s.startsWith('has', c.i)) throw c.err('filter takes only { has: ... }');
+      c.i += 3;
+      c.eat(':');
+      c.ws();
+      if (c.s.startsWith('page.', c.i)) c.i += 5;
+      const has = parseChain(c);
       if (c.peek() === ',') c.eat(',');
+      c.eat('}');
+      c.eat(')');
+      calls.push({ method: 'filter', args: [], has });
+    } else {
+      const args: ArgValue[] = [];
+      while (c.peek() !== ')') {
+        args.push(parseValue(c));
+        if (c.peek() === ',') c.eat(',');
+      }
+      c.eat(')');
+      calls.push({ method: name as LocatorCall['method'], args });
     }
-    c.eat(')');
-    calls.push({ method: name as LocatorCall['method'], args });
-    if (c.peek() === '') break;
+    if (c.peek() !== '.') break;
     c.eat('.');
   }
   if (!calls.length) throw c.err('empty expression');
@@ -132,6 +158,12 @@ function textArg(a: ArgValue | undefined): string | RegExp {
 export function applyLocator(root: Root, calls: LocatorCall[]): Locator {
   let cur: Root = root;
   for (const call of calls) {
+    if (call.method === 'filter') {
+      if (!call.has || !('filter' in cur)) throw new QAError('LOCATOR', 'filter needs a locator and { has }');
+      const page = 'page' in cur ? cur.page() : cur;
+      cur = cur.filter({ has: applyLocator(page, call.has) });
+      continue;
+    }
     const [a, b] = call.args;
     const opts = b && typeof b === 'object' && !(b instanceof RegExp) ? b : undefined;
     const t = textArg(a);

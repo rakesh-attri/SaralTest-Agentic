@@ -472,3 +472,63 @@ describe('expected error messages and pre-filled values come from org evidence (
     expect(text).toContain("await expect(newContactDialog.leadSource).toContainText('Web');");
   });
 });
+
+describe('record-page field values, duplicate expects (operator 2026-11-26)', () => {
+  const ctx = generationContext();
+  const recipe = bindRecipe(CASE, ctx);
+  const ev = { caseStep: 0, evidenceIds: ['SF-219#AC2'] };
+  const tc = { ...CASE, steps: [CASE.steps[0]!] };
+
+  it('record pages get a <field>Field member per inline-edit button (the details list item holding it)', () => {
+    const page = ctx.catalog.pages.find((p) => p.id === 'contact-record');
+    const title = page?.members.find((m) => m.name === 'titleField');
+    expect(title).toMatchObject({ role: 'listitem', fieldApiName: 'Contact.Title' });
+    expect(title?.expression).toBe(
+      "getByRole('main').getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Edit Title', exact: true }) })",
+    );
+  });
+
+  it('recordField renders toContainText on the field item; locale-formatted types must use soqlField', () => {
+    const ir = structuredClone(GOOD_IR);
+    ir.data = [...new Set([...ir.data, 'Contact'])];
+    ir.steps = [
+      {
+        caseStep: 0,
+        title: 'Check the record page',
+        actions: [{ do: 'openRecord', ref: 'Contact', object: 'Contact' }],
+        assertions: [
+          {
+            check: 'recordField',
+            element: 'contact-record.titleField',
+            contains: { kind: 'data', ref: 'Contact', field: 'LastName' },
+            expect: ev,
+          },
+        ],
+      },
+    ];
+    expect(irProblems(tc, ir, ctx, recipe).join('\n')).not.toMatch(/recordField|titleField/);
+    const text = renderSpec({ tc, ir, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
+    expect(text).toContain(
+      "await expect(contactRecordPage.titleField).toContainText(data.value('Contact', 'LastName'));",
+    );
+    const phone = structuredClone(ir);
+    phone.steps[0]!.assertions[0] = { ...ir.steps[0]!.assertions[0]!, element: 'contact-record.phoneField' } as never;
+    expect(irProblems(tc, phone, ctx, recipe).join('\n')).toMatch(
+      /Contact\.Phone is a phone field; the record page shows it locale-formatted — check it with soqlField instead/,
+    );
+  });
+
+  it('an assertion identical to one already in the step is rendered once', () => {
+    const ir = structuredClone(GOOD_IR);
+    ir.steps = [
+      {
+        caseStep: 0,
+        title: 'Open the dialog',
+        actions: [{ do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' }],
+        assertions: [{ check: 'visible', element: 'contact-new.root', expect: ev }],
+      },
+    ];
+    const text = renderSpec({ tc, ir, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
+    expect(text.split('await expect(newContactDialog.root).toBeVisible();').length - 1).toBe(1);
+  });
+});

@@ -438,10 +438,27 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
   - Specs are not executed yet (Phase 5).
   - The live coder answers came from the Gemini fallback.
   - `data-testid`: wired (`testIdAttribute`); SF-219 needs none; still open for custom LWCs.
+- **Closed (2026-11-26):** after the operator decisions on SF-219 (`run-p4-design-decided-1`), the final round
+  `run-p4-build-decided-8` added:
+  - error text taken only from the org's validation rules;
+  - pre-filled field values and record-page field values;
+  - manual-only cases;
+  - judge outage resilience;
+  - code-owned cleanup.
+  Final counts are in `docs/phase-4-notes.md`. Phase 4 is closed.
 
 ### Phase 5 — Execution & reporting
 - [ ] Runner (approved tests only), browser channel switch, result states incl. UNCERTAIN, LIVE/FIXTURE/MOCK labels
 - [ ] reporting-labs + Playwright HTML + additional reports; JIRA comment
+- [ ] Application Explorer captures error texts by observation on qa-prod (operator 2026-11-26). This is safe because
+      a rejected save creates no record, so there is nothing to clean up; still verify by SOQL that no record exists
+      after each attempt.
+  - Capture two texts:
+    - the standard required-field message for an empty Last Name in the New Contact dialog;
+    - the duplicate warning for Contact_Same_Email_Same_Account.
+  - Store each text as OBSERVED evidence (page state + screenshot reference), then re-review TC-SF-219-046 and 050
+    (and any other `message-unevidenced` spec).
+  - Until then those specs stay REVIEW_REQUIRED.
 - **Exit:** Account → Contact demo (CLAUDE.md §Acceptance demo) passes end to end on the offline fixture, then live on
   the `dedicated-qa-prod` org.
 
