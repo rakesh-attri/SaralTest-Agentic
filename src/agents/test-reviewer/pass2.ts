@@ -5,7 +5,7 @@ import ts from 'typescript';
 import type { Logger } from 'pino';
 import { QAError } from '../../core/errors.js';
 import type { ReviewFinding } from '../../core/schemas/design.js';
-import type { DryRunReport, GeneratedArtifact } from '../../core/schemas/generation.js';
+import type { DryRunReport, GeneratedArtifact, TestIR } from '../../core/schemas/generation.js';
 import type { ReviewStatus, TestCase } from '../../core/schemas/testCase.js';
 import type { ModelRouter } from '../../models/router.js';
 import type { Redactor } from '../../security/redact.js';
@@ -124,6 +124,22 @@ export function astViolations(text: string): { rule: ReviewFinding['rule']; text
   return out;
 }
 
+const EXPECTS_MESSAGE = /\b(?:error|validation)\s+message\b|\bmessage\b.*\b(?:displayed|shown)\b|\berror\s+'[^']+'/i;
+
+/** Case steps (0-based) that expect an error message but whose field errors assert no evidenced message text. */
+export function unevidencedMessageSteps(tc: TestCase, ir: TestIR): number[] {
+  const out: number[] = [];
+  tc.steps.forEach((st, n) => {
+    if (!EXPECTS_MESSAGE.test(st.expected.text)) return;
+    const errs = ir.steps
+      .filter((x) => x.caseStep === n)
+      .flatMap((x) => x.assertions)
+      .filter((a) => a.check === 'fieldError');
+    if (errs.length && !errs.some((a) => a.message)) out.push(n);
+  });
+  return out;
+}
+
 /** Pass-2 deterministic checklist; pure function of the current specs + tool results. */
 export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): (FindingDraft & { paths: string[] })[] {
   const out: (FindingDraft & { paths: string[] })[] = [];
@@ -172,6 +188,17 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
       const recipe = i.ctx.recipes.find((r) => spec.artifact.dataBindings.includes(r.name));
       for (const msg of irProblems(tc, spec.ir, i.ctx, recipe ?? i.ctx.recipes[0])) {
         add({ ...base, key: `ir:${tc.id}:${msg}`, severity: 'H', rule: classify(msg), text: msg });
+      }
+      // Expected error text needs org evidence (a validation rule's message). A step whose expected result names an
+      // error message but whose fieldError has none stays with a human (operator 2026-11-26: never invent text).
+      for (const n of unevidencedMessageSteps(tc, spec.ir)) {
+        add({
+          ...base,
+          key: `msg:${tc.id}:${String(n)}`,
+          severity: 'M',
+          rule: 'message-unevidenced',
+          text: `step ${String(n + 1)} expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid`,
+        });
       }
       for (const b of spec.artifact.dataBindings) {
         const r = i.ctx.recipes.find((x) => x.name === b);

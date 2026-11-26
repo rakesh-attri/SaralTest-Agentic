@@ -33,7 +33,11 @@ type Action =
 // Cleanup is automatic: after Save in a create dialog assert recordView (with "as"); code registers that record
 // for cleanup. Preconditions come from the recipe ("data" refs). Never write cleanup or adopt.
 type Assertion =
-  | { check: "visible" | "hidden" | "fieldError"; element: Ref; expect: Expect }
+  | { check: "visible" | "hidden"; element: Ref; expect: Expect }
+  // message: the validation rule (API name from "rule ..." in the org facts) whose error the field shows; code
+  // supplies its text from the org. Omit it when no listed rule produces the error (never write message text).
+  | { check: "fieldError"; element: Ref; message?: { rule: string }; expect: Expect }
+  // a field's current value: textboxes, lookups (e.g. a pre-filled Account Name) and picklists
   | { check: "inputValue"; element: Ref; equals: Value; expect: Expect }
   | { check: "toast"; contains?: Value; expect: Expect }
   | { check: "recordView"; object: string; as?: string; expect: Expect }

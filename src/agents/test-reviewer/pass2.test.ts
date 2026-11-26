@@ -7,7 +7,14 @@ import { caseHash, type GeneratedSpec } from '../test-generator/graph.js';
 import { hashText } from '../test-generator/pageObjects.js';
 import { locatorsUsed, renderSkeleton, renderSpec, specPath } from '../test-generator/render.js';
 import type { ToolchainResult } from '../test-generator/toolchain.js';
-import { astViolations, pass2Findings, reviewPass2Round, settlePass2, withoutJudge } from './pass2.js';
+import {
+  astViolations,
+  pass2Findings,
+  reviewPass2Round,
+  settlePass2,
+  unevidencedMessageSteps,
+  withoutJudge,
+} from './pass2.js';
 
 const ctx = generationContext();
 const recipe = bindRecipe(CASE, ctx);
@@ -264,5 +271,37 @@ describe('judge outage (2026-11-25: NIM and Gemini both 503 for hours)', () => {
     const [a] = withoutJudge(settled.artifacts);
     expect(a?.reviewStatus).toBe('REVIEW_REQUIRED');
     expect(a?.reviewReasons.join(' ')).toMatch(/judge unavailable/);
+  });
+});
+
+describe('expected error text needs org evidence (operator 2026-11-26)', () => {
+  const ev = { caseStep: 0, evidenceIds: ['SF-219#AC2'] };
+  const tc = (expected: string): typeof CASE => ({
+    ...CASE,
+    steps: [{ ...CASE.steps[0]!, expected: { ...CASE.steps[0]!.expected, text: expected } }],
+  });
+  const ir = (message?: { rule: string }): typeof GOOD_IR => ({
+    ...GOOD_IR,
+    steps: [
+      {
+        caseStep: 0,
+        title: 'Save',
+        actions: [],
+        assertions: [
+          { check: 'fieldError', element: 'contact-new.phone', ...(message ? { message } : {}), expect: ev },
+        ],
+      },
+    ],
+  });
+
+  it('a step that expects an error message but asserts no evidenced text is flagged', () => {
+    const t = tc('Contact is not saved; error message is displayed on the Last Name field indicating it is required');
+    expect(unevidencedMessageSteps(t, ir())).toEqual([0]);
+    expect(unevidencedMessageSteps(t, ir({ rule: 'Phone_Must_Be_10_Digits' }))).toEqual([]);
+    expect(unevidencedMessageSteps(tc("validation error 'Enter a 10-digit phone number.' is shown"), ir())).toEqual([
+      0,
+    ]);
+    // no message expected → presence-only is fine
+    expect(unevidencedMessageSteps(tc('The Last Name field is marked invalid'), ir())).toEqual([]);
   });
 });

@@ -155,6 +155,8 @@ export const ReviewRule = z.enum([
   'lint',
   'not-listed',
   'mechanical',
+  /** The case expects a specific error message but the org has no evidence for its text (operator 2026-11-26). */
+  'message-unevidenced',
 ]);
 export type ReviewRule = z.infer<typeof ReviewRule>;
 

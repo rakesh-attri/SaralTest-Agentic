@@ -394,3 +394,81 @@ describe('run-specific recipe values written as literals (run-p4-build-decided-3
     expect(n.steps[0]!.assertions[1]).toMatchObject({ contains: { kind: 'literal', value: 'Contact' } });
   });
 });
+
+describe('expected error messages and pre-filled values come from org evidence (operator 2026-11-26)', () => {
+  const ctx = generationContext();
+  const recipe = bindRecipe(CASE, ctx);
+  const ev = { caseStep: 0, evidenceIds: ['SF-219#AC2'] };
+  const step = (assertions: TestIR['steps'][number]['assertions']): TestIR => {
+    const ir = structuredClone(GOOD_IR);
+    ir.steps = [
+      {
+        caseStep: 0,
+        title: 'Check the dialog',
+        actions: [{ do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' }],
+        assertions,
+      },
+    ];
+    return ir;
+  };
+  const tc = { ...CASE, steps: [CASE.steps[0]!] };
+  const problems = (ir: TestIR): string => irProblems(tc, ir, ctx, recipe).join('\n');
+
+  it('a fieldError message names a validation rule; code renders the rule text from the snapshot', () => {
+    const ir = step([
+      { check: 'fieldError', element: 'contact-new.phone', message: { rule: 'Phone_Must_Be_10_Digits' }, expect: ev },
+    ]);
+    expect(problems(ir)).not.toMatch(/Phone_Must_Be_10_Digits/);
+    const text = renderSpec({ tc, ir, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
+    expect(text).toContain(
+      "await expectFieldError(newContactDialog.phone, 'Enter a 10-digit phone number.'); // message of rule Contact.Phone_Must_Be_10_Digits (org snapshot)",
+    );
+  });
+
+  it('an unknown rule, or a rule that shows its error on another field, is a problem (no invented text)', () => {
+    expect(
+      problems(step([{ check: 'fieldError', element: 'contact-new.phone', message: { rule: 'Made_Up' }, expect: ev }])),
+    ).toMatch(/Contact\.Made_Up is not an active validation rule on Contact in the snapshot/);
+    expect(
+      problems(
+        step([
+          {
+            check: 'fieldError',
+            element: 'contact-new.lastName',
+            message: { rule: 'Phone_Must_Be_10_Digits' },
+            expect: ev,
+          },
+        ]),
+      ),
+    ).toMatch(/shows its message at the top of the form, not on LastName/);
+    // the schema has no free-text message: a model-written message is dropped by parsing, never rendered
+    const parsed = IrAssertion.parse({
+      check: 'fieldError',
+      element: 'contact-new.lastName',
+      message: { rule: 'X', text: 'Complete this field.' },
+      expect: ev,
+    });
+    expect(JSON.stringify(parsed)).not.toContain('Complete this field.');
+  });
+
+  it('inputValue reads a pre-filled lookup (toHaveValue) and a picklist (toContainText)', () => {
+    const ir = step([
+      {
+        check: 'inputValue',
+        element: 'contact-new.accountId',
+        equals: { kind: 'data', ref: 'Account', field: 'Name' },
+        expect: ev,
+      },
+      {
+        check: 'inputValue',
+        element: 'contact-new.leadSource',
+        equals: { kind: 'literal', value: 'Web', evidenceIds: ['SF-219#AC2'] },
+        expect: ev,
+      },
+    ]);
+    expect(problems(ir)).not.toMatch(/accountId|leadSource|is not a page-object member/);
+    const text = renderSpec({ tc, ir, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
+    expect(text).toContain("await expect(newContactDialog.accountId).toHaveValue(data.value('Account', 'Name'));");
+    expect(text).toContain("await expect(newContactDialog.leadSource).toContainText('Web');");
+  });
+});

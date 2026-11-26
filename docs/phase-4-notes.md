@@ -393,3 +393,47 @@ unavailable):
   - TC-009 used Lead Source "Word of mouth" instead of the case's "Phone Inquiry"; the select check only allows
     snapshot values, and qa-prod's picklist lacks "Phone Inquiry".
 
+
+## Expected error messages and pre-filled values from org evidence (2026-11-26, operator request)
+
+- **Error text comes only from the org.**
+  - `fieldError` takes an optional `message: { rule }`. The model names an active validation rule; code
+    (`fieldErrorRule`, `context.ts`) reads that rule's `errorMessage` from the snapshot. The rule must be active,
+    on the field's object, and display its error on that field (`errorDisplayField`). The renderer emits
+    `expectFieldError(field, '<org text>') // message of rule <name> (org snapshot)`, which checks `aria-invalid`
+    and the field's accessible description (`aria-describedby`).
+  - The schema has no free-text message, so text the model writes is dropped at parsing.
+  - In run-p4-build-decided-6, the coder named the duplicate rule `Contact_Same_Email_Same_Account` as a
+    validation rule. The check rejected it and the model omitted the message.
+  - qa-prod's Phone format rule reads **"Enter a 10-digit phone number."** (snapshot 2026-11-25). The operator's
+    example wording ("Phone must be exactly 10 digits.") is not the org text; the specs use the org text.
+- **No evidence → REVIEW_REQUIRED.**
+  - New pass-2 rule `message-unevidenced` (M, not regenerable): a case step whose expected result names an error
+    message, but whose field error asserts no evidenced text, keeps the spec REVIEW_REQUIRED.
+  - The standard Salesforce required-field message ("Complete this field.") is noted in phase-0 notes, but no
+    exploration run captured it as an org observation, so Last Name cases stay presence-only + REVIEW_REQUIRED.
+- **Field values:** `inputValue` now accepts comboboxes. A pre-filled lookup (Account Name) renders `toHaveValue`;
+  a picklist renders `toContainText`.
+- **Operator case edits:**
+  - `qa build --case-edits examples/case-edits/SF-219.yaml` applies exact-text edits to case wording. An edit
+    that matches nothing is an error, and the applied edits are listed in `build/case-edits-applied.md`.
+  - SF-219: "Phone Inquiry" (not a qa-prod Lead Source) became "any non-Web value (e.g. 'Word of mouth')" in
+    TC-007, TC-009 and TC-010, since all three only need a non-Web Lead Source.
+- **Live build run-p4-build-decided-6** (10 cases):
+  - tsc 0, ESLint 0, listed 10/10, dry-run 12/12 LIVE.
+  - 6 APPROVED / 4 REVIEW_REQUIRED before the `message-unevidenced` re-review.
+  - TC-007 is now coder-generated (it was a skeleton).
+- **Re-review and build run-p4-build-decided-7:**
+  - The 9 previously APPROVED specs were re-reviewed one case at a time. Only TC-008, 009 and 010 stayed APPROVED.
+    TC-046 is held by `message-unevidenced`; the judge flagged TC-007, 015, 026, 044 and 051.
+  - Build 7 regenerated TC-007, 015, 026 and 044 with the new checks: 3 APPROVED, 1 REVIEW_REQUIRED.
+    `pnpm validate:build run-p4-build-decided-7`: all valid. Dry-run 12/12 LIVE.
+- **SF-219 now:** 20 specs, **6 APPROVED** (TC-007, 008, 009, 010, 015, 026) and **14 REVIEW_REQUIRED**. 17 are
+  coder-generated and 3 are skeletons (TC-012, 045, 047).
+- **Open judge themes:**
+  - Detail-page UI values are checked by SOQL only (TC-044, TC-032). There is no record-page field-value check
+    yet.
+  - The duplicate warning text is not evidenced (TC-050).
+  - "Review execution record of MTC-00x" steps (TC-051, 052) are not automatable: a case-design issue.
+- **Nit:** the generated dialog step asserts `newContactDialog.root` visible twice: once from
+  `openNewFromRelatedList`, and once more when the model asks for it.

@@ -106,9 +106,32 @@ export function derivableErrorCodes(
 }
 
 const FILLABLE = new Set(['textbox', 'spinbutton', 'searchbox']);
+const VALUED = new Set([...FILLABLE, 'combobox']);
+
+/**
+ * The error message a field must show for a validation rule — taken only from the org snapshot (DECLARED
+ * metadata): the rule must be active, on the field's object, and display its error on that field.
+ */
+export function fieldErrorRule(
+  ctx: GenerationContext,
+  element: string,
+  rule: string,
+): { rule: string; message: string } | { problem: string } {
+  const m = findMember(ctx.catalog, element);
+  const [object, field] = m?.member.fieldApiName?.split('.') ?? [];
+  if (!object || !field) return { problem: `${element} is not bound to a field, so no rule message applies` };
+  const name = rule.includes('.') ? rule : `${object}.${rule}`;
+  const vr = ctx.facts.activeValidationRules(object).find((c) => c.apiName === name);
+  if (!vr) return { problem: `${name} is not an active validation rule on ${object} in the snapshot (omit message)` };
+  const msg = vr.body?.['errorMessage'];
+  if (typeof msg !== 'string' || !msg.trim()) return { problem: `${name} has no error message in the snapshot` };
+  if (vr.body?.['errorDisplayField'] !== field)
+    return { problem: `${name} shows its message at the top of the form, not on ${field} (omit message)` };
+  return { rule: name, message: msg };
+}
 
 /** The snapshot field behind a picklist combobox member, if it is one. */
-function picklistFact(ctx: GenerationContext, ref: string): FieldFact | undefined {
+export function picklistFact(ctx: GenerationContext, ref: string): FieldFact | undefined {
   const m = findMember(ctx.catalog, ref);
   const [object, field] = m?.member.fieldApiName?.split('.') ?? [];
   const fact = object && field ? ctx.facts.field(object, field) : undefined;
@@ -357,11 +380,18 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
     switch (a.check) {
       case 'visible':
       case 'hidden':
-      case 'fieldError':
         member(a.element);
         break;
+      case 'fieldError':
+        member(a.element);
+        if (a.message) {
+          const r = fieldErrorRule(ctx, a.element, a.message.rule);
+          if ('problem' in r) p.push(`${where}: ${r.problem}`);
+        }
+        break;
       case 'inputValue':
-        member(a.element, FILLABLE);
+        // comboboxes too: a pre-filled lookup (Account Name) or a picklist's current value
+        member(a.element, VALUED);
         value(a.equals, where, cs);
         break;
       case 'toast':

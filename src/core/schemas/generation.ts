@@ -110,7 +110,16 @@ export const IrAssertion = z.discriminatedUnion('check', [
   z.object({ check: z.literal('visible'), element: ElementRef, expect: ExpectationRef }),
   z.object({ check: z.literal('hidden'), element: ElementRef, expect: ExpectationRef }),
   z.object({ check: z.literal('inputValue'), element: ElementRef, equals: ValueRef, expect: ExpectationRef }),
-  z.object({ check: z.literal('fieldError'), element: ElementRef, expect: ExpectationRef }),
+  /**
+   * The field is marked invalid. `message.rule` names the active validation rule (API name) whose error message the
+   * field must show: code reads the text from the org snapshot — the model never writes message text.
+   */
+  z.object({
+    check: z.literal('fieldError'),
+    element: ElementRef,
+    message: z.object({ rule: z.string().min(1) }).optional(),
+    expect: ExpectationRef,
+  }),
   z.object({ check: z.literal('toast'), contains: ValueRef.optional(), expect: ExpectationRef }),
   /** The record view of `object` is shown; the new record id is kept under `as` (for later SOQL checks/adopt). */
   z.object({

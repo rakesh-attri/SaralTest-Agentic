@@ -60,9 +60,14 @@ export function relatedListRecord(list: Locator, name: string): Locator {
   return list.getByRole('link', { name: new RegExp(`(^|\\s)${escapeRegExp(name)}$`) });
 }
 
-/** Field-level save error: the input is marked invalid (Lightning sets aria-invalid on the inner input). */
-export async function expectFieldError(field: Locator): Promise<void> {
+/**
+ * Field-level save error: the input is marked invalid (Lightning sets aria-invalid on the inner input). With a
+ * message (generated tests take it from the org's validation rule), the field's error text — linked to the input
+ * through aria-describedby — must contain it.
+ */
+export async function expectFieldError(field: Locator, message?: string): Promise<void> {
   await expect(field).toHaveAttribute('aria-invalid', 'true');
+  if (message !== undefined) await expect(field).toHaveAccessibleDescription(new RegExp(escapeRegExp(message)));
 }
 
 /** The page-level error summary of a form ("We hit a snag." etc.). */

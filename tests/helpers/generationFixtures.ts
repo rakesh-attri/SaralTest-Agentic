@@ -76,6 +76,7 @@ export const SNAPSHOT: StoredSnapshot = {
       {
         active: true,
         errorMessage: 'Enter a 10-digit phone number.',
+        errorDisplayField: 'Phone',
         errorConditionFormula: 'AND( NOT( ISBLANK( Phone ) ), NOT( REGEX( Phone, "[0-9]{10}" ) ) )',
       },
       'Contact',

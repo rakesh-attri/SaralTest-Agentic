@@ -1,7 +1,7 @@
 // qa build — Phase 4: generate Playwright specs for the APPROVED cases of a `qa design` run, review them (pass 2),
 // and check that they lint, typecheck and resolve (tsc, ESLint, playwright --list, locator dry-run). No execution.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import type { Command } from 'commander';
 import { z } from 'zod';
 import type { GenerationContext, RecipeView } from '../agents/test-generator/context.js';
@@ -19,6 +19,7 @@ import type { QAGraphStateType } from '../graph/state.js';
 import { LocatorRegistry } from '../knowledge/locatorRegistry.js';
 import { SnapshotStore } from '../knowledge/snapshotStore.js';
 import { createSfContext } from '../sf/context.js';
+import { applyCaseEdits, loadCaseEdits } from '../inputs/caseEdits.js';
 import { buildDataPlan, loadRecipe, RECIPE_DIR, SnapshotFacts } from '../sf/data/plan.js';
 import { createRuntime, parseModelChain } from './analyze.js';
 import { registryFile } from './locators.js';
@@ -191,6 +192,10 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
       'coder models for this run only, in order, no other fallback: provider/model[,provider/model…] (append :json for response_format json_object, :no-tools to inline skills)',
     )
     .option('--cases <ids>', 'rebuild only these APPROVED cases (comma-separated); other generated specs are kept')
+    .option(
+      '--case-edits <file>',
+      'operator edits to case wording (YAML, src/inputs/caseEdits.ts), applied before generation',
+    )
     .action(
       async (o: {
         fromRun: string;
@@ -201,9 +206,21 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
         offline?: boolean;
         coder?: string;
         cases?: string;
+        caseEdits?: string;
       }) => {
         const root = rootOf();
         const seed = loadDesignRun(root, o.fromRun);
+        let editChanges: string[] = [];
+        if (o.caseEdits) {
+          const edits = loadCaseEdits(resolve(o.caseEdits));
+          if (edits.storyKey !== seed.storyKey)
+            throw new QAError('DATA', `case edits are for ${edits.storyKey}, the design run is ${seed.storyKey}`);
+          const r = applyCaseEdits(seed.testCases, edits);
+          seed.testCases = r.cases;
+          editChanges = r.changes.map((c) => `${c} — ${edits.decidedBy}, ${edits.decidedOn}`);
+          say(`Applied ${String(editChanges.length)} operator case edit(s) from ${o.caseEdits}:`);
+          for (const c of editChanges) say(`  ${c}`);
+        }
         const only = o.cases
           ?.split(',')
           .map((x) => x.trim())
@@ -269,6 +286,19 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
             interactive: false,
           };
           say(`Run ${runId} — output in ${runPaths(root, runId).dir}`);
+          if (editChanges.length) {
+            const dir = join(runPaths(root, runId).dir, 'build');
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(
+              join(dir, 'case-edits-applied.md'),
+              [
+                `# Operator case edits applied (${o.caseEdits ?? ''})`,
+                '',
+                ...editChanges.map((c) => `- ${c}`),
+                '',
+              ].join('\n'),
+            );
+          }
           const config = { configurable: { thread_id: runId } };
           await rt.graph.invoke(state, config);
           const v = (await rt.graph.getState(config)).values as QAGraphStateType;

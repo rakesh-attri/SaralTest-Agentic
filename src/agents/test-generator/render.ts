@@ -6,7 +6,9 @@ import {
   canonicalList,
   dialogForList,
   featureOf,
+  fieldErrorRule,
   listRegion,
+  picklistFact,
   recordPageOf,
   type GenerationContext,
   type RecipeView,
@@ -196,11 +198,20 @@ export function renderSpec(i: RenderInput): string {
         return [`await expect(${el(a.element)}).toBeVisible();`];
       case 'hidden':
         return [`await expect(${el(a.element)}).toBeHidden();`];
-      case 'inputValue':
-        return [`await expect(${el(a.element)}).toHaveValue(${val(a.equals)});`];
-      case 'fieldError':
+      case 'inputValue': {
+        // A picklist combobox is a button whose text is the value; textboxes and lookups hold it as the input value.
+        const pick = picklistFact(ctx, a.element);
+        return [`await expect(${el(a.element)}).${pick ? 'toContainText' : 'toHaveValue'}(${val(a.equals)});`];
+      }
+      case 'fieldError': {
         imp.lightning.add('expectFieldError');
-        return [`await expectFieldError(${el(a.element)});`];
+        if (!a.message) return [`await expectFieldError(${el(a.element)});`];
+        const r = fieldErrorRule(ctx, a.element, a.message.rule);
+        if ('problem' in r) throw new Error(r.problem);
+        return [
+          `await expectFieldError(${el(a.element)}, ${q(r.message)}); // message of rule ${r.rule} (org snapshot)`,
+        ];
+      }
       case 'toast':
         imp.lightning.add('expectToast');
         return [`await expectToast(page, ${a.contains ? val(a.contains) : '/\\S/'});`];
