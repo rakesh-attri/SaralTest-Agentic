@@ -144,6 +144,34 @@ export function unevidencedMessageSteps(tc: TestCase, ir: TestIR): number[] {
 }
 
 /**
+ * Observed messages (Explorer, OBSERVED) that evidence the message a case step expects: messages on the fields the
+ * step's field-error assertions check; for a duplicate warning, the duplicate alert of the step's object.
+ */
+export function observedForStep(
+  tc: TestCase,
+  ir: TestIR,
+  n: number,
+  ctx: GenerationContext,
+): NonNullable<GenerationContext['observedMessages']> {
+  const all = ctx.observedMessages ?? [];
+  if (!all.length) return [];
+  const asserts = ir.steps.filter((x) => x.caseStep === n).flatMap((x) => x.assertions);
+  const fields = new Set(
+    asserts
+      .filter((a) => a.check === 'fieldError')
+      .map((a) => findMember(ctx.catalog, a.element)?.member.fieldApiName)
+      .filter((f): f is string => typeof f === 'string'),
+  );
+  const text = tc.steps[n]?.expected.text ?? '';
+  const duplicate = /duplicate/i.test(text);
+  return all.filter(
+    (m) =>
+      (m.persona === tc.persona || m.persona === 'system-admin') &&
+      (duplicate ? m.kind === 'duplicate' : m.field !== undefined && fields.has(m.field) && m.kind !== 'duplicate'),
+  );
+}
+
+/**
  * Steps whose expected result quotes a message ('…' or "…") while the spec asserts a rule message that is none of
  * the quotes — the case and the org disagree (e.g. the org rule changed after design).
  */
@@ -227,13 +255,24 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
         });
       }
       for (const n of unevidencedMessageSteps(tc, spec.ir)) {
-        add({
-          ...base,
-          key: `msg:${tc.id}:${String(n)}`,
-          severity: 'M',
-          rule: 'message-unevidenced',
-          text: `step ${String(n + 1)} expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid`,
-        });
+        const seen = observedForStep(tc, spec.ir, n, i.ctx);
+        if (seen.length) {
+          add({
+            ...base,
+            key: `msg-obs:${tc.id}:${String(n)}`,
+            severity: 'M',
+            rule: 'message-unasserted',
+            text: `step ${String(n + 1)}: the message is now evidenced by UI observation — ${seen.map((m) => `[${m.placement}] "${m.text}" (OBSERVED ${m.observedAt.slice(0, 10)}, ${m.runId})`).join('; ')} — but the spec does not assert it (it checks only that the field is invalid). A human accepts the observed text, then regenerate the spec (qa build --cases ${tc.id}) so it asserts it`,
+          });
+        } else {
+          add({
+            ...base,
+            key: `msg:${tc.id}:${String(n)}`,
+            severity: 'M',
+            rule: 'message-unevidenced',
+            text: `step ${String(n + 1)} expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid`,
+          });
+        }
       }
       for (const b of spec.artifact.dataBindings) {
         const r = i.ctx.recipes.find((x) => x.name === b);

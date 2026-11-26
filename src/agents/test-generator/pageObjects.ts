@@ -14,7 +14,8 @@ export interface PageDef {
   object: string;
   /** Root region expression (relative to `page`). */
   rootExpr: string;
-  kind: 'record' | 'dialog';
+  /** record page · create dialog · edit form of an existing record (no create-save / adopt semantics). */
+  kind: 'record' | 'dialog' | 'edit';
   title: string;
 }
 
@@ -44,6 +45,15 @@ export const PAGE_DEFS: readonly PageDef[] = [
     kind: 'dialog',
     title: 'New Contact dialog (from the Account Contacts related list)',
   },
+  {
+    id: 'contact-edit',
+    className: 'ContactEditForm',
+    object: 'Contact',
+    // Same expression as the Explorer's CONTACT_EDIT_ROOT (Lightning names the modal "Edit <record name>").
+    rootExpr: "getByRole('dialog', { name: /^Edit / })",
+    kind: 'edit',
+    title: 'Contact edit form (record page › Edit)',
+  },
 ];
 
 export const CatalogMember = z.object({
@@ -70,7 +80,7 @@ export const CatalogPage = z.object({
   className: z.string(),
   file: z.string(),
   object: z.string(),
-  kind: z.enum(['record', 'dialog']),
+  kind: z.enum(['record', 'dialog', 'edit']),
   title: z.string(),
   rootExpr: z.string(),
   members: z.array(CatalogMember),

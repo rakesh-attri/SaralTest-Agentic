@@ -145,6 +145,9 @@ export class FixtureStore {
           throw new FixtureError(400, 'INVALID_CROSS_REFERENCE_KEY', `invalid cross reference id`, [f.name]);
         }
       }
+      if (f.type === 'email' && typeof v === 'string' && v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+        throw new FixtureError(400, 'INVALID_EMAIL_ADDRESS', `${f.label}: invalid email address: ${v}`, [f.name]);
+      }
       if (f.length && typeof v === 'string' && v.length > f.length) {
         throw new FixtureError(400, 'STRING_TOO_LONG', `${f.label}: data value too large`, [f.name]);
       }

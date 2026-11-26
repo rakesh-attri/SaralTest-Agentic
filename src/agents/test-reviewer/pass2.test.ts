@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DryRunReport } from '../../core/schemas/generation.js';
+import type { ObservedMessage } from '../../core/schemas/execution.js';
 import { mockRouter } from '../../../tests/helpers/mockRouter.js';
 import { CASE, GOOD_IR, generationContext } from '../../../tests/helpers/generationFixtures.js';
 import { bindRecipe } from '../test-generator/context.js';
@@ -14,6 +15,7 @@ import {
   reviewPass2Round,
   settlePass2,
   unevidencedMessageSteps,
+  observedForStep,
   withoutJudge,
 } from './pass2.js';
 
@@ -331,6 +333,45 @@ describe('expected error text needs org evidence (operator 2026-11-26)', () => {
     ).toEqual([0]);
     // no message expected → presence-only is fine
     expect(unevidencedMessageSteps(tc('The Last Name field is marked invalid'), ir())).toEqual([]);
+  });
+
+  it('UI-observed texts evidence the message (OBSERVED), but an unasserted text keeps the spec in review', () => {
+    const obs = (o: Partial<ObservedMessage>): ObservedMessage => ({
+      id: 'om-1',
+      org: 'o',
+      page: 'contact-new',
+      field: 'Contact.Phone',
+      kind: 'validation',
+      placement: 'field',
+      text: 'Enter a valid phone.',
+      persona: 'system-admin',
+      snapshotId: 's',
+      observedAt: '2026-11-26T10:00:00.000Z',
+      runId: 'observe-1',
+      environment: 'LIVE',
+      ...o,
+    });
+    const c2 = {
+      ...ctx,
+      observedMessages: [
+        obs({}),
+        obs({ id: 'om-2', field: 'Contact.Email', text: 'other field' }),
+        obs({ id: 'om-3', kind: 'duplicate', placement: 'alert', field: 'Contact.Email', text: 'Duplicate!' }),
+      ],
+    };
+    const t = tc('an inline error message is displayed on the Phone field');
+    expect(observedForStep(t, ir(), 0, c2).map((m) => m.text)).toEqual(['Enter a valid phone.']);
+    expect(observedForStep(tc('A possible duplicate warning is displayed'), ir(), 0, c2).map((m) => m.text)).toEqual([
+      'Duplicate!',
+    ]);
+    expect(observedForStep(t, ir(), 0, ctx)).toEqual([]);
+    const s = spec(ir());
+    const f = pass2Findings({ ctx: c2, cases: [t], specs: [s], toolchain: toolchain(s), dryRun: dryRun(s) });
+    expect(f.map((x) => x.rule)).toContain('message-unasserted');
+    expect(f.map((x) => x.rule)).not.toContain('message-unevidenced');
+    expect(f.find((x) => x.rule === 'message-unasserted')?.text).toMatch(
+      /"Enter a valid phone\." \(OBSERVED 2026-11-26, observe-1\)/,
+    );
   });
 });
 

@@ -10,10 +10,11 @@ import { SnapshotStore } from '../knowledge/snapshotStore.js';
 import type { GuardedSalesforce } from '../sf/client.js';
 import { createSfContext, type SfContext } from '../sf/context.js';
 import { GraphStore } from '../sf/graph/graphStore.js';
+import { registerObserve } from './observe.js';
 
 type Say = (msg: string) => void;
 
-export const DEFAULT_PAGES = ['account-record', 'contact-record', 'contact-new'];
+export const DEFAULT_PAGES = ['account-record', 'contact-record', 'contact-new', 'contact-edit'];
 
 export const registryFile = (root: string): string => join(root, '.qa-memory', 'locators.db');
 
@@ -189,4 +190,5 @@ export function registerLocators(program: Command, rootOf: () => string, say: Sa
         registry.close();
       }
     });
+  registerObserve(loc, rootOf, say);
 }

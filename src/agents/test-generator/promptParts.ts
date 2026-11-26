@@ -70,7 +70,8 @@ export function relevantCatalog(ctx: GenerationContext, tc: TestCase, recipe: Re
     recipe?.plan.steps.flatMap((s) => Object.keys(s.fields).map((f) => `${s.object}.${f}`)) ?? [],
   );
   return ctx.catalog.pages
-    .filter((p) => objects.has(p.object))
+    // Edit forms have no IR action that opens them yet (openEdit is a follow-up): never offered to the model.
+    .filter((p) => objects.has(p.object) && p.kind !== 'edit')
     .map((p) => ({
       ...p,
       members: p.members.filter((m) => {

@@ -1,5 +1,6 @@
 // Generation context + deterministic IR checks (the Test Generator reflects these back to the model; Test Reviewer
 // pass 2 re-runs them on the stored IR). Code decides what is allowed; the model only maps case steps to the IR.
+import type { ObservedMessage } from '../../core/schemas/execution.js';
 import type { DataPlan, DataPlanStep } from '../../core/schemas/data.js';
 import type { IrAction, IrAssertion, TestIR, ValueRef } from '../../core/schemas/generation.js';
 import { isAssertable, type TestCase } from '../../core/schemas/testCase.js';
@@ -23,6 +24,8 @@ export interface GenerationContext {
   facts: SnapshotFacts;
   /** Personas with a configured test user. */
   personas: string[];
+  /** Message texts the Explorer observed in the UI for this org (OBSERVED evidence; Phase 5). */
+  observedMessages?: ObservedMessage[];
 }
 
 const norm = (t: string): string => t.toLowerCase().replace(/\s+/g, ' ').trim();

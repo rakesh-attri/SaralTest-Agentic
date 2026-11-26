@@ -159,6 +159,11 @@ export const ReviewRule = z.enum([
   'message-unevidenced',
   /** The case quotes an error message that differs from the org rule's message the spec asserts. */
   'message-mismatch',
+  /**
+   * The message text is now evidenced by a UI observation (Explorer, OBSERVED) but the spec does not assert it — a
+   * human accepts the observed text and the spec is regenerated to assert it (Phase 5).
+   */
+  'message-unasserted',
 ]);
 export type ReviewRule = z.infer<typeof ReviewRule>;
 
