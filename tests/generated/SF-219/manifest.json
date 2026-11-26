@@ -148,11 +148,10 @@
         "account-contact"
       ],
       "origin": "generated",
-      "reviewReasons": [
-        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p5-build-2"
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p5-build-2",
+      "reviewedBy": "review2-20261126-213002-5ff7"
     },
     {
       "kind": "spec",
@@ -372,11 +371,10 @@
         "account-contact"
       ],
       "origin": "generated",
-      "reviewReasons": [
-        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p5-build-2"
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p5-build-2",
+      "reviewedBy": "review2-20261126-213002-5ff7"
     },
     {
       "kind": "spec",
@@ -601,11 +599,10 @@
         "account-contact"
       ],
       "origin": "generated",
-      "reviewReasons": [
-        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p5-build-2"
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p5-build-2",
+      "reviewedBy": "review2-20261126-213002-5ff7"
     },
     {
       "kind": "spec",
@@ -800,10 +797,12 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+        "RF-008 judge: Wrong field filled in New Contact dialog: Step 2 uses `newContactDialog.title.fill('Account Executive')` but `title` in the page object refers to the dialog title ('New Contact'), not the Contact Title field. The test should use the Title field locator (e.g., `newContactDialog.titleField`) to enter the Title value. This same error repeats in steps 3, 4, and 5 for 'Sales Manager', 'Director', and 'VP Sales'.",
+        "RF-009 judge: Missing assertion for Title field visibility in step 1: The test case expects 'Contact creation page opens with Title field visible' but step 1 only asserts `newContactDialog.root` and `newContactDialog.title` (dialog title) are visible. It does not verify the Contact Title field is present and visible in the dialog."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p5-build-2"
+      "buildRun": "run-p5-build-2",
+      "reviewedBy": "review2-20261126-213002-5ff7"
     },
     {
       "kind": "spec",
@@ -1032,11 +1031,10 @@
         "account-contact"
       ],
       "origin": "generated",
-      "reviewReasons": [
-        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p5-build-2"
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p5-build-2",
+      "reviewedBy": "review2-20261126-213002-5ff7"
     },
     {
       "kind": "spec",
@@ -1159,10 +1157,17 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-001 locator-unresolved: locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep"
+        "RF-001 locator-unresolved: account-record.contactsNewButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-002 locator-unresolved: account-record.contactsRelatedList did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-003 locator-unresolved: account-record.relatedTab did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-004 locator-unresolved: contact-new.email did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-005 locator-unresolved: contact-new.lastName did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-006 locator-unresolved: contact-new.root did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-007 locator-unresolved: contact-new.saveButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)"
       ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p5-build-2"
+      "reviewStatus": "BLOCKED",
+      "buildRun": "run-p5-build-2",
+      "reviewedBy": "review2-20261126-213002-5ff7"
     },
     {
       "kind": "spec",
@@ -1240,10 +1245,12 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+        "RF-010 judge: Missing assertion for pre-existing contact alongside duplicate: Test case step 4 expects SOQL to confirm the new Contact exists on the Account with Email '<EMAIL_2>' alongside the pre-existing Contact. The generated test step 4 only verifies the duplicate contact's Email and Account.Name via soqlValue polls, but does not assert that the pre-existing Contact (created by the recipe) still exists on the same Account with the same Email. This expected result from the test case is not asserted.",
+        "RF-011 judge: Step 5 assertion does not match test case expectation: Test case step 5 expects 'Test execution result shows PASS for the duplicate warning scenario, confirming RE_VERIFY status is satisfied' for MTC-009 regression verification. The generated test step 5 instead asserts that the pre-existing Contact (data.value('Contact', 'LastName')) is visible in the related list. This is a different assertion that does not correspond to the test case's expected result about regression test verification status."
       ],
       "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p5-build-2"
+      "buildRun": "run-p5-build-2",
+      "reviewedBy": "review2-20261126-213002-5ff7"
     },
     {
       "kind": "spec",
