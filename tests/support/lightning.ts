@@ -69,8 +69,12 @@ export async function closeSavePopover(page: Page, timeout = 10_000): Promise<vo
   const popover = page.getByRole('dialog', { name: /^(We hit a snag|Similar Records Exist)/ });
   // The popover can render a moment after the field turns invalid (qa-prod run-p5-live-2): retry close + check.
   await expect(async () => {
-    for (const b of await popover.getByRole('button', { name: 'Close error dialog' }).all()) {
-      if (await b.isVisible().catch(() => false)) await b.click();
+    // Topmost first: Lightning can stack two copies of the popover, and the active (last-rendered) one intercepts
+    // clicks on the Close button of the one below (qa-prod run-p5-live-7, TC-050). A blocked click is retried in
+    // the next round, after the popover on top of it is gone.
+    const buttons = await popover.getByRole('button', { name: 'Close error dialog' }).all();
+    for (const b of buttons.reverse()) {
+      if (await b.isVisible().catch(() => false)) await b.click({ timeout: 2_000 }).catch(() => undefined);
     }
     await expect(popover).toHaveCount(0, { timeout: 1_000 });
   }).toPass({ timeout });

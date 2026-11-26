@@ -148,12 +148,12 @@ describe('Lightning + a11y helpers on the offline fixture (real Chromium, FIXTUR
     expect(await dialog.getByRole('textbox', { name: 'Mailing City', exact: true }).inputValue()).toBe('Bengaluru');
   });
 
-  it('expectSavePopover: Lightning rendering the popover twice is one warning; every copy is closed (qa-prod run-p5-live-6)', async () => {
+  it('expectSavePopover: Lightning rendering the popover twice is one warning; every copy is closed, topmost first (qa-prod run-p5-live-6/7)', async () => {
     await page.setContent(
       [1, 2]
         .map(
           (n) =>
-            `<div role="dialog" aria-label="Similar Records Exist" id="p${String(n)}"><button aria-label="Close error dialog" onclick="document.getElementById('p${String(n)}').remove()">x</button><h2>Similar Records Exist</h2><p>This record looks like an existing record.</p></div>`,
+            `<div role="dialog" aria-label="Similar Records Exist" id="p${String(n)}" style="position:fixed;top:0;left:0;width:320px;height:120px;background:#fff"><button aria-label="Close error dialog" onclick="document.getElementById('p${String(n)}').remove()">x</button><h2>Similar Records Exist</h2><p>This record looks like an existing record.</p></div>`,
         )
         .join(''),
     );
