@@ -163,7 +163,7 @@ _Last updated: Phase 5 execution & reporting — 2026-11-26 (branch `claude/phas
 | Per-persona dry-runs in `qa review --pass 2`; re-review keeps the manifest's file facts and carries judge findings over during a judge outage | implemented | `src/cli/review2.ts`, `pass2.ts` | Fixed a pre-existing loss of `dependsOn` on re-review |
 | Exact model errors (status + provider text per attempt; "Model attempts that failed" after every command; fallback answers named) | implemented | `src/models/attemptLog.ts`, `structured.ts`, `guarded.ts` | Probe run-p5-coder-probe-1 (NIM IR contract break; Groq 400 / 429) |
 | Reports: Playwright HTML, reporting-labs (JIRA links, environment card + title label, history across runs, JSON), execution report md/html, release confidence, cleanup / reconciliation, impact & coverage + rtm-results.xlsx, history, model attempts, index | implemented | `src/report/`, `playwright.config.ts`, `qa report --run` | Visual-diff (Phase 6), exploration and defect reports (Phase 7) not produced yet |
-| JIRA run comment: draft, approval bound to sha256 (`publish-run-comment`, all autonomy levels), Rovo MCP v2 `addOrEditJiraIssueComment` add mode → REST fallback, audit, never posted twice | implemented (not yet posted) | `src/report/jiraComment.ts`, `qa report comment` | Draft for run-p5-live-4 awaiting operator approval |
+| JIRA run comment: draft, approval bound to sha256 (`publish-run-comment`, all autonomy levels), Rovo MCP v2 `addOrEditJiraIssueComment` add mode → REST fallback, audit, never posted twice | implemented | `src/report/jiraComment.ts`, `qa report comment` | Posted to SF-219 (comment 10068, approval AP-ced0698c5f74) via REST: MCP refused ("Cloud id … isn't explicitly granted") |
 | Independent run validator | implemented | `scripts/validate-run.ts` (`pnpm validate:run`) | fixture-4, live-4, live-chrome-2 valid |
 | SF-219 live results | partial | `runs/run-p5-live-4` | 3 PASS, 4 FAIL (after a related-list Save qa-prod stays on the Account; the specs expect the Contact page) — not investigated (Phase 7) |
 | sales-rep execution | blocked | `config/personas.yaml` | **Blocker:** the sales-rep user has no Contact access on qa-prod (`sObject type 'Contact' is not supported`); TC-032/044/047/048 BLOCKED |
@@ -177,6 +177,7 @@ _Last updated: Phase 5 execution & reporting — 2026-11-26 (branch `claude/phas
 | Full Copy sandbox `fc-admin`: placeholder org ID/URL, expired sf session | later live runs on the sandbox | Rakesh / SF admin | Fill `config/orgs.yaml`, authorize with `pnpm qa auth login --org fc-admin` |
 | Dedicated non-admin test users (sales rep, read only) on qa-prod, pre-approved on the ECA | persona-based UI/permission checks (AC6), BLOCKED-NO-PERSONA otherwise | SF admin | Create users, approve on the ECA, add to `config/personas.yaml`, `pnpm qa auth login --persona <id>` |
 | Digital Experiences not enabled in qa-prod | Explorer on Experience Cloud | SF admin | Enable + create a site, or explore it in the Full Copy sandbox |
+| Rovo MCP OAuth consent does not grant the Jira site (cloud id) | JIRA writes / reads through MCP (REST carried the comment) | Rakesh | Re-run the MCP consent and grant the site, then `pnpm qa mcp tools --server atlassian-rovo --include-oauth` |
 | sales-rep test user has no Contact access on qa-prod | TC-032 / 044 / 047 / 048 (persona-based AC1 / AC3) | SF admin | Permission set with Contact (and Account) read/create for the sales-rep user, then `pnpm qa locators dry-run --persona sales-rep` and `qa review --pass 2` |
 | Four SF-219 specs assume the Contact page opens after a related-list Save; qa-prod stays on the Account | TC-007 / 010 / 026 / 036 pass | product owner + operator | Decide: requirement (product differs) or assumption (regenerate the specs) |
 | Observed message texts not accepted yet | text assertions in TC-046 / 048 / 050 | operator | Accept the texts in `runs/run-p5-observe-8/observe/observed-messages.md`, then `qa build --cases` |
@@ -189,7 +190,7 @@ _Last updated: Phase 5 execution & reporting — 2026-11-26 (branch `claude/phas
 
 | Capability | Status | Phase |
 |---|---|---|
-| Runner, reporting-labs + Playwright HTML, JIRA comment, Account→Contact demo | implemented (Phase 5; JIRA comment awaiting approval) | 5 |
+| Runner, reporting-labs + Playwright HTML, JIRA comment, Account→Contact demo | implemented (Phase 5) | 5 |
 | Visual QA | planned | 6 |
 | Investigation, healing, exploration, fault injection | planned | 7 |
 | DeepEval judge model over the judge chain (OpenAI-compatible, failover on 429) | partial (pre-Phase-4) | `src/eval/judgeEndpoint.ts`, `eval/qa_eval/judge_model.py` |

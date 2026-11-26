@@ -449,7 +449,7 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
 
 ### Phase 5 — Execution & reporting
 - [x] Runner (approved tests only), browser channel switch, result states incl. UNCERTAIN, LIVE/FIXTURE/MOCK labels
-- [x] reporting-labs + Playwright HTML + additional reports; JIRA comment (drafted; posted after operator approval)
+- [x] reporting-labs + Playwright HTML + additional reports; JIRA comment (posted after operator approval: SF-219 comment 10068)
 - [x] Application Explorer captures error texts by observation on qa-prod (operator 2026-11-26). This is safe because
       a rejected save creates no record, so there is nothing to clean up; still verify by SOQL that no record exists
       after each attempt.
@@ -467,7 +467,8 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
   labels, data CLEAN with re-query 0, all reports, `pnpm validate:run` valid; `Contact.AccountId` verified by SOQL in
   `run-p5-live-data-2`. Test results: **3 PASS, 4 FAIL** on both (the 4 specs expect the Contact page after a
   related-list Save; qa-prod stays on the Account) — not investigated (Phase 7). sales-rep specs BLOCKED (no Contact
-  access). JIRA comment drafted, awaiting approval. See `docs/phase-5-notes.md`.
+  access). JIRA comment posted after approval (SF-219 comment 10068, via REST; MCP consent lacks the site). See
+  `docs/phase-5-notes.md`.
 
 ### Phase 6 — Visual QA
 - [ ] Baselines + masking + approve command; layout checks; states; viewports; a11y; visual-diff report

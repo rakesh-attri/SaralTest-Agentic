@@ -148,8 +148,12 @@ run-p5-live-data-2` → all data outputs valid.
 
 ### JIRA comment
 
-Drafted for `run-p5-live-4` (`runs/run-p5-live-4/report/jira-comment.md`, sha256 `8409a6da…`). Rovo MCP v2 connection
-re-tested (26 tools). **Not posted yet: awaiting the operator's approval of the exact text.**
+Drafted for `run-p5-live-4` (`runs/run-p5-live-4/report/jira-comment.md`, sha256 `8409a6da…`), shown to the operator,
+approved in chat and recorded as `AP-ced0698c5f74` (Rakesh Sharma). **Posted to SF-219 as comment 10068** via JIRA
+REST: the Rovo MCP v2 path was tried first and refused by Atlassian ("Cloud id … isn't explicitly granted by the
+user" — the MCP OAuth consent does not include this Jira site). Audit: MCP ALLOWED → FAILED, REST ALLOWED →
+SUCCEEDED, all under the approval; `.qa-memory/publications.jsonl` records it. Read back (HTTP 200): the full text is
+on the issue; the REST fallback posts plain text (no bold).
 
 ## Not verified / known limits
 
@@ -164,7 +168,7 @@ re-tested (26 tools). **Not posted yet: awaiting the operator's approval of the 
 
 ## Open items for the operator
 
-1. Approve (or edit) the JIRA comment text, then it is posted.
+1. Rovo MCP: re-consent so the OAuth grant includes the Jira site (the comment went through REST).
 2. Salesforce admin: give the sales-rep test user Contact (and Account) access through a permission set.
 3. Decide on the four "stays on the Account" failures: is "the Contact detail page opens after Save" a requirement
    (→ product behaviour differs) or an assumption (→ regenerate the specs)?
