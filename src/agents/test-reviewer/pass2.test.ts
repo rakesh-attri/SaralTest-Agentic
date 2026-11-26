@@ -449,3 +449,35 @@ describe('case quote vs org rule message (operator 2026-11-26)', () => {
     expect(messageMismatches(tc("error 'Enter a 10-digit phone number.' is shown"), ir, ctx)).toEqual([]);
   });
 });
+
+describe('no URL or record-id assertions (operator rule 2026-11-26)', () => {
+  it('rejects URL checks, ids read from the URL, id comparisons and hard-coded ids; the after-Save pattern passes', () => {
+    const bad = [
+      "test('x', async ({ page, data, sf }) => {",
+      "  viewed['c'] = await recordIdFromView(page, 'Contact');",
+      "  await data.adoptCreated('c', 'Contact', viewed['c']);",
+      String.raw`  await expect(page).toHaveURL(/\/lightning\/r\/Contact\/[a-zA-Z0-9]{15,18}\/view/);`,
+      "  await expect.poll(() => soqlValue(sf, 'Contact', viewed['c'] ?? '', 'AccountId')).toBe(data.id('Account'));",
+      "  expect(page.url()).toContain('003dN00000AbCd1');",
+      '});',
+    ].join('\n');
+    const v = astViolations(bad).filter((x) => x.rule === 'dynamic-assertion');
+    expect(v.map((x) => x.text).join('\n')).toMatch(/recordIdFromView reads the record id/);
+    expect(v.map((x) => x.text).join('\n')).toMatch(/adoptCreated/);
+    expect(v.map((x) => x.text).join('\n')).toMatch(/URL check \(expect\(page\)\.toHaveURL\)/);
+    expect(v.map((x) => x.text).join('\n')).toMatch(/compares a record id \(data\.id\('Account'\)\)/);
+    expect(v.map((x) => x.text).join('\n')).toMatch(/hard-coded record id '003dN00000AbCd1'/);
+    const good = [
+      "test('x', async ({ page, data }) => {",
+      '  await expectToast(page, name);',
+      '  await expect(relatedListRecord(list, name)).toBeVisible();',
+      "  await data.adopt('c', 'Contact', 'LastName', name);",
+      '  await relatedListRecord(list, name).click();',
+      '  await expectRecordTitle(page, name);',
+      "  const saved = await data.tagged('Contact', { LastName: name }, ['LastName', 'Account.Name']);",
+      "  expect(saved[0]).toMatchObject({ LastName: name, 'Account.Name': data.value('Account', 'Name') });",
+      '});',
+    ].join('\n');
+    expect(astViolations(good).filter((x) => x.rule === 'dynamic-assertion')).toEqual([]);
+  });
+});

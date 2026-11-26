@@ -77,6 +77,17 @@ export async function closeSavePopover(page: Page, timeout = 10_000): Promise<vo
 }
 
 /**
+ * Lightning's save popover (e.g. "Similar Records Exist" of an active duplicate rule, alert action) shows the text,
+ * then it is closed so the record form is reachable again (closing it saves nothing).
+ */
+export async function expectSavePopover(page: Page, heading: string, text: string): Promise<void> {
+  const popover = page.getByRole('dialog', { name: heading });
+  await expect(popover).toBeVisible({ timeout: 20_000 });
+  await expect(popover).toContainText(text);
+  await closeSavePopover(page);
+}
+
+/**
  * Field-level save error: the input is marked invalid (Lightning sets aria-invalid on the inner input). With a
  * message (generated tests take it from the org's validation rule), the field's error text — linked to the input
  * through aria-describedby — must contain it.

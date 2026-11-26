@@ -96,6 +96,15 @@ export class SnapshotFacts {
     if (!c) return undefined;
     return { createable: c.body?.['createable'] !== false, deletable: c.body?.['deletable'] !== false };
   }
+  /** Every known field of an object (UNKNOWN components excluded). */
+  fields(object: string): FieldFact[] {
+    const prefix = `Field|${object}.`;
+    return [...this.byKey.keys()]
+      .filter((k) => k.startsWith(prefix))
+      .map((k) => this.field(object, k.slice(prefix.length)))
+      .filter((f): f is FieldFact => f !== undefined);
+  }
+
   field(object: string, field: string): FieldFact | undefined {
     const c = this.known('Field', `${object}.${field}`);
     if (!c) return undefined;

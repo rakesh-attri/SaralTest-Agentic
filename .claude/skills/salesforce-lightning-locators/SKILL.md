@@ -27,8 +27,11 @@ and most LWCs. **Never** reach into shadow roots with CSS chains.
   `.first()` / `.last()` used to hide non-unique matches.
 - `.slds-*` structural chains (`.slds-form-element .slds-input`), `force-*` / `lightning-*` tag chains deeper than 1.
 - `page.waitForTimeout()` and fixed sleeps. Use web-first assertions and the helpers below.
-- Record IDs or record names that come from data in a locator for navigation — navigate by URL
-  (`/lightning/r/<Object>/<Id>/view`) with the ID from the data ledger instead.
+- Record IDs or record names that come from data in a locator for navigation — open a record the data factory
+  created by its ledger id (`openRecord`), and a record the test created in the UI **from the related list** by its
+  run-unique name.
+- **Assertions on URLs or record IDs** (`toHaveURL`, `page.url()`, `recordIdFromView`, id comparisons, hard-coded ids):
+  they are dynamic (operator rule 2026-11-26). Test Reviewer pass 2 rejects them (`dynamic-assertion`).
 
 ## Scoping (do this always)
 
@@ -58,7 +61,8 @@ await modal.getByRole('button', { name: 'Save', exact: true }).click();
 | Toast | `expectToast(page, /was created|was saved/)` — helper uses the toast container's role (verify `alert`/`status` per org via Explorer) and auto-dismiss handling |
 | Spinner | `waitForSpinners(page)` — waits until no visible `lightning-spinner` / `[role="status"]` spinner inside the scope |
 | Inline edit | `getByRole('button', { name: /^Edit Amount/ })` then field by label inside the edit panel |
-| Errors on save | `scope.getByRole('alert')` or page-level error container; assert message text, not position |
+| Errors on save | field: `expectFieldError(field, text)`; page: Lightning's "We hit a snag." / "Similar Records Exist" popover is its **own modal dialog** that hides the form from the accessibility tree — `closeSavePopover(page)` / `expectSavePopover(page, heading, text)` |
+| Picklist near the bottom of a modal | the docked form footer can cover its options — `selectPicklist` falls back to the keyboard (same value) |
 
 Labels may differ per profile/record type and are translatable: keep label strings in page objects, never in tests,
 and use the label the Application Explorer captured for that persona.
@@ -66,7 +70,13 @@ and use the label the Application Explorer captured for that persona.
 ## Waiting strategy
 
 - Use `await expect(locator).toBeVisible()` / `toHaveValue` / `toHaveText` (auto-retrying).
-- After Save: `await expectToast(...)` **or** wait for the URL `/lightning/r/<Object>/<15|18-char Id>/view`.
+- After a create Save (a related-list Save **stays on the parent record** in Lightning) — never wait for a URL:
+  1. the success toast contains the name we entered (`expectToast(page, name)`);
+  2. the record appears in the related list with that exact name (`relatedListRecord(list, name)` visible);
+  3. open it from the related list and assert the record header shows the same name (`expectRecordTitle`);
+  4. verify with SOQL **by the run tag** that the stored values match what we entered
+     (`data.tagged(object, { LastName: name }, [...fields])` → exactly 1 record, `toMatchObject` the typed values;
+     a parent is compared by name, e.g. `Account.Name`, never by id).
 - After navigation: `await waitForSpinners(page)`.
 - Async automation (flows, queueables): **do not** poll the UI — poll via API (see salesforce-api-testing).
 

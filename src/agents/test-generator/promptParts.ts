@@ -30,13 +30,15 @@ type Action =
   | { do: "click"; element: Ref }
   | { do: "selectTab"; element: Ref }
   | { do: "apiUpdate"; ref: StepId; fields: Record<string, Value> }
-// Cleanup is automatic: after Save in a create dialog assert recordView (with "as"); code registers that record
-// for cleanup. Preconditions come from the recipe ("data" refs). Never write cleanup or adopt.
+// NEVER assert URLs or record ids. After a successful create-dialog Save assert recordView ("as"); code checks
+// toast, related list, header and SOQL by run tag, and cleans up. Its name field: a "unique" value.
+// Preconditions come from the recipe ("data" refs). Never write cleanup or adopt.
 type Assertion =
   | { check: "visible" | "hidden"; element: Ref; expect: Expect }
-  // message: the validation rule (API name from "rule ..." in the org facts) whose error the field shows; code
-  // supplies its text from the org. Omit it when no listed rule produces the error (never write message text).
-  | { check: "fieldError"; element: Ref; message?: { rule: string }; expect: Expect }
+  // message: a "rule ..." or "observed ..." id from the org facts (code supplies the text); else omit it
+  | { check: "fieldError"; element: Ref; message?: { rule: string } | { observed: string }; expect: Expect }
+  // save warning popover (duplicate alert): an "observed ..." alert id
+  | { check: "saveWarning"; observed: string; expect: Expect }
   // a field's current value: textboxes, lookups (e.g. a pre-filled Account Name) and picklists
   | { check: "inputValue"; element: Ref; equals: Value; expect: Expect }
   | { check: "toast"; contains?: Value; expect: Expect }
@@ -46,6 +48,7 @@ type Assertion =
   // picklist, lookup name). Phone / date / number values are locale-formatted there: check those with soqlField.
   | { check: "recordField"; element: Ref; contains: Value; expect: Expect }
   | { check: "relatedListHasRecord"; parentRef: StepId; relatedList: string; name: Value; expect: Expect }
+  // field may be "Account.Name" (compare a parent by name, never ids)
   | { check: "soqlField"; ref: StepId | string; object: string; field: string; equals: Value; expect: Expect }
   | { check: "soqlNoRecord"; object: string; field: string; value: Value; expect: Expect }
   | { check: "apiRejects"; object: string; basedOn: StepId; fields?: Record<string, Value>; remove?: string[]; errorCodes: string[]; expect: Expect }
@@ -69,30 +72,32 @@ export function relevantCatalog(ctx: GenerationContext, tc: TestCase, recipe: Re
   const recipeFields = new Set(
     recipe?.plan.steps.flatMap((s) => Object.keys(s.fields).map((f) => `${s.object}.${f}`)) ?? [],
   );
-  return ctx.catalog.pages
-    // Edit forms have no IR action that opens them yet (openEdit is a follow-up): never offered to the model.
-    .filter((p) => objects.has(p.object) && p.kind !== 'edit')
-    .map((p) => ({
-      ...p,
-      members: p.members.filter((m) => {
-        if (m.kind === 'region' || m.role === 'tab') return true;
-        if (m.role && FIELD_ROLES.has(m.role)) {
-          if (p.kind === 'dialog' && allFields) return true;
-          return (
-            mentioned(text, m) ||
-            (m.fieldApiName !== undefined &&
-              (recipeFields.has(m.fieldApiName) ||
-                ctx.facts.field(p.object, m.fieldApiName.split('.')[1] ?? '')?.required === true))
-          );
-        }
-        if (m.role === 'button') {
-          const n = m.accessibleName ?? '';
-          if (/^(New|Save|Cancel|Edit|Delete)$/.test(n)) return true;
+  return (
+    ctx.catalog.pages
+      // Edit forms have no IR action that opens them yet (openEdit is a follow-up): never offered to the model.
+      .filter((p) => objects.has(p.object) && p.kind !== 'edit')
+      .map((p) => ({
+        ...p,
+        members: p.members.filter((m) => {
+          if (m.kind === 'region' || m.role === 'tab') return true;
+          if (m.role && FIELD_ROLES.has(m.role)) {
+            if (p.kind === 'dialog' && allFields) return true;
+            return (
+              mentioned(text, m) ||
+              (m.fieldApiName !== undefined &&
+                (recipeFields.has(m.fieldApiName) ||
+                  ctx.facts.field(p.object, m.fieldApiName.split('.')[1] ?? '')?.required === true))
+            );
+          }
+          if (m.role === 'button') {
+            const n = m.accessibleName ?? '';
+            if (/^(New|Save|Cancel|Edit|Delete)$/.test(n)) return true;
+            return mentioned(text, m);
+          }
           return mentioned(text, m);
-        }
-        return mentioned(text, m);
-      }),
-    }));
+        }),
+      }))
+  );
 }
 
 export function catalogText(pages: readonly CatalogPage[]): string {
@@ -137,6 +142,13 @@ export function factsText(
       if (![...fields].some((f) => formula.includes(f))) continue;
       const msg = typeof vr.body?.['errorMessage'] === 'string' ? vr.body['errorMessage'] : '';
       lines.push(`${o} rule ${vr.apiName}: "${msg}" when ${formula}`);
+    }
+    // Accepted UI-observed messages (Explorer, Phase 5): referenced by id, the text is supplied by code.
+    for (const m of ctx.observedMessages ?? []) {
+      if (!m.accepted || !m.field?.startsWith(`${o}.`) || m.placement === 'page') continue;
+      lines.push(
+        `${o} observed ${m.id}: ${m.kind} ${m.placement === 'alert' ? 'save warning (saveWarning)' : `message on ${m.field} (fieldError)`} "${m.accepted.text ?? m.text}"`,
+      );
     }
   }
   return lines.join('\n');

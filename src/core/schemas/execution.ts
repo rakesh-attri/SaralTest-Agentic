@@ -123,5 +123,10 @@ export const ObservedMessage = z.object({
   environment: z.enum(['LIVE', 'FIXTURE']),
   /** For duplicate warnings: the rule and its action as declared in the snapshot. */
   rule: z.string().optional(),
+  /**
+   * Human acceptance (PLAN §7f: OBSERVED needs review before an assertion relies on it). `text` is the exact text the
+   * human confirmed when the stored copy is masked by the redactor (e.g. Salesforce's example email address).
+   */
+  accepted: z.object({ by: z.string().min(2), at: IsoDate, text: z.string().min(1).optional() }).optional(),
 });
 export type ObservedMessage = z.infer<typeof ObservedMessage>;

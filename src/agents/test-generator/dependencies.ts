@@ -3,7 +3,7 @@
 // or registry change to any of them makes the spec STALE (never executed until rebuilt).
 import type { SpecDependency, TestIR } from '../../core/schemas/generation.js';
 import type { SnapshotFacts } from '../../sf/data/plan.js';
-import { fieldErrorRule, type GenerationContext, type RecipeView } from './context.js';
+import { fieldErrorRule, relationshipOf, type GenerationContext, type RecipeView } from './context.js';
 import { findMember, hashText, type PageCatalog } from './pageObjects.js';
 import { locatorsUsed } from './render.js';
 
@@ -25,7 +25,17 @@ export function specDependencies(ir: TestIR, ctx: GenerationContext, recipe: Rec
   const rules = new Set<string>(); // Obj.Rule
   const objectOf = (ref: string): string | undefined => recipe?.plan.steps.find((s) => s.stepId === ref)?.object;
   const addField = (object: string | undefined, field: string | undefined): void => {
-    if (object && field) fields.add(`${object}.${field}`);
+    if (!object || !field) return;
+    const [rel, parentField] = field.split('.');
+    if (!parentField) {
+      fields.add(`${object}.${field}`);
+      return;
+    }
+    // `Account.Name` through a lookup: depend on the lookup field and on the parent's field.
+    const lookup = ctx.facts.fields(object).find((f) => relationshipOf(f.apiName.split('.').pop() ?? '') === rel);
+    if (lookup) fields.add(lookup.apiName);
+    const target = lookup?.referenceTo[0];
+    if (target) fields.add(`${target}.${parentField}`);
   };
   const valueFields = (v: unknown): void => {
     if (v && typeof v === 'object' && 'kind' in v && v.kind === 'data' && 'ref' in v && 'field' in v)
@@ -46,7 +56,7 @@ export function specDependencies(ir: TestIR, ctx: GenerationContext, recipe: Rec
         }
     }
     for (const a of st.assertions) {
-      if (a.check === 'fieldError' && a.message) {
+      if (a.check === 'fieldError' && a.message && 'rule' in a.message) {
         const r = fieldErrorRule(ctx, a.element, a.message.rule);
         if ('rule' in r) rules.add(r.rule);
       }

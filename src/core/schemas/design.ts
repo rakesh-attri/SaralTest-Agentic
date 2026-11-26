@@ -164,6 +164,11 @@ export const ReviewRule = z.enum([
    * human accepts the observed text and the spec is regenerated to assert it (Phase 5).
    */
   'message-unasserted',
+  /**
+   * A generated test asserts on a URL or a record id (dynamic values). Operator rule 2026-11-26: after Save assert
+   * toast → related list → header → SOQL by run tag instead. Blocking.
+   */
+  'dynamic-assertion',
 ]);
 export type ReviewRule = z.infer<typeof ReviewRule>;
 

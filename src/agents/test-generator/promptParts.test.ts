@@ -252,13 +252,60 @@ describe('cleanup is code-owned (operator 2026-11-25: the model never writes cle
     return ir;
   };
 
-  it('the record shown after a create-dialog Save is registered by the renderer (data.adoptCreated)', () => {
+  it('after a create-dialog Save: toast, related list, header, SOQL by run tag — never a URL or record id', () => {
     const n = normalizeIr(saveStep([{ check: 'recordView', object: 'Contact', expect: ev }]), ctx, recipe, tc);
     expect(n.steps[0]!.assertions[0]).toMatchObject({ check: 'recordView', as: 'createdContact1' });
     expect(irProblems(tc, n, ctx, recipe)).toEqual([]);
     const text = renderSpec({ tc, ir: n, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
-    expect(text).toContain("viewed['createdContact1'] = await recordIdFromView(page, 'Contact');");
-    expect(text).toContain("await data.adoptCreated('createdContact1', 'Contact', viewed['createdContact1']);");
+    const order = [
+      'await expectToast(page, len79);',
+      'await expect(relatedListRecord(accountRecordPage.contactsRelatedList, len79)).toBeVisible();',
+      "await data.adopt('createdContact1', 'Contact', 'LastName', len79);",
+      'await relatedListRecord(accountRecordPage.contactsRelatedList, len79).click();',
+      'await expectRecordTitle(page, len79);',
+      "const saved = await data.tagged('Contact', { 'LastName': len79 }, ['LastName', 'Account.Name']);",
+      "expect(saved[0]).toMatchObject({ 'LastName': len79, 'Account.Name': data.value('Account', 'Name') });",
+    ].map((l) => text.indexOf(l));
+    expect(order.every((x) => x >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(text).not.toMatch(/recordIdFromView|toHaveURL|adoptCreated|viewed\[/);
+  });
+
+  it('a case literal typed as the record name becomes run-unique; a parent id comparison becomes a name comparison', () => {
+    const lit = { kind: 'literal' as const, value: 'TestContact', evidenceIds: ['SF-219#AC2'] };
+    const ir = saveStep([
+      { check: 'recordView', object: 'Contact', as: 'c', expect: ev },
+      { check: 'recordTitle', contains: lit, expect: ev },
+      {
+        check: 'soqlField',
+        ref: 'c',
+        object: 'Contact',
+        field: 'AccountId',
+        equals: { kind: 'recordId', ref: 'Account' },
+        expect: ev,
+      },
+    ]);
+    ir.steps[0]!.actions[1] = { do: 'fill', element: 'contact-new.lastName', value: lit };
+    const n = normalizeIr(ir, ctx, recipe, tc);
+    expect(n.steps[0]!.actions[1]).toMatchObject({ value: { kind: 'unique', label: 'test-contact' } });
+    expect(n.steps[0]!.assertions[1]).toMatchObject({ contains: { kind: 'unique', label: 'test-contact' } });
+    expect(n.steps[0]!.assertions[2]).toMatchObject({
+      field: 'Account.Name',
+      equals: { kind: 'data', ref: 'Account', field: 'Name' },
+    });
+    expect(n.notes.join(' ')).toMatch(/run-unique \(label 'TestContact'\)/);
+    // a record id comparison the normaliser cannot map is refused
+    const raw = saveStep([
+      {
+        check: 'soqlField',
+        ref: 'Account',
+        object: 'Account',
+        field: 'Id',
+        equals: { kind: 'recordId', ref: 'Account' },
+        expect: ev,
+      },
+    ]);
+    expect(irProblems(tc, raw, ctx, recipe).join('\n')).toMatch(/never compare record ids/);
   });
 
   it('model-written adopts are removed; a Save with neither recordView nor a rejection assertion is a problem', () => {
@@ -278,7 +325,7 @@ describe('cleanup is code-owned (operator 2026-11-25: the model never writes cle
 
   it('the IR contract no longer offers adopt', () => {
     expect(IR_CONTRACT).not.toContain('do: "adopt"');
-    expect(IR_CONTRACT).toMatch(/Cleanup is automatic/);
+    expect(IR_CONTRACT).toMatch(/NEVER assert URLs or record ids/);
   });
 });
 
@@ -530,5 +577,84 @@ describe('record-page field values, duplicate expects (operator 2026-11-26)', ()
     ];
     const text = renderSpec({ tc, ir, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
     expect(text.split('await expect(newContactDialog.root).toBeVisible();').length - 1).toBe(1);
+  });
+});
+
+describe('accepted observed messages as assertion text (Phase 5)', () => {
+  const ctx0 = generationContext();
+  const recipe = bindRecipe(CASE, ctx0);
+  const at = '2026-11-26T10:00:00.000Z';
+  const base = {
+    org: 'o',
+    page: 'contact-new',
+    persona: 'system-admin',
+    snapshotId: 's',
+    observedAt: at,
+    runId: 'observe-8',
+    environment: 'LIVE' as const,
+  };
+  const ctx = {
+    ...ctx0,
+    observedMessages: [
+      {
+        ...base,
+        id: 'om-req',
+        field: 'Contact.LastName',
+        kind: 'required' as const,
+        placement: 'field' as const,
+        text: 'Complete this field.',
+        accepted: { by: 'QA operator', at },
+      },
+      {
+        ...base,
+        id: 'om-dup',
+        field: 'Contact.Email',
+        kind: 'duplicate' as const,
+        placement: 'alert' as const,
+        text: 'Similar Records Exist This record looks like an existing record. View Duplicates',
+        accepted: { by: 'QA operator', at },
+      },
+      {
+        ...base,
+        id: 'om-new',
+        field: 'Contact.LastName',
+        kind: 'required' as const,
+        placement: 'field' as const,
+        text: 'x',
+      },
+    ],
+  };
+  const ev = { caseStep: 0, evidenceIds: CASE.steps[0]!.expected.evidenceIds };
+  const ir = (assertions: TestIR['steps'][number]['assertions']): TestIR => ({
+    ...structuredClone(GOOD_IR),
+    steps: [
+      {
+        caseStep: 0,
+        title: 'Save',
+        actions: [{ do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' }],
+        assertions,
+      },
+    ],
+  });
+
+  it('renders the accepted text (never the text of the model) and refuses an unaccepted one', () => {
+    const ok = ir([
+      { check: 'fieldError', element: 'contact-new.lastName', message: { observed: 'om-req' }, expect: ev },
+      { check: 'saveWarning', observed: 'om-dup', expect: ev },
+    ]);
+    expect(irProblems(CASE, ok, ctx, recipe).filter((x) => /observed|message/.test(x))).toEqual([]);
+    const text = renderSpec({ tc: CASE, ir: ok, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
+    expect(text).toContain("await expectFieldError(newContactDialog.lastName, 'Complete this field.'); // observed on");
+    expect(text).toContain(
+      "await expectSavePopover(page, 'Similar Records Exist', 'This record looks like an existing record.');",
+    );
+    const bad = ir([
+      { check: 'fieldError', element: 'contact-new.lastName', message: { observed: 'om-new' }, expect: ev },
+    ]);
+    expect(irProblems(CASE, bad, ctx, recipe).join(' ')).toMatch(/om-new is not accepted by a human yet/);
+    const wrongField = ir([
+      { check: 'fieldError', element: 'contact-new.lastName', message: { observed: 'om-dup' }, expect: ev },
+    ]);
+    expect(irProblems(CASE, wrongField, ctx, recipe).join(' ')).toMatch(/alert message, not field/);
   });
 });

@@ -35,6 +35,16 @@ export class ObservedMessageStore {
       .run(v.id, v.org, v.page, v.field ?? '', v.kind, v.persona, v.observedAt, JSON.stringify(v));
   }
 
+  /** Record a human's acceptance of an observed message (optionally with the exact text they confirmed). */
+  accept(id: string, by: string, text?: string, at: Date = new Date()): ObservedMessage {
+    const row = this.db.prepare('SELECT row FROM observed_messages WHERE id = ?').get(id) as { row: string } | undefined;
+    if (!row) throw new Error(`no observed message ${id}`);
+    const m = ObservedMessage.parse(JSON.parse(row.row));
+    const accepted = ObservedMessage.parse({ ...m, accepted: { by, at: at.toISOString(), ...(text ? { text } : {}) } });
+    this.db.prepare('UPDATE observed_messages SET row = ? WHERE id = ?').run(JSON.stringify(accepted), id);
+    return accepted;
+  }
+
   /** Delete every observation of a run (a re-run of the same run id replaces it; wrong captures are withdrawn). */
   removeRun(org: string, runId: string): number {
     const rows = this.db.prepare('SELECT id, row FROM observed_messages WHERE org = ?').all(org) as {

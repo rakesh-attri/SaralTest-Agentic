@@ -117,11 +117,25 @@ export const IrAssertion = z.discriminatedUnion('check', [
   z.object({
     check: z.literal('fieldError'),
     element: ElementRef,
-    message: z.object({ rule: z.string().min(1) }).optional(),
+    /**
+     * Where the message text comes from — never from the model: `rule` = an active validation rule's errorMessage
+     * (snapshot); `observed` = the id of a UI-observed message a human accepted (Phase 5).
+     */
+    message: z.union([z.object({ rule: z.string().min(1) }), z.object({ observed: z.string().min(1) })]).optional(),
     expect: ExpectationRef,
   }),
+  /**
+   * Lightning's save warning popover (e.g. "Similar Records Exist" of an active duplicate rule) shows the accepted
+   * observed text (`observed` = message id). Code renders the text and closes the popover afterwards.
+   */
+  z.object({ check: z.literal('saveWarning'), observed: z.string().min(1), expect: ExpectationRef }),
   z.object({ check: z.literal('toast'), contains: ValueRef.optional(), expect: ExpectationRef }),
-  /** The record view of `object` is shown; the new record id is kept under `as` (for later SOQL checks/adopt). */
+  /**
+   * After a create-dialog Save: the record was saved. Never a URL or record-id check — code renders the operator
+   * rule (2026-11-26): toast names the record → it is in the related list with that name → opened from the list,
+   * its header shows the name → SOQL by the run tag returns exactly it with the values typed. Elsewhere: the record
+   * page of `object` is shown. `as` names the saved record for later checks.
+   */
   z.object({
     check: z.literal('recordView'),
     object: z.string().min(1),

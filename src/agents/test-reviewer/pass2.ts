@@ -14,7 +14,7 @@ import { fieldErrorRule, irProblems, type GenerationContext } from '../test-gene
 import type { GeneratedSpec } from '../test-generator/graph.js';
 import { findMember } from '../test-generator/pageObjects.js';
 import type { ObservedMessage } from '../../core/schemas/execution.js';
-import { A11Y_SCOPE_NOTE } from '../test-generator/render.js';
+import { A11Y_SCOPE_NOTE, AFTER_SAVE_NOTE } from '../test-generator/render.js';
 import type { ToolchainResult } from '../test-generator/toolchain.js';
 import { runStructured } from '../shared/structured.js';
 import type { FindingDraft } from './rules.js';
@@ -33,6 +33,7 @@ const BLOCKING = new Set([
   'persona-unavailable',
   'data-binding',
   'ast-violation',
+  'dynamic-assertion',
 ]);
 /** Only high-severity findings of blocking rules block (e.g. "no dry-run yet" is M: review, not block). */
 const isBlocking = (f: Pick<ReviewFinding, 'rule' | 'severity'>): boolean => BLOCKING.has(f.rule) && f.severity === 'H';
@@ -47,6 +48,7 @@ const REGENERABLE = new Set([
   'meta-incomplete',
   'raw-locator',
   'ast-violation',
+  'dynamic-assertion',
   'typecheck',
   'lint',
   'not-listed',
@@ -107,6 +109,38 @@ export function astViolations(text: string): { rule: ReviewFinding['rule']; text
       if (/^test\.(only|skip)$|^test\.describe\.(only|skip)$/.test(callee)) {
         out.push({ rule: 'ast-violation', text: `${at(n)}: ${callee} must not be generated` });
       }
+      // Operator rule 2026-11-26: never assert on URLs or record ids (dynamic).
+      if (/\.toHaveURL$/.test(callee) || /(^|\.)url$/.test(callee)) {
+        out.push({
+          rule: 'dynamic-assertion',
+          text: `${at(n)}: URL check (${callee}) — URLs are dynamic; assert toast, related list, header and SOQL by run tag`,
+        });
+      }
+      if (/(^|\.)(recordIdFromView|adoptCreated)$/.test(callee)) {
+        out.push({
+          rule: 'dynamic-assertion',
+          text: `${at(n)}: ${callee} reads the record id from the URL — find the saved record by its run-unique name and the run tag`,
+        });
+      }
+      if (/^expect\b.*\.(toBe|toEqual|toStrictEqual|toHaveValue|toContainText)$/.test(callee)) {
+        const arg = n.arguments.map((x) => x.getText(sf)).join(', ');
+        if (/\bdata\.id\(|\bviewed\[|\brecordId\b/.test(arg))
+          out.push({
+            rule: 'dynamic-assertion',
+            text: `${at(n)}: compares a record id (${arg}) — compare names / values instead`,
+          });
+      }
+    }
+    if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isRegularExpressionLiteral(n)) {
+      const t = n.getText(sf);
+      if (/\/lightning\/r\/|lightning\\\/r\\\//.test(t))
+        out.push({ rule: 'dynamic-assertion', text: `${at(n)}: record URL in a test (${t.slice(0, 60)})` });
+      const v = ts.isRegularExpressionLiteral(n) ? '' : n.text;
+      if (/^(0[0-9A-Za-z]{2}|a0[0-9A-Za-z])[0-9A-Za-z]{12}([0-9A-Za-z]{3})?$/.test(v) && /\d{3}/.test(v))
+        out.push({ rule: 'dynamic-assertion', text: `${at(n)}: hard-coded record id '${v}'` });
+    }
+    if (ts.isCallExpression(n)) {
+      const callee = n.expression.getText(sf);
       if (/^page\.(getBy\w+|locator|\$\$?)$/.test(callee)) {
         out.push({ rule: 'raw-locator', text: `${at(n)}: raw locator ${callee}(…) in a test — use a page object` });
       }
@@ -138,10 +172,10 @@ export function unevidencedMessageSteps(tc: TestCase, ir: TestIR): number[] {
     const errs = ir.steps
       .filter((x) => x.caseStep === n)
       .flatMap((x) => x.assertions)
-      .filter((a) => a.check === 'fieldError');
-    // Only a field error whose text comes from an org validation rule evidences the message (warnings and standard
-    // Salesforce messages have no captured evidence yet: Phase 5 Explorer capture).
-    if (!errs.some((a) => a.message)) out.push(n);
+      .filter((a) => a.check === 'fieldError' || a.check === 'saveWarning');
+    // A message is evidenced by a field error whose text comes from an org validation rule or an accepted observed
+    // message, or by a save warning (accepted observed alert text).
+    if (!errs.some((a) => a.check === 'saveWarning' || a.message)) out.push(n);
   });
   return out;
 }
@@ -198,7 +232,7 @@ export function messageMismatches(tc: TestCase, ir: TestIR, ctx: GenerationConte
     const quotes = [...exp.matchAll(/'([^']+)'|"([^"]+)"/g)].map((m) => m[1] ?? m[2] ?? '');
     if (!quotes.length) continue;
     for (const a of st.assertions) {
-      if (a.check !== 'fieldError' || !a.message) continue;
+      if (a.check !== 'fieldError' || !a.message || !('rule' in a.message)) continue;
       const r = fieldErrorRule(ctx, a.element, a.message.rule);
       if ('message' in r && !quotes.includes(r.message))
         out.push({
@@ -479,7 +513,9 @@ export async function reviewPass2Round(i: Pass2Input, deps: Pass2Deps): Promise<
             "case's preconditions. Deterministic checks (lint, types, locators, evidence) are done by code: do not repeat them. " +
             'Return an empty list when the tests match their cases.\n\nOperator scope rules (accepted decisions — never report them as findings): ' +
             A11Y_SCOPE_NOTE +
-            ' The keyboard check (every field reachable by Tab, focus stays in the dialog, visual reading order) is the operator-mandated implementation of "reachable by keyboard".',
+            ' The keyboard check (every field reachable by Tab, focus stays in the dialog, visual reading order) is the operator-mandated implementation of "reachable by keyboard".' +
+            ' ' +
+            AFTER_SAVE_NOTE,
           user: generated
             .map((s) => {
               const tc = i.cases.find((c) => c.id === s.caseId);

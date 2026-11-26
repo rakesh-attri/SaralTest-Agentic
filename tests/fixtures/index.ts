@@ -11,7 +11,7 @@ import { QAError } from '../../src/core/errors.js';
 import { WriteLedger } from '../../src/security/idempotency.js';
 import type { GuardedSalesforce } from '../../src/sf/client.js';
 import { createSfContext, type SfContext } from '../../src/sf/context.js';
-import { DataEngine } from '../../src/sf/data/engine.js';
+import { DataEngine, soqlString } from '../../src/sf/data/engine.js';
 import { dataDir, planData, recipeApproval, writeDataOutputs } from '../../src/sf/dataFactory.js';
 import { runSettings, type RunSettings } from '../support/runConfig.js';
 
@@ -48,6 +48,11 @@ export interface TestData {
    * create-dialog Save, by code). Proven ours by creator + time, then tagged and cleaned up with the rest.
    */
   adoptCreated(as: string, object: string, id: string): Promise<string>;
+  /**
+   * SOQL by this test's run tag (never by URL or id): records of `object` carrying the tag and matching `where`, with
+   * the `select` fields (parent fields such as `Account.Name` flattened to that key).
+   */
+  tagged(object: string, where: Record<string, string>, select: string[]): Promise<Record<string, unknown>[]>;
 }
 
 interface WorkerFixtures {
@@ -171,6 +176,32 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         if (!e) throw new QAError('DATA', 'adopt needs data.create first (the run tag comes from the plan)');
         uniques++;
         return e.adopt(as, object, field, value);
+      },
+      async tagged(object, where, select) {
+        const e = engines[0];
+        if (!e) throw new QAError('DATA', 'tagged needs data.create first (the run tag comes from the plan)');
+        const tag = e.plan.runTag;
+        if (!tag.field) throw new QAError('DATA', 'this org has no run-tag field (orgs.yaml runTagField)');
+        const ident = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$/;
+        for (const f of [object, ...Object.keys(where), ...select])
+          if (!ident.test(f)) throw new QAError('DATA', `tagged: invalid name ${f}`);
+        const conds = [
+          `${tag.field} = ${soqlString(tag.value)}`,
+          ...Object.entries(where).map(([k, v]) => `${k} = ${soqlString(v)}`),
+        ];
+        const fields = [...new Set(['Id', ...select])];
+        const rows = await sf.query(
+          `SELECT ${fields.join(', ')} FROM ${object} WHERE ${conds.join(' AND ')}`,
+        );
+        return rows.map((r) => {
+          const out: Record<string, unknown> = {};
+          for (const f of select) {
+            const [head, tail] = f.split('.');
+            const v = r[head ?? f];
+            out[f] = tail ? (v && typeof v === 'object' ? (v as Record<string, unknown>)[tail] : null) : v;
+          }
+          return out;
+        });
       },
       async adoptCreated(as, object, id) {
         const e = engines[0];

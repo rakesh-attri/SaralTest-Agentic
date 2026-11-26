@@ -2,7 +2,7 @@
 // pass 2 re-runs them on the stored IR). Code decides what is allowed; the model only maps case steps to the IR.
 import type { ObservedMessage } from '../../core/schemas/execution.js';
 import type { DataPlan, DataPlanStep } from '../../core/schemas/data.js';
-import type { IrAction, IrAssertion, TestIR, ValueRef } from '../../core/schemas/generation.js';
+import { toLabel, type IrAction, type IrAssertion, type TestIR, type ValueRef } from '../../core/schemas/generation.js';
 import { isAssertable, type TestCase } from '../../core/schemas/testCase.js';
 import type { FieldFact, SnapshotFacts } from '../../sf/data/plan.js';
 import { findMember, relatedListNewButton, type CatalogPage, type PageCatalog } from './pageObjects.js';
@@ -135,6 +135,43 @@ export function fieldErrorRule(
   return { rule: name, message: msg };
 }
 
+/**
+ * An accepted UI-observed message (Explorer, Phase 5) usable as assertion text: it must exist for this org, be accepted
+ * by a human, and match the expected placement / kind. The text is the human-confirmed one when the stored copy is
+ * masked.
+ */
+export function acceptedMessage(
+  ctx: GenerationContext,
+  id: string,
+  want: { placement: 'field' | 'alert'; field?: string },
+): { text: string; by: string } | { problem: string } {
+  const m = (ctx.observedMessages ?? []).find((x) => x.id === id);
+  if (!m) return { problem: `observed message ${id} is not known for ${ctx.orgAlias}` };
+  if (!m.accepted) return { problem: `observed message ${id} is not accepted by a human yet (omit message)` };
+  if (m.placement !== want.placement)
+    return { problem: `observed message ${id} is a ${m.placement} message, not ${want.placement}` };
+  if (want.field && m.field !== want.field)
+    return { problem: `observed message ${id} belongs to ${m.field ?? '?'}, not ${want.field}` };
+  return { text: m.accepted.text ?? m.text, by: m.accepted.by };
+}
+
+/** The name field a create dialog of `object` is identified by (LastName for Contact / Lead, else Name). */
+export const nameFieldOf = (object: string): string =>
+  object === 'Contact' || object === 'Lead' ? `${object}.LastName` : `${object}.Name`;
+
+/** Relationship name of a lookup field (`AccountId` → `Account`, `Parent__c` → `Parent__r`). */
+export const relationshipOf = (field: string): string | undefined =>
+  field.endsWith('__c') ? field.replace(/__c$/, '__r') : field.endsWith('Id') ? field.slice(0, -2) : undefined;
+
+/** A field of `object`, or a parent field through a lookup (`Account.Name`) — both must be in the snapshot. */
+export function soqlFieldKnown(ctx: GenerationContext, object: string, field: string): boolean {
+  const [rel, parentField] = field.split('.');
+  if (!parentField) return ctx.facts.field(object, field) !== undefined;
+  const lookup = ctx.facts.fields(object).find((f) => relationshipOf(f.apiName.split('.').pop() ?? '') === rel);
+  const target = lookup?.referenceTo[0];
+  return target !== undefined && ctx.facts.field(target, parentField) !== undefined;
+}
+
 /** The snapshot field behind a picklist combobox member, if it is one. */
 export function picklistFact(ctx: GenerationContext, ref: string): FieldFact | undefined {
   const m = findMember(ctx.catalog, ref);
@@ -163,6 +200,8 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
   // Page context of the flow: which page objects are on screen at this point (CLAUDE.md: tests must be runnable,
   // not only resolvable — the dry-run checks each locator in its own page state, this checks the order of use).
   let onScreen: string[] = [];
+  /** The current create dialog's name field was filled with a run-unique value. */
+  let dialogNamedUnique = false;
   const member = (ref: string, roles?: Set<string>, interact = false): CatalogPage | undefined => {
     const m = findMember(ctx.catalog, ref);
     if (!m) {
@@ -258,6 +297,11 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
     // Save). The model's part is the assertion: a Save the case expects to succeed must be followed by recordView —
     // without it the new record cannot be registered and would stay in the org.
     const createSave = st.actions.some((x) => x.do === 'click' && isCreateSave(ctx, x.element));
+    if (createSave && st.assertions.some((x) => x.check === 'recordView') && !dialogNamedUnique) {
+      p.push(
+        `${where}: the record saved from the create dialog must be named with a run-unique value — fill its name field with {"kind":"unique","label":"<label>"} (it is found by the run tag, never by URL or id)`,
+      );
+    }
     const rejected = st.assertions.some(
       (x) =>
         x.check === 'fieldError' ||
@@ -304,6 +348,7 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         break;
       }
       case 'openNewFromRelatedList': {
+        dialogNamedUnique = false;
         recordRef(a.parentRef, where);
         const parent = steps.find((s) => s.stepId === a.parentRef)?.object;
         const page = parent ? recordPageOf(ctx.catalog, parent) : undefined;
@@ -320,12 +365,17 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         onScreen = [...(dialog ? [dialog.id] : []), ...(page ? [page.id] : [])];
         break;
       }
-      case 'fill':
+      case 'fill': {
         member(a.element, FILLABLE, true);
         value(a.value, where, caseStep);
+        const fm = findMember(ctx.catalog, a.element);
+        if (fm?.page.kind === 'dialog' && fm.member.fieldApiName === nameFieldOf(fm.page.object))
+          // unique, or a long boundary value (data.ofLength embeds the run id from 60 characters on)
+          dialogNamedUnique = a.value.kind === 'unique' || (a.value.kind === 'length' && a.value.length >= 60);
         if (a.value.kind === 'unique') typedUniques.add(a.value.label);
         if (a.value.kind === 'length') typedLengths.add(a.value.length);
         break;
+      }
       case 'select': {
         member(a.element, new Set(['combobox']), true);
         const fact = picklistFact(ctx, a.element);
@@ -389,11 +439,21 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         break;
       case 'fieldError':
         member(a.element);
-        if (a.message) {
+        if (a.message && 'rule' in a.message) {
           const r = fieldErrorRule(ctx, a.element, a.message.rule);
           if ('problem' in r) p.push(`${where}: ${r.problem}`);
         }
+        if (a.message && 'observed' in a.message) {
+          const field = findMember(ctx.catalog, a.element)?.member.fieldApiName;
+          const r = acceptedMessage(ctx, a.message.observed, { placement: 'field', ...(field ? { field } : {}) });
+          if ('problem' in r) p.push(`${where}: ${r.problem}`);
+        }
         break;
+      case 'saveWarning': {
+        const r = acceptedMessage(ctx, a.observed, { placement: 'alert' });
+        if ('problem' in r) p.push(`${where}: ${r.problem}`);
+        break;
+      }
       case 'inputValue':
         // comboboxes too: a pre-filled lookup (Account Name) or a picklist's current value
         member(a.element, VALUED);
@@ -436,8 +496,15 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
       }
       case 'soqlField':
         recordRef(a.ref, where);
-        if (!ctx.facts.field(a.object, a.field)) p.push(`${where}: ${a.object}.${a.field} is not in the snapshot`);
+        if (!soqlFieldKnown(ctx, a.object, a.field)) p.push(`${where}: ${a.object}.${a.field} is not in the snapshot`);
         value(a.equals, where, cs);
+        // Operator rule 2026-11-26: never assert on record ids (dynamic) — compare a parent by its name.
+        if (a.equals.kind === 'recordId') {
+          const rel = relationshipOf(a.field);
+          p.push(
+            `${where}: never compare record ids — check the parent by name: {"check":"soqlField","field":"${rel ?? '<Relationship>'}.Name","equals":{"kind":"data","ref":"${a.equals.ref}","field":"Name"}}`,
+          );
+        }
         // A value the test typed (unique / length) lives on the record the test created in the UI, not on a recipe
         // record the data factory created (run-p4-coder-nim-4, TC-004: the check read the recipe Contact).
         if (
@@ -554,9 +621,15 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
     }
     return undefined;
   };
+  // Operator rule 2026-11-26: a record created in a dialog is found by the run tag, never by URL / id — its name must be
+  // run-unique. A case literal typed as that name (e.g. 'TestContact') becomes a unique value with that label; every
+  // later use of the same literal (toast, related list, header) follows it.
+  const renamed = new Map<string, ValueRef>();
   const val = (x: ValueRef): ValueRef => {
     if (x.kind === 'data' || x.kind === 'recordId') return { ...x, ref: ref(x.ref) };
     if (x.kind === 'literal') {
+      const u = renamed.get(x.value);
+      if (u) return u;
       const d = recipeField(x.value);
       if (d) return d;
     }
@@ -572,11 +645,25 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
         return { ...a, ref: ref(a.ref), object: objectOf(a.object) ?? a.object };
       case 'openNewFromRelatedList':
         return { ...a, parentRef: ref(a.parentRef), relatedList: canonicalList(ctx.catalog, a.relatedList) };
-      case 'fill':
+      case 'fill': {
         // `fill` on a picklist combobox means choosing that option (same intent; the renderer needs `select`)
-        return picklistFact(ctx, a.element)
-          ? { do: 'select', element: a.element, value: val(a.value) }
-          : { ...a, value: val(a.value) };
+        if (picklistFact(ctx, a.element)) return { do: 'select', element: a.element, value: val(a.value) };
+        const m = findMember(ctx.catalog, a.element);
+        if (
+          a.value.kind === 'literal' &&
+          m?.page.kind === 'dialog' &&
+          m.member.fieldApiName === nameFieldOf(m.page.object) &&
+          !renamed.has(a.value.value)
+        ) {
+          const u: ValueRef = { kind: 'unique', label: toLabel(a.value.value), format: 'text' };
+          renamed.set(a.value.value, u);
+          notes.push(
+            `data: the ${m.member.fieldApiName} typed in the create dialog is run-unique (label '${a.value.value}') so the saved record is found by the run tag (by code)`,
+          );
+          return { ...a, value: u };
+        }
+        return { ...a, value: val(a.value) };
+      }
       case 'select':
         return { ...a, value: val(a.value) };
       case 'apiUpdate':
@@ -604,8 +691,21 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
           relatedList: canonicalList(ctx.catalog, a.relatedList),
           name: val(a.name),
         };
-      case 'soqlField':
+      case 'soqlField': {
+        // Operator rule 2026-11-26: never compare record ids — a lookup to a recipe record is checked by its name.
+        const rel = relationshipOf(a.field);
+        const eq = a.equals;
+        const parent = eq.kind === 'recordId' ? steps.find((s) => s.stepId === ref(eq.ref)) : undefined;
+        if (rel && parent && typeof parent.fields['Name'] === 'string') {
+          return {
+            ...a,
+            ref: ref(a.ref),
+            field: `${rel}.Name`,
+            equals: { kind: 'data', ref: parent.stepId, field: 'Name' },
+          };
+        }
         return { ...a, ref: ref(a.ref), equals: val(a.equals) };
+      }
       case 'soqlNoRecord':
         return { ...a, value: val(a.value) };
       case 'apiRejects':

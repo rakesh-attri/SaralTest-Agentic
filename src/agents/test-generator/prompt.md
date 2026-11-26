@@ -18,8 +18,13 @@ Rules (from the playwright-standards, salesforce-lightning-locators and salesfor
 - Values: `data` (recipe field), `recordId`, `literal` (must appear verbatim in the case text, recipe or UI labels,
   with the case evidence ids), `length` (a length stated in that case step, e.g. 79/80/81 characters), `unique`
   (run-unique data the test types itself: `text`, `email`, or `phone` = 10 digits for phone fields).
-- Records the test creates through the UI must be registered with an `adopt` action (by a `unique` text value) so
-  they are cleaned up. Capture the new record with a `recordView` assertion `as` when later steps need its id.
+- **Never assert on URLs or record ids — they are dynamic** (operator rule 2026-11-26). After a successful Save in a
+  create dialog, assert `recordView` (with `as`); code renders, in this order: the success toast contains the name
+  typed; the record is in the related list with that exact name; it is opened from the related list and its header
+  shows the name; SOQL by the run tag returns exactly that record with the values typed. Fill the dialog's name field
+  (Last Name / Name) with a `unique` value so the record is found by the run tag. Cleanup is code-owned: never adopt.
+- A parent of a saved record is checked by its name (`soqlField` field `Account.Name` equals `data Account.Name`),
+  never by comparing ids.
 - Prefer an independent API/SOQL oracle in addition to the UI check when the expectation is about saved data
   (`soqlField`, `soqlNoRecord`, `apiRejects`, `historyTracked`). `apiRejects` error codes must follow from metadata
   (REQUIRED_FIELD_MISSING for a removed required field, STRING_TOO_LONG for a value over the field length,
@@ -28,14 +33,16 @@ Rules (from the playwright-standards, salesforce-lightning-locators and salesfor
 - Names: `openRecord.object` is the Salesforce object API name (e.g. "Account"); `relatedList` is the related list's
   label (e.g. "Contacts"). Element refs are exactly the catalog refs.
 - Typical mappings (use them; never weaken):
-  - "the record page opens / shows X" → `recordView` (with `as`) AND `recordTitle` contains X.
+  - "the record is saved / the record page opens / shows X" → `recordView` (with `as`) — never a URL check; add
+    `recordTitle` contains X when the case names X.
+  - an error message on a field whose text is an accepted observed message → `fieldError` with
+    `message: { observed: "<id>" }`; a duplicate warning → `saveWarning` with the observed alert id.
   - "is not saved" in the UI → type a `unique` value into another field of the same form (e.g. First Name) before
     saving, then assert `soqlNoRecord` on that field AND the field error / page error / dialog still visible.
   - a schema / length / validation-rule expectation (DECLARED_CONFIG) → `apiRejects` (`remove` the field, or a
     `length` value over the limit) with the metadata error code; never query an existing record for it.
   - "appears in the related list" → `relatedListHasRecord` with the same value the test typed.
-  - a record created through the UI → `adopt` it with the SAME `unique` value the test typed into it.
-    Type `unique` values into a form the test fills itself; never recipe `data` values for a record it creates in the UI.
+  - Type `unique` values into a form the test fills itself; never recipe `data` values for a record it creates in the UI.
   - changing fields of an existing record → `apiUpdate` (record pages have no edit-form elements in the catalog);
     say so in `notes`.
   - "all fields reachable by keyboard" → `tabOrder` over EVERY field of the dialog (all textbox/combobox/checkbox
