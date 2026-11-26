@@ -43,9 +43,9 @@ describe('qa CLI end-to-end (paths with spaces)', () => {
   }, 160_000);
 
   it('later-phase commands say which phase delivers them (exit 2)', () => {
-    const r = qa(['run', '--story', 'SF-DEMO-1'], root);
+    const r = qa(['explore', '--objective', 'x'], root);
     expect(r.code).toBe(2);
-    expect(r.stderr).toMatch(/qa run: not implemented yet — planned for Phase 5/);
+    expect(r.stderr).toMatch(/qa explore: not implemented yet — planned for Phase 7/);
   });
 
   it('--help lists the commands', () => {

@@ -227,6 +227,30 @@ export function buildCatalog(input: {
         memberName(e, scopeName, isRoot),
       );
     }
+    // Record pages: a field's displayed value lives in the details list item that holds its inline "Edit <Field>"
+    // button (verified in the registry). Derived member `<field>Field` = that list item, so tests can assert what
+    // the record page shows (recordField) without labels in tests. Checked by the dry-run like any member.
+    if (def.kind === 'record') {
+      const prefix = `${def.rootExpr}.`;
+      for (const m of [...members]) {
+        if (m.kind !== 'element' || m.role !== 'button' || !m.fieldApiName || m.scopeName) continue;
+        if (!m.accessibleName?.startsWith('Edit ') || !m.expression.startsWith(prefix)) continue;
+        add(
+          {
+            kind: 'element',
+            role: 'listitem',
+            accessibleName: m.accessibleName.slice(5),
+            fieldApiName: m.fieldApiName,
+            expression: `${def.rootExpr}.getByRole('listitem').filter({ has: page.${m.expression.slice(prefix.length)} })`,
+            strategyRank: m.strategyRank,
+            status: m.status,
+            ...(m.registryElement ? { registryElement: m.registryElement } : {}),
+            ...(m.lastVerifiedAt ? { lastVerifiedAt: m.lastVerifiedAt } : {}),
+          },
+          `${camel(m.accessibleName.slice(5))}Field`,
+        );
+      }
+    }
     pages.push({
       id: def.id,
       className: def.className,
@@ -280,7 +304,12 @@ export function renderPageObject(p: CatalogPage, cat: PageCatalog): string {
       m.status === 'RE_VERIFY' ? 'RE_VERIFY: changed in the org since it was verified' : '',
     ].filter(Boolean);
     lines.push(`  /** ${doc(meta.join(' · '))} */`);
-    lines.push(`  get ${m.name}(): Locator {`, `    return this.page.${m.expression};`, '  }', '');
+    lines.push(
+      `  get ${m.name}(): Locator {`,
+      `    return this.page.${m.expression.replace(/\{ has: page\./g, '{ has: this.page.')};`,
+      '  }',
+      '',
+    );
   }
   if (lines[lines.length - 1] === '') lines.pop();
   lines.push('}', '');

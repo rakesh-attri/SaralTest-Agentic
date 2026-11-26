@@ -50,7 +50,10 @@ const fill = (tpl: string, vars: Record<string, string>): string =>
 export interface PlannerContext {
   storyKey: string;
   storyTitle?: string;
+  /** In-scope requirements (DEFERRED ones are in `deferred`). */
   requirements: readonly Requirement[];
+  /** Requirements the operator deferred: listed in the RTM as `excluded`, never designed. */
+  deferred?: readonly Requirement[];
   obligations: readonly CoverageObligation[];
   risks: readonly RiskItem[];
   index: EvidenceIndex;
@@ -374,6 +377,20 @@ export function mechanicalDrafts(ctx: PlannerContext, obligations: readonly Cove
 }
 
 export function buildRtm(ctx: PlannerContext, cases: readonly TestCase[]): RtmRow[] {
+  const excluded: RtmRow[] = (ctx.deferred ?? []).map((r) => ({
+    requirementId: r.id,
+    testCaseIds: [],
+    refs: [...new Set(ctx.index.sectionsOf(r).map((q) => q.split('#')[1] ?? q))],
+    riskIds: [],
+    types: [],
+    manualTestIds: [],
+    status: 'excluded',
+    note: r.reviewReasons[0] ?? 'deferred by operator decision',
+  }));
+  return [...designedRows(ctx, cases), ...excluded];
+}
+
+function designedRows(ctx: PlannerContext, cases: readonly TestCase[]): RtmRow[] {
   return ctx.requirements.map((r) => {
     const tcs = cases.filter((c) => c.requirementIds.includes(r.id));
     const obs = ctx.obligations.filter((o) => o.requirementId === r.id);

@@ -81,6 +81,10 @@ export class SnapshotFacts {
     const c = this.byKey.get(`${type}|${apiName}`);
     return c && c.evidenceStatus !== 'UNKNOWN' ? c : undefined;
   }
+  /** Content hash of a known component (`undefined` when absent or UNKNOWN). */
+  hashOf(type: string, apiName: string): string | undefined {
+    return this.known(type, apiName)?.hash;
+  }
   unreadable(type: string, object?: string): boolean {
     return (
       this.byKey.get(`${type}|*`)?.evidenceStatus === 'UNKNOWN' ||

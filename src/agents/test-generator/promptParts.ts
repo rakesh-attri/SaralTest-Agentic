@@ -16,7 +16,7 @@ type Ref = string;                // an element ref from the catalog, exactly as
 type Step = { caseStep: number /* 0-based index of the case step */; title: string; actions: Action[]; assertions: Assertion[] };
 type Value =
   | { kind: "data"; ref: StepId; field: string }                 // a recipe field value
-  | { kind: "recordId"; ref: StepId | string /* a recordView.as / adopt.as name */ }
+  | { kind: "recordId"; ref: StepId | string /* a recordView.as name */ }
   | { kind: "literal"; value: string; evidenceIds: string[] }    // must appear verbatim in the case text / recipe / UI labels
   | { kind: "length"; length: number; evidenceIds: string[] }    // a string of exactly N chars; N must be stated in the case step
   | { kind: "unique"; label: string /* lowercase-kebab */; format?: "text" | "email" | "phone" };
@@ -24,19 +24,27 @@ type Expect = { caseStep: number; evidenceIds: string[] /* subset of that case s
 type Action =
   | { do: "openRecord"; ref: StepId; object: string /* e.g. "Account" */ }
   | { do: "openNewFromRelatedList"; parentRef: StepId; relatedList: string /* e.g. "Contacts" */ }
-  | { do: "fill"; element: Ref; value: Value }
+  | { do: "fill"; element: Ref; value: Value }               // textbox / spinbutton only
+  | { do: "select"; element: Ref; value: Value }             // picklist combobox: value = option label (literal)
   | { do: "clear"; element: Ref }
   | { do: "click"; element: Ref }
   | { do: "selectTab"; element: Ref }
   | { do: "apiUpdate"; ref: StepId; fields: Record<string, Value> }
-  | { do: "adopt"; as: string; object: string; field: string; value: Value /* the unique (or 40+ char length) value typed */ };
-// Every record the test creates in the UI must be adopted in the same step (cleanup), including boundary records.
+// Cleanup is automatic: after Save in a create dialog assert recordView (with "as"); code registers that record
+// for cleanup. Preconditions come from the recipe ("data" refs). Never write cleanup or adopt.
 type Assertion =
-  | { check: "visible" | "hidden" | "fieldError"; element: Ref; expect: Expect }
+  | { check: "visible" | "hidden"; element: Ref; expect: Expect }
+  // message: the validation rule (API name from "rule ..." in the org facts) whose error the field shows; code
+  // supplies its text from the org. Omit it when no listed rule produces the error (never write message text).
+  | { check: "fieldError"; element: Ref; message?: { rule: string }; expect: Expect }
+  // a field's current value: textboxes, lookups (e.g. a pre-filled Account Name) and picklists
   | { check: "inputValue"; element: Ref; equals: Value; expect: Expect }
   | { check: "toast"; contains?: Value; expect: Expect }
   | { check: "recordView"; object: string; as?: string; expect: Expect }
   | { check: "recordTitle"; contains: Value; expect: Expect }
+  // what the record page shows for a field: element = a "<field>Field" member of the record page (text, email,
+  // picklist, lookup name). Phone / date / number values are locale-formatted there: check those with soqlField.
+  | { check: "recordField"; element: Ref; contains: Value; expect: Expect }
   | { check: "relatedListHasRecord"; parentRef: StepId; relatedList: string; name: Value; expect: Expect }
   | { check: "soqlField"; ref: StepId | string; object: string; field: string; equals: Value; expect: Expect }
   | { check: "soqlNoRecord"; object: string; field: string; value: Value; expect: Expect }

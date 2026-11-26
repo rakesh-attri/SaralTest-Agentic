@@ -1,7 +1,7 @@
 // qa build — Phase 4: generate Playwright specs for the APPROVED cases of a `qa design` run, review them (pass 2),
 // and check that they lint, typecheck and resolve (tsc, ESLint, playwright --list, locator dry-run). No execution.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import type { Command } from 'commander';
 import { z } from 'zod';
 import type { GenerationContext, RecipeView } from '../agents/test-generator/context.js';
@@ -11,7 +11,7 @@ import { runToolchain } from '../agents/test-generator/toolchain.js';
 import { projectPaths, requireConfig } from '../config/loader.js';
 import { QAError } from '../core/errors.js';
 import { newRunId, runPaths } from '../core/runFolder.js';
-import { TestCase } from '../core/schemas/testCase.js';
+import { isAutomatable, RtmRow, TestCase } from '../core/schemas/testCase.js';
 import { Autonomy, initialRunState } from '../core/state.js';
 import type { BuildHook, BuildDeps } from '../graph/buildNodes.js';
 import { summarizeBuild } from '../graph/buildReport.js';
@@ -19,6 +19,14 @@ import type { QAGraphStateType } from '../graph/state.js';
 import { LocatorRegistry } from '../knowledge/locatorRegistry.js';
 import { SnapshotStore } from '../knowledge/snapshotStore.js';
 import { createSfContext } from '../sf/context.js';
+import { applyCaseEdits, loadCaseEdits } from '../inputs/caseEdits.js';
+import { refreshCaseWording } from '../inputs/caseRefresh.js';
+import {
+  refreshStaleMarks,
+  registryLookup,
+  staleReason,
+  storyManifestFile,
+} from '../agents/test-generator/staleness.js';
 import { buildDataPlan, loadRecipe, RECIPE_DIR, SnapshotFacts } from '../sf/data/plan.js';
 import { createRuntime, parseModelChain } from './analyze.js';
 import { registryFile } from './locators.js';
@@ -191,6 +199,11 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
       'coder models for this run only, in order, no other fallback: provider/model[,provider/model…] (append :json for response_format json_object, :no-tools to inline skills)',
     )
     .option('--cases <ids>', 'rebuild only these APPROVED cases (comma-separated); other generated specs are kept')
+    .option(
+      '--case-edits <file>',
+      'operator edits to case wording (YAML, src/inputs/caseEdits.ts), applied before generation',
+    )
+    .option('--stale', 'rebuild only the specs marked STALE (a rule, field or locator they use changed)')
     .action(
       async (o: {
         fromRun: string;
@@ -201,13 +214,38 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
         offline?: boolean;
         coder?: string;
         cases?: string;
+        caseEdits?: string;
+        stale?: boolean;
       }) => {
         const root = rootOf();
         const seed = loadDesignRun(root, o.fromRun);
-        const only = o.cases
-          ?.split(',')
-          .map((x) => x.trim())
-          .filter(Boolean);
+        let editChanges: string[] = [];
+        if (o.caseEdits) {
+          const edits = loadCaseEdits(resolve(o.caseEdits));
+          if (edits.storyKey !== seed.storyKey)
+            throw new QAError('DATA', `case edits are for ${edits.storyKey}, the design run is ${seed.storyKey}`);
+          const r = applyCaseEdits(seed.testCases, edits);
+          seed.testCases = r.cases;
+          editChanges = r.changes.map((c) => `${c} — ${edits.decidedBy}, ${edits.decidedOn}`);
+          say(`Applied ${String(editChanges.length)} operator case edit(s) from ${o.caseEdits}:`);
+          for (const c of editChanges) say(`  ${c}`);
+        }
+        // Snapshot currency: newer-snapshot warning, STALE marks, case wording refreshed from the latest snapshot.
+        const current = await snapshotCurrency(root, o.org, seed.storyKey, seed.testCases);
+        for (const n of current.notes) say(n);
+        seed.testCases = current.cases;
+        editChanges = [...editChanges, ...current.refreshChanges];
+        if (o.stale && o.cases) throw new QAError('DATA', 'use --stale or --cases, not both');
+        if (o.stale && !current.staleCases.length) {
+          say('No stale specs: nothing to rebuild.');
+          return;
+        }
+        const only = o.stale
+          ? current.staleCases
+          : o.cases
+              ?.split(',')
+              .map((x) => x.trim())
+              .filter(Boolean);
         if (only) {
           const unknown = only.filter(
             (id) => !seed.testCases.some((c) => c.id === id && c.reviewStatus === 'APPROVED'),
@@ -221,7 +259,10 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
             `Coder chain for this run: ${coderChain.map((m) => `${m.provider}/${m.model}${m.responseFormat ? ' (JSON mode)' : ''}${m.tools === false ? ' (no tools)' : ''}`).join(' → ')} (no other fallback).`,
           );
         }
-        const approved = seed.testCases.filter((c) => c.reviewStatus === 'APPROVED');
+        const approved = seed.testCases.filter(isAutomatable);
+        const manualOnly = seed.testCases.filter((c) => c.reviewStatus === 'APPROVED' && c.execution === 'manual');
+        if (manualOnly.length)
+          say(`Manual-only (no spec generated; RTM lists them as manual): ${manualOnly.map((c) => c.id).join(', ')}`);
         say(
           `Build for ${seed.storyKey} from design run ${o.fromRun} (${seed.info.status}, ${seed.info.designEnvironment ?? '?'}): ${approved.length} APPROVED of ${seed.testCases.length} cases.`,
         );
@@ -269,14 +310,158 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
             interactive: false,
           };
           say(`Run ${runId} — output in ${runPaths(root, runId).dir}`);
+          if (editChanges.length) {
+            const dir = join(runPaths(root, runId).dir, 'build');
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(
+              join(dir, 'case-edits-applied.md'),
+              [
+                `# Operator case edits applied (${o.caseEdits ?? ''})`,
+                '',
+                ...editChanges.map((c) => `- ${c}`),
+                '',
+              ].join('\n'),
+            );
+          }
           const config = { configurable: { thread_id: runId } };
           await rt.graph.invoke(state, config);
           const v = (await rt.graph.getState(config)).values as QAGraphStateType;
           process.stdout.write(`${buildSummaryText(v, root)}\n`);
+          const rtm = writeAutomationRtm(root, runId, o.fromRun, seed.storyKey, seed.testCases);
+          if (rtm) say(`Automation RTM: ${rtm}`);
           process.exitCode = v.status === 'BLOCKED' ? 3 : 0;
         } finally {
           await rt.close();
         }
       },
     );
+}
+
+/**
+ * RTM automation view of a build: per requirement, which cases are automated (spec + review status from the story
+ * manifest), which are manual-only (operator ruling), and which have no spec (not APPROVED at design).
+ */
+export function writeAutomationRtm(
+  root: string,
+  runId: string,
+  designRun: string,
+  storyKey: string,
+  cases: readonly TestCase[],
+): string | undefined {
+  const rtmFile = join(root, 'runs', designRun, 'design', 'rtm.json');
+  const manifestFile = join(root, 'tests', 'generated', storyKey, 'manifest.json');
+  if (!existsSync(rtmFile) || !existsSync(manifestFile)) return undefined;
+  const rows = z.array(RtmRow).parse(JSON.parse(readFileSync(rtmFile, 'utf8')));
+  const specOf = z.object({
+    kind: z.string(),
+    testCaseIds: z.array(z.string()),
+    reviewStatus: z.string().optional(),
+  });
+  const artifacts = z
+    .object({ artifacts: z.array(specOf) })
+    .parse(JSON.parse(readFileSync(manifestFile, 'utf8')))
+    .artifacts.filter((a) => a.kind === 'spec');
+  const byId = new Map(cases.map((c) => [c.id, c]));
+  const out = rows.map((r) => ({
+    requirementId: r.requirementId,
+    status: r.status,
+    automated: r.testCaseIds.flatMap((id) => {
+      const a = artifacts.find((x) => x.testCaseIds.includes(id));
+      return a ? [{ caseId: id, reviewStatus: a.reviewStatus ?? 'REVIEW_REQUIRED' }] : [];
+    }),
+    manual: r.testCaseIds
+      .filter((id) => byId.get(id)?.execution === 'manual')
+      .map((id) => ({ caseId: id, reason: byId.get(id)?.executionReason ?? 'manual-only' })),
+    notAutomated: r.testCaseIds.filter(
+      (id) => byId.get(id)?.execution !== 'manual' && !artifacts.some((x) => x.testCaseIds.includes(id)),
+    ),
+  }));
+  const dir = join(runPaths(root, runId).dir, 'build');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'rtm-automation.json'), `${JSON.stringify(out, null, 2)}\n`);
+  const md = [
+    `# RTM — automation view (${storyKey}, design ${designRun}, build ${runId})`,
+    '',
+    '| Requirement | RTM status | Automated (spec status) | Manual-only | No spec |',
+    '|---|---|---|---|---|',
+    ...out.map(
+      (r) =>
+        `| ${r.requirementId} | ${r.status} | ${r.automated.map((a) => `${a.caseId} (${a.reviewStatus})`).join(', ')} | ${r.manual.map((m) => m.caseId).join(', ')} | ${r.notAutomated.join(', ')} |`,
+    ),
+    '',
+  ].join('\n');
+  writeFileSync(join(dir, 'rtm-automation.md'), md);
+  return join(dir, 'rtm-automation.md');
+}
+
+/**
+ * How current the story's specs and cases are against the org's latest snapshot: STALE marks are refreshed (specs
+ * whose rules / fields / locators changed), a newer snapshot than the specs were built on is reported, and case
+ * wording that quotes an outdated rule message is refreshed from the latest snapshot.
+ */
+export async function snapshotCurrency(
+  root: string,
+  orgAlias: string,
+  storyKey: string,
+  cases: TestCase[],
+): Promise<{ notes: string[]; cases: TestCase[]; refreshChanges: string[]; staleCases: string[] }> {
+  const orgs = await requireConfig('orgs', projectPaths(root));
+  const org = orgs.orgs.find((x) => x.alias === orgAlias);
+  if (!org) throw new QAError('ENVIRONMENT', `org alias "${orgAlias}" is not in config/orgs.yaml`);
+  const store = new SnapshotStore(join(root, '.qa-memory', 'knowledge.db'));
+  const registry = new LocatorRegistry(registryFile(root));
+  try {
+    const info = store.latest(org.orgId);
+    const snap = info ? store.get(info.id) : undefined;
+    if (!snap) return { notes: [], cases, refreshChanges: [], staleCases: [] };
+    const latest = new SnapshotFacts(snap);
+    const notes: string[] = [];
+    const manifestFile = storyManifestFile(root, storyKey);
+    const built = existsSync(manifestFile)
+      ? z
+          .object({ artifacts: z.array(z.object({ kind: z.string(), snapshotId: z.string().optional() })) })
+          .parse(JSON.parse(readFileSync(manifestFile, 'utf8')))
+          .artifacts.filter((a) => a.kind === 'spec')
+          .map((a) => a.snapshotId ?? '?')
+      : [];
+    const older = [...new Set(built.filter((id) => id !== snap.info.id))];
+    if (older.length)
+      notes.push(
+        `WARNING: a newer snapshot exists — ${snap.info.id} (${snap.info.capturedAt}); specs of ${storyKey} were built on ${older.join(', ')}.`,
+      );
+    const st = refreshStaleMarks({
+      root,
+      facts: latest,
+      locator: registryLookup(registry.list({ org: org.orgId })),
+      stories: [storyKey],
+    });
+    for (const x of st.stale) notes.push(`STALE ${x.caseId}: ${staleReason(x.stale)}`);
+    if (st.untracked.length)
+      notes.push(
+        `Untracked (built before dependency tracking, staleness unknown): ${st.untracked.map((u) => u.caseId).join(', ')}`,
+      );
+    if (st.stale.length)
+      notes.push(`Rebuild the stale specs with: pnpm qa build --from-run <design run> --org ${orgAlias} --stale`);
+    const r = refreshCaseWording(
+      cases,
+      (id) => {
+        const s = store.get(id);
+        return s ? new SnapshotFacts(s) : undefined;
+      },
+      latest,
+    );
+    if (r.changes.length) {
+      notes.push(`Case wording refreshed from ${snap.info.id}:`);
+      for (const c of r.changes) notes.push(`  ${c}`);
+    }
+    return {
+      notes,
+      cases: r.cases,
+      refreshChanges: r.changes,
+      staleCases: [...new Set(st.stale.map((x) => x.caseId))],
+    };
+  } finally {
+    store.close();
+    registry.close();
+  }
 }

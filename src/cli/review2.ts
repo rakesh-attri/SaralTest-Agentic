@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { GeneratedSpec } from '../agents/test-generator/graph.js';
-import { reviewPass2Round, settlePass2 } from '../agents/test-reviewer/pass2.js';
+import { reviewPass2Round, settlePass2, withoutJudge } from '../agents/test-reviewer/pass2.js';
 import { QAError } from '../core/errors.js';
 import type { GeneratedArtifact } from '../core/schemas/generation.js';
 import { newRunId, runPaths } from '../core/runFolder.js';
@@ -88,6 +88,7 @@ export async function rerunPass2(o: Pass2ReviewOptions): Promise<{ runId: string
         prior: [],
         round: 1,
         mode: rt.deps.router ? 'llm' : 'mechanical',
+        transientDegrades: true,
       },
       {
         ...(rt.deps.router ? { router: rt.deps.router } : {}),
@@ -97,16 +98,25 @@ export async function rerunPass2(o: Pass2ReviewOptions): Promise<{ runId: string
       },
     );
     // Review only: nothing is regenerated, so every open finding is settled now.
-    const settled = settlePass2(r.findings, specs);
+    const settled0 = settlePass2(r.findings, specs);
+    const settled = r.judgeDegraded ? { ...settled0, artifacts: withoutJudge(settled0.artifacts) } : settled0;
+    if (r.judgeDegraded) o.say('Judge unavailable: deterministic checks only, nothing can be APPROVED in this review.');
 
     // Update the verdicts in the story manifest (the specs themselves are unchanged).
     const mf = join(o.root, ...manifestPath(storyKey).split('/'));
     if (existsSync(mf)) {
       const m = JSON.parse(readFileSync(mf, 'utf8')) as { artifacts: (GeneratedArtifact & { reviewedBy?: string })[] };
-      m.artifacts = m.artifacts.map((a) => {
-        const n = settled.artifacts.find((x) => x.path === a.path);
-        return n ? { ...a, reviewStatus: n.reviewStatus, reviewReasons: n.reviewReasons, reviewedBy: runId } : a;
-      });
+      // Entries of the reviewed build replace whatever the manifest had for those cases (e.g. after a build whose
+      // pass 2 never finished, the manifest still described the previous build).
+      const reviewed = new Set(settled.artifacts.flatMap((a) => a.testCaseIds));
+      const others = m.artifacts.filter(
+        (a) => !a.testCaseIds.some((id) => reviewed.has(id)) && !settled.artifacts.some((x) => x.path === a.path),
+      );
+      m.artifacts = [
+        ...others,
+        ...settled.artifacts.map((a) => ({ ...a, buildRun: o.buildRun, reviewedBy: runId })),
+      ].sort((a, b) => a.path.localeCompare(b.path));
+      (m as { buildRun?: string }).buildRun = o.buildRun;
       writeFileSync(mf, `${JSON.stringify(m, null, 2)}\n`, 'utf8');
     }
     const dir = join(runPaths(o.root, runId).dir, 'build');

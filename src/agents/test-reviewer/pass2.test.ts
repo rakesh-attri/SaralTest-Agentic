@@ -7,7 +7,15 @@ import { caseHash, type GeneratedSpec } from '../test-generator/graph.js';
 import { hashText } from '../test-generator/pageObjects.js';
 import { locatorsUsed, renderSkeleton, renderSpec, specPath } from '../test-generator/render.js';
 import type { ToolchainResult } from '../test-generator/toolchain.js';
-import { astViolations, pass2Findings, reviewPass2Round, settlePass2 } from './pass2.js';
+import {
+  astViolations,
+  messageMismatches,
+  pass2Findings,
+  reviewPass2Round,
+  settlePass2,
+  unevidencedMessageSteps,
+  withoutJudge,
+} from './pass2.js';
 
 const ctx = generationContext();
 const recipe = bindRecipe(CASE, ctx);
@@ -92,6 +100,23 @@ describe('Test Reviewer pass 2: checklist + settlement', () => {
     const f = pass2Findings({ ctx, cases: [CASE], specs: [s], toolchain: toolchain(s), dryRun: dryRun(s) });
     expect(f).toEqual([]);
     expect(settlePass2([], [s]).artifacts[0]?.reviewStatus).toBe('APPROVED');
+  });
+
+  it('locators dry-run as another persona than the case persona → REVIEW_REQUIRED (unverified for that persona)', () => {
+    const s = spec();
+    const rep = { ...CASE, persona: 'sales-rep' };
+    const f = pass2Findings({
+      ctx: { ...ctx, personas: ['system-admin', 'sales-rep'] },
+      cases: [rep],
+      specs: [s],
+      toolchain: toolchain(s),
+      dryRun: dryRun(s),
+    });
+    expect(f.map((x) => [x.rule, x.severity, x.text])).toContainEqual([
+      'locator-unresolved',
+      'M',
+      'locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep',
+    ]);
   });
 
   it('typecheck / lint / not listed / unresolved locator → BLOCKED with reasons', async () => {
@@ -230,5 +255,113 @@ describe('Test Reviewer pass 2: checklist + settlement', () => {
     expect(r2.findings.find((f) => f.origin === 'judge')?.resolvedBy).toBe('judge');
     expect(r2.findings.filter((f) => f.origin === 'deterministic').every((f) => f.resolvedBy === 'recheck')).toBe(true);
     expect(settlePass2(r2.findings, [s2]).artifacts[0]?.reviewStatus).toBe('APPROVED');
+  });
+});
+
+describe('judge outage (2026-11-25: NIM and Gemini both 503 for hours)', () => {
+  const outage = () =>
+    mockRouter({
+      judge: {
+        responder: () => {
+          throw Object.assign(new Error('503 This model is currently experiencing high demand'), { status: 503 });
+        },
+      },
+    });
+  const input = (s: GeneratedSpec, transientDegrades?: boolean) => ({
+    ctx,
+    cases: [CASE],
+    specs: [s],
+    toolchain: toolchain(s),
+    dryRun: dryRun(s),
+    prior: [],
+    round: 1,
+    mode: 'llm' as const,
+    ...(transientDegrades ? { transientDegrades } : {}),
+  });
+
+  it('graph mode: the TRANSIENT error reaches the QA Lead (retry); qa review: deterministic only, nothing APPROVED', async () => {
+    const s = spec();
+    await expect(reviewPass2Round(input(s), { router: await outage() })).rejects.toMatchObject({ kind: 'TRANSIENT' });
+    const r = await reviewPass2Round(input(s, true), { router: await outage() });
+    expect(r.judgeDegraded).toBe(true);
+    const settled = settlePass2(r.findings, [s]);
+    expect(settled.artifacts[0]?.reviewStatus).toBe('APPROVED');
+    const [a] = withoutJudge(settled.artifacts);
+    expect(a?.reviewStatus).toBe('REVIEW_REQUIRED');
+    expect(a?.reviewReasons.join(' ')).toMatch(/judge unavailable/);
+  });
+});
+
+describe('expected error text needs org evidence (operator 2026-11-26)', () => {
+  const ev = { caseStep: 0, evidenceIds: ['SF-219#AC2'] };
+  const tc = (expected: string): typeof CASE => ({
+    ...CASE,
+    steps: [{ ...CASE.steps[0]!, expected: { ...CASE.steps[0]!.expected, text: expected } }],
+  });
+  const ir = (message?: { rule: string }): typeof GOOD_IR => ({
+    ...GOOD_IR,
+    steps: [
+      {
+        caseStep: 0,
+        title: 'Save',
+        actions: [],
+        assertions: [
+          { check: 'fieldError', element: 'contact-new.phone', ...(message ? { message } : {}), expect: ev },
+        ],
+      },
+    ],
+  });
+
+  it('a step that expects an error message but asserts no evidenced text is flagged', () => {
+    const t = tc('Contact is not saved; error message is displayed on the Last Name field indicating it is required');
+    expect(unevidencedMessageSteps(t, ir())).toEqual([0]);
+    expect(unevidencedMessageSteps(t, ir({ rule: 'Phone_Must_Be_10_Digits' }))).toEqual([]);
+    expect(unevidencedMessageSteps(tc("validation error 'Enter a 10-digit phone number.' is shown"), ir())).toEqual([
+      0,
+    ]);
+    // a warning / "error … indicating" with no rule-evidenced text is held too (TC-050, TC-048)
+    expect(
+      unevidencedMessageSteps(
+        tc('A possible duplicate warning is displayed indicating a Contact already exists'),
+        ir(),
+      ),
+    ).toEqual([0]);
+    expect(
+      unevidencedMessageSteps(tc('an inline error appears on the Email field indicating the format is invalid'), ir()),
+    ).toEqual([0]);
+    // no message expected → presence-only is fine
+    expect(unevidencedMessageSteps(tc('The Last Name field is marked invalid'), ir())).toEqual([]);
+  });
+});
+
+describe('case quote vs org rule message (operator 2026-11-26)', () => {
+  it('flags a step that quotes a message other than the org rule text the spec asserts', () => {
+    const ev = { caseStep: 0, evidenceIds: ['SF-219#AC2'] };
+    const ir = {
+      ...GOOD_IR,
+      steps: [
+        {
+          caseStep: 0,
+          title: 'Save',
+          actions: [],
+          assertions: [
+            {
+              check: 'fieldError' as const,
+              element: 'contact-new.phone',
+              message: { rule: 'Phone_Must_Be_10_Digits' },
+              expect: ev,
+            },
+          ],
+        },
+      ],
+    };
+    const tc = (text: string): typeof CASE => ({
+      ...CASE,
+      steps: [{ ...CASE.steps[0]!, expected: { ...CASE.steps[0]!.expected, text } }],
+    });
+    expect(messageMismatches(tc("error 'Phone must be exactly 10 digits.' is shown"), ir, ctx)[0]?.text).toMatch(
+      /quotes "Phone must be exactly 10 digits\." but Contact\.Phone_Must_Be_10_Digits says "Enter a 10-digit phone number\."/,
+    );
+    expect(messageMismatches(tc("error 'Enter a 10-digit phone number.' is shown"), ir, ctx)).toEqual([]);
   });
 });

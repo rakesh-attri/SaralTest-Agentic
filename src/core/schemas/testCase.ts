@@ -80,6 +80,9 @@ export const TestCase = z
     /** Coverage obligations (deterministic) this case satisfies. */
     obligationIds: z.array(z.string()).default([]),
     regressionTier: RegressionTier.default('optional'),
+    /** `manual`: the operator ruled the case not automatable — no spec is generated; the RTM lists it as manual. */
+    execution: z.enum(['automated', 'manual']).optional(),
+    executionReason: z.string().optional(),
   })
   .superRefine((tc, ctx) => {
     // Only assertable expectations (PLAN.md §7f) may sit in an APPROVED case.
@@ -106,6 +109,10 @@ export const TestCase = z
     });
   });
 export type TestCase = z.infer<typeof TestCase>;
+
+/** A case the build generates a spec for: APPROVED and not ruled manual-only. */
+export const isAutomatable = (c: Pick<TestCase, 'reviewStatus' | 'execution'>): boolean =>
+  c.reviewStatus === 'APPROVED' && c.execution !== 'manual';
 
 export const RtmStatus = z.enum(['designed', 'gap', 'review-required', 'blocked', 'excluded']);
 export type RtmStatus = z.infer<typeof RtmStatus>;

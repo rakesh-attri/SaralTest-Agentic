@@ -74,6 +74,18 @@ describe('locator expression parser (no eval)', () => {
     expect(parseLocatorExpression("getByLabel('It\\'s', { exact: true })")[0]?.args[0]).toBe("It's");
   });
 
+  it('parses filter({ has }) with a relative inner chain; any other filter option is rejected', () => {
+    const calls = parseLocatorExpression(
+      `${MAIN}.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Edit Title', exact: true }) })`,
+    );
+    expect(calls.map((c) => c.method)).toEqual(['getByRole', 'getByRole', 'filter']);
+    expect(calls[2]?.has?.[0]).toMatchObject({
+      method: 'getByRole',
+      args: ['button', { name: 'Edit Title', exact: true }],
+    });
+    expect(() => parseLocatorExpression("getByRole('listitem').filter({ hasText: 'x' })")).toThrow();
+  });
+
   it('rejects anything outside the locator grammar', () => {
     for (const bad of ["evaluate('1')", "getByRole('x').click()", "getByRole('x'); process.exit(1)", '$("a")', '']) {
       expect(() => parseLocatorExpression(bad), bad).toThrow();

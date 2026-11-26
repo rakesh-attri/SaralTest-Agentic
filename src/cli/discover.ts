@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Command } from 'commander';
 import { z } from 'zod';
@@ -12,6 +12,8 @@ import { createSfContext } from '../sf/context.js';
 import { assetsFrom, assetsFromAnalysis, GraphStore, type TestAsset } from '../sf/graph/index.js';
 import { assetsFromRegistry } from '../agents/app-explorer/index.js';
 import { LocatorRegistry } from '../knowledge/locatorRegistry.js';
+import { refreshStaleMarks, registryLookup, type StaleRefresh } from '../agents/test-generator/staleness.js';
+import { SnapshotFacts } from '../sf/data/plan.js';
 import { DEFAULT_PAGES, exploreAndRegister, registryFile } from './locators.js';
 
 type Say = (msg: string) => void;
@@ -135,6 +137,33 @@ export function registerDiscover(
           }).finally(() => {
             registry.close();
           });
+          // Generated specs whose rules / fields / locators changed are marked STALE in their manifests.
+          const stale = markStaleSpecs(root, ctx.org.orgId, new SnapshotFacts(outcome.snapshot));
+          const staleLines = stale.stale.map(
+            (x) => `${x.caseId} (${x.stale.components.join(', ')})${x.changed ? '' : ' [already marked]'}`,
+          );
+          appendFileSync(
+            join(root, 'runs', runId, 'discovery', 'discovery-report.md'),
+            [
+              '',
+              '## Generated specs',
+              '',
+              stale.stale.length
+                ? [
+                    'STALE (not executed until rebuilt with `qa build --stale`):',
+                    '',
+                    ...staleLines.map((l) => `- ${l}`),
+                  ].join('\n')
+                : 'No generated spec depends on a changed component.',
+              ...(stale.untracked.length
+                ? [
+                    '',
+                    `Untracked (built before dependency tracking; staleness unknown): ${stale.untracked.map((u) => u.caseId).join(', ')}`,
+                  ]
+                : []),
+              '',
+            ].join('\n'),
+          );
           process.stdout.write(
             [
               `Snapshot ${outcome.snapshot.info.id} (${outcome.snapshot.info.environment}): ${outcome.snapshot.info.componentCount} components`,
@@ -142,6 +171,7 @@ export function registerDiscover(
                 ? `Diff vs ${outcome.diff.fromSnapshotId}: ${outcome.diff.counts.changed} changed, ${outcome.diff.counts.added} added, ${outcome.diff.counts.removed} removed, ${outcome.diff.counts.unknown} unknown`
                 : 'Baseline snapshot (nothing to compare yet)',
               `RE_VERIFY: ${outcome.reverify.length ? [...new Set(outcome.reverify.map((m) => `${m.assetType}:${m.assetId}`))].join(', ') : 'none'}`,
+              `STALE specs: ${staleLines.length ? staleLines.join('; ') : 'none'}${stale.untracked.length ? ` · untracked: ${stale.untracked.length}` : ''}`,
               ...(outcome.crossCheck ? [`Org cross-check: ${JSON.stringify(outcome.crossCheck.counts)}`] : []),
               `Saved: ${join(root, 'runs', runId, 'discovery')}`,
               '',
@@ -226,4 +256,14 @@ export function createDiscoverHook(o: {
       graph.close();
     }
   };
+}
+
+/** Refresh STALE marks of all generated specs against a snapshot and the org's current locator registry. */
+export function markStaleSpecs(root: string, orgId: string, facts: SnapshotFacts): StaleRefresh {
+  const registry = new LocatorRegistry(registryFile(root));
+  try {
+    return refreshStaleMarks({ root, facts, locator: registryLookup(registry.list({ org: orgId })) });
+  } finally {
+    registry.close();
+  }
 }

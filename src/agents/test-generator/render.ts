@@ -6,7 +6,9 @@ import {
   canonicalList,
   dialogForList,
   featureOf,
+  fieldErrorRule,
   listRegion,
+  picklistFact,
   recordPageOf,
   type GenerationContext,
   type RecipeView,
@@ -161,11 +163,19 @@ export function renderSpec(i: RenderInput): string {
       }
       case 'fill':
         return [`await ${el(a.element)}.fill(${val(a.value)});`];
+      case 'select':
+        imp.lightning.add('selectPicklist');
+        return [`await selectPicklist(page, ${el(a.element)}, ${val(a.value)});`];
       case 'clear':
         return [`await ${el(a.element)}.clear();`];
-      case 'click':
+      case 'click': {
         imp.lightning.add('waitForSpinners');
+        const m = findMember(cat, a.element);
+        if (m?.page.kind === 'dialog' && m.member.role === 'button' && m.member.accessibleName === 'Save') {
+          pendingCreate = m.page.object; // the record view shown next is the record this Save created
+        }
         return [`await ${el(a.element)}.click();`, 'await waitForSpinners(page);'];
+      }
       case 'selectTab':
         imp.lightning.add('selectTab');
         return [`await selectTab(${el(a.element)});`];
@@ -180,27 +190,47 @@ export function renderSpec(i: RenderInput): string {
     }
   };
 
+  let pendingCreate: string | undefined;
+  let autoNamed = 0;
   const assertion = (a: IrAssertion): string[] => {
     switch (a.check) {
       case 'visible':
         return [`await expect(${el(a.element)}).toBeVisible();`];
       case 'hidden':
         return [`await expect(${el(a.element)}).toBeHidden();`];
-      case 'inputValue':
-        return [`await expect(${el(a.element)}).toHaveValue(${val(a.equals)});`];
-      case 'fieldError':
+      case 'inputValue': {
+        // A picklist combobox is a button whose text is the value; textboxes and lookups hold it as the input value.
+        const pick = picklistFact(ctx, a.element);
+        return [`await expect(${el(a.element)}).${pick ? 'toContainText' : 'toHaveValue'}(${val(a.equals)});`];
+      }
+      case 'fieldError': {
         imp.lightning.add('expectFieldError');
-        return [`await expectFieldError(${el(a.element)});`];
+        if (!a.message) return [`await expectFieldError(${el(a.element)});`];
+        const r = fieldErrorRule(ctx, a.element, a.message.rule);
+        if ('problem' in r) throw new Error(r.problem);
+        return [
+          `await expectFieldError(${el(a.element)}, ${q(r.message)}); // message of rule ${r.rule} (org snapshot)`,
+        ];
+      }
       case 'toast':
         imp.lightning.add('expectToast');
         return [`await expectToast(page, ${a.contains ? val(a.contains) : '/\\S/'});`];
-      case 'recordView':
+      case 'recordView': {
         imp.lightning.add('recordIdFromView');
-        if (a.as) {
-          viewed.add(a.as);
-          return [`viewed[${q(a.as)}] = await recordIdFromView(page, ${q(a.object)});`];
-        }
-        return [`await recordIdFromView(page, ${q(a.object)});`];
+        // Code-owned cleanup: the record a create-dialog Save produced is registered (ownership-checked, tagged,
+        // cleaned up in teardown) right after its id is known. The model never writes this.
+        const created = pendingCreate === a.object;
+        if (created) pendingCreate = undefined;
+        const as = a.as ?? (created ? `created${a.object}${String(++autoNamed)}` : undefined);
+        if (!as) return [`await recordIdFromView(page, ${q(a.object)});`];
+        viewed.add(as);
+        return [
+          `viewed[${q(as)}] = await recordIdFromView(page, ${q(a.object)});`,
+          ...(created ? [`await data.adoptCreated(${q(as)}, ${q(a.object)}, viewed[${q(as)}]);`] : []),
+        ];
+      }
+      case 'recordField':
+        return [`await expect(${el(a.element)}).toContainText(${val(a.contains)});`];
       case 'recordTitle':
         imp.lightning.add('expectRecordTitle');
         return [`await expectRecordTitle(page, ${val(a.contains)});`];
@@ -274,7 +304,11 @@ export function renderSpec(i: RenderInput): string {
   const body: string[] = [];
   if (ir.data.length && i.recipe) body.push(`await data.create(${q(i.recipe.name)}, [${ir.data.map(q).join(', ')}]);`);
   ir.steps.forEach((st, n) => {
-    const lines = [...st.actions.flatMap(action), ...st.assertions.flatMap(assertion)];
+    // An assertion line identical to one already in the step (e.g. the model's "dialog visible" after
+    // openNewFromRelatedList, which already waits for the dialog) is dropped: web-first expects are side-effect free.
+    const lines = [...st.actions.flatMap(action), ...st.assertions.flatMap(assertion)].filter(
+      (l, k, all) => !l.startsWith('await expect(') || all.indexOf(l) === k,
+    );
     const exp = tc.steps[st.caseStep]?.expected;
     body.push(
       `await test.step(${q(`${n + 1}. ${st.title}`)}, async () => {`,
@@ -295,7 +329,7 @@ export function renderSpec(i: RenderInput): string {
   const L: string[] = [];
   L.push(
     `// Generated by sf-qa-agent (Test Generator) from ${tc.id} — do not edit; regenerate with \`qa build\`.`,
-    `// Case hash ${i.caseHash} · IR hash ${i.irHash} · design run ${ctx.designRunId} · snapshot ${tc.snapshotId}`,
+    `// Case hash ${i.caseHash} · IR hash ${i.irHash} · design run ${ctx.designRunId} · case snapshot ${tc.snapshotId} · built on snapshot ${ctx.snapshotId}`,
     `// Org page objects: ${cat.orgAlias} (${cat.environment}) · model: ${i.model}`,
     `// Requirements: ${tc.requirementIds.join(', ')} · refs: ${tc.refs.join(', ') || '-'} · technique: ${tc.technique}`,
     ...(i.recipe

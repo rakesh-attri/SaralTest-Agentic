@@ -1,6 +1,6 @@
 import type { Logger } from '../core/logger.js';
 import { createIssue } from '../core/issues.js';
-import type { ComponentVersion, ImpactReport, Issue } from '../core/schemas/index.js';
+import type { ComponentVersion, ImpactReport, Issue, Requirement } from '../core/schemas/index.js';
 import type { ModelRouter } from '../models/router.js';
 import type { Redactor } from '../security/redact.js';
 import type { SkillLoader } from '../skills/skillLoader.js';
@@ -65,13 +65,16 @@ export function charterPersonas(
   checks: readonly OrgCheck[],
 ): ResolvedPersona[] {
   const out: ResolvedPersona[] = [resolvePersona(inputs.defaultPersona, inputs.personas, checks)];
-  const names = [...new Set(s.requirements.flatMap((r) => r.personas))];
+  const names = [...new Set(inScope(s.requirements).flatMap((r) => r.personas))];
   for (const n of names) {
     const p = resolvePersona(n, inputs.personas, checks);
     if (!out.some((x) => x.id === p.id)) out.push(p);
   }
   return out;
 }
+
+/** Requirements the operator DEFERRED are out of scope: no obligations, risks or cases (RTM row `excluded`). */
+export const inScope = (reqs: readonly Requirement[]): Requirement[] => reqs.filter((r) => r.status !== 'DEFERRED');
 
 export function buildContext(s: QAGraphStateType, inputs: DesignInputs): { ctx: PlannerContext; index: EvidenceIndex } {
   const index = new EvidenceIndex({
@@ -90,7 +93,8 @@ export function buildContext(s: QAGraphStateType, inputs: DesignInputs): { ctx: 
   const ctx: PlannerContext = {
     storyKey: s.storyKey ?? s.sources[0]?.docId ?? 'REQ',
     ...(s.story?.summary ? { storyTitle: s.story.summary } : s.sources[0] ? { storyTitle: s.sources[0].title } : {}),
-    requirements: s.requirements,
+    requirements: inScope(s.requirements),
+    deferred: s.requirements.filter((r) => r.status === 'DEFERRED'),
     obligations: s.obligations,
     risks: s.risks,
     index,
@@ -169,7 +173,7 @@ export function createPlanNode(d: DesignDeps) {
     // ---- first plan
     const { index } = buildContext(s, inputs);
     const risks = assessRisks({
-      requirements: s.requirements,
+      requirements: inScope(s.requirements),
       index,
       orgChecks: inputs.orgChecks,
       manualTests: s.existingTests,
@@ -178,7 +182,7 @@ export function createPlanNode(d: DesignDeps) {
     });
     const obligations = tierObligations(
       deriveObligations({
-        requirements: s.requirements,
+        requirements: inScope(s.requirements),
         index,
         orgChecks: inputs.orgChecks,
         components: inputs.components,

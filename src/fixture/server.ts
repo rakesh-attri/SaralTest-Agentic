@@ -291,7 +291,7 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
         send(res, 405, [{ errorCode: 'METHOD_NOT_ALLOWED', message: method }]);
         return;
       }
-      const rec = store.create(object, await readJson(req));
+      const rec = store.create(object, await readJson(req), user.Id);
       send(res, 201, { id: rec.Id, success: true, errors: [] });
       return;
     }

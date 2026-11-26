@@ -14,6 +14,7 @@ import { runStructured, type AttemptRecord } from '../shared/structured.js';
 import { bindRecipe, irProblems, normalizeIr, type GenerationContext, type RecipeView } from './context.js';
 import { hashText } from './pageObjects.js';
 import { catalogText, factsText, IR_CONTRACT, relevantCatalog } from './promptParts.js';
+import { specDependencies } from './dependencies.js';
 import { locatorsUsed, renderSkeleton, renderSpec, specPath } from './render.js';
 
 export const TEST_GENERATOR_SKILLS = [
@@ -167,8 +168,9 @@ export async function generateTests(
           hash: hashText(text),
           testCaseIds: [tc.id],
           caseHash: ch,
-          snapshotId: tc.snapshotId,
+          snapshotId: ctx.snapshotId,
           locatorsUsed: [],
+          dependsOn: [],
           dataBindings: [],
           origin: 'mechanical',
           reviewReasons: [`mechanical skeleton: ${reason}`],
@@ -214,8 +216,9 @@ export async function generateTests(
           testCaseIds: [tc.id],
           caseHash: ch,
           irHash,
-          snapshotId: tc.snapshotId,
+          snapshotId: ctx.snapshotId,
           locatorsUsed: locatorsUsed(ir, ctx.catalog, recipe),
+          dependsOn: specDependencies(ir, ctx, recipe),
           dataBindings: recipe && ir.data.length ? [recipe.name] : [],
           origin: 'generated',
           reviewReasons: [],

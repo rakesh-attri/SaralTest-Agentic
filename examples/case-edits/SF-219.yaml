@@ -1,0 +1,34 @@
+# Operator case edits for SF-219 (applied by: qa build --case-edits examples/case-edits/SF-219.yaml).
+# "Phone Inquiry" is not a Lead Source value in qa-prod. The phone-format cases only need a Lead Source that is not
+# Web (so Phone_Required_For_Web does not fire); "Word of mouth" is an active qa-prod value (snapshot 2026-11-25).
+storyKey: SF-219
+decidedBy: QA operator
+decidedOn: '2026-11-26'
+# Cases whose steps are a review of another manual test's execution record: not automatable. No spec; the RTM
+# automation view lists them as manual.
+manualOnly:
+  - caseId: TC-SF-219-051
+    reason: reviews the execution record of manual test MTC-005 — a human check, not automatable
+  - caseId: TC-SF-219-052
+    reason: reviews the execution record of manual test MTC-004 — a human check, not automatable
+edits:
+  - caseId: TC-SF-219-007
+    step: 2
+    from: "set Lead Source to 'Phone Inquiry'"
+    to: "set Lead Source to any non-Web value (e.g. 'Word of mouth')"
+    reason: Phone Inquiry is not a qa-prod Lead Source; any non-Web value is valid
+  - caseId: TC-SF-219-009
+    step: 2
+    from: "set Lead Source to 'Phone Inquiry'"
+    to: "set Lead Source to any non-Web value (e.g. 'Word of mouth')"
+    reason: Phone Inquiry is not a qa-prod Lead Source; any non-Web value is valid
+  - caseId: TC-SF-219-010
+    step: 2
+    from: "set Lead Source to 'Phone Inquiry'"
+    to: "set Lead Source to any non-Web value (e.g. 'Word of mouth')"
+    reason: Phone Inquiry is not a qa-prod Lead Source; any non-Web value is valid
+  - caseId: TC-SF-219-010
+    step: 5
+    from: "set Lead Source to 'Phone Inquiry'"
+    to: "set Lead Source to any non-Web value (e.g. 'Word of mouth')"
+    reason: Phone Inquiry is not a qa-prod Lead Source; any non-Web value is valid

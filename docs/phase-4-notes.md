@@ -283,8 +283,249 @@ Run-to-run variance remains: 4–6 of 7 cases come from the coder per full build
 
 ## Open items for the operator
 
-1. Answer Q1–Q3 and resolve the 4 org conflicts from Phase 3, so more cases can become APPROVED and generated.
+1. ~~Answer Q1–Q3 and resolve the 4 org conflicts~~ done 2026-11-25 (see *Operator decisions* below). Still open:
+   TC-SF-219-031 (BR-08 delete) is REVIEW_REQUIRED on a judge finding, and Email rule C1 is not in the org yet.
 2. To make TC-002 fully assertable: add Billing Street / City / Postal Code values to the approved recipe, and let
    the Explorer capture the Contact edit form (Phase 5 task).
 3. Confirm that field history tracking is on for Contact Email / Phone in qa-prod (TC-023's precondition).
 4. Non-admin test users (Phase 3 open item) are still needed for the BLOCKED-NO-PERSONA deny cases.
+
+## Operator decisions applied (2026-11-25)
+
+You answered Q1–Q3 and C1–C4 and deferred BR-09. The flow was:
+- `qa discover --org qa-prod` → `run-p4-discover-4`, snapshot `…20261125122127-93cc`. It shows the new rules:
+  Phone_Required_For_Web, Title_Must_Be_Approved (exactly the 4 titles) and duplicate rule
+  Contact_Same_Email_Same_Account.
+  - Phone_Must_Be_10_Digits is unchanged (hash `b0f3cd5a43`).
+  - Matching rules are **not** a discovered metadata type, so Contact_Email_Account itself is not in the snapshot.
+    The active duplicate rule that uses it is.
+- **New `qa decide`** (`src/cli/decide.ts`, `src/inputs/decisions.ts`). It applies a decisions YAML
+  (`examples/decisions/SF-219.yaml`) to an analysis run and writes a **new** analysis run. The source run is unchanged;
+  no model and no org call is used. In detail:
+  - answers → clarification ANSWERED;
+  - the findings an answer names are removed;
+  - the answer's stated expected outcomes are added to the linked requirements;
+  - the answer becomes a `rule` section of a `SF-219-DECISIONS` source document, so it is approved, uncontested
+    evidence;
+  - org-conflict notes are `text` sections, which are context and never assertable;
+  - every change is listed in `decisions-applied.md`.
+- **New requirement status `DEFERRED`.** A deferred requirement gets no org cross-check, obligations, risks or cases.
+  Its RTM row is `excluded`, with the reason, and it appears in the charter's out-of-scope list.
+- `qa decide --from-run run-p1-final-combined --decisions examples/decisions/SF-219.yaml --run-id run-p4-decided-1`:
+  - R14, R19 and R22 became EXECUTABLE; R23 (BR-09) is DEFERRED;
+  - findings F-006/007/008/009/012/016/017/018 were resolved.
+- `qa design --from-run run-p4-decided-1 --org qa-prod --run-id run-p4-design-decided-1`:
+  - the cross-check went from 4 CONFLICT to 1 (C1, Email);
+  - **26 cases: 20 APPROVED, 5 REVIEW_REQUIRED, 1 BLOCKED** (Phase 3 had 7 APPROVED);
+  - `pnpm validate:design run-p4-design-decided-1` → valid; R23 `excluded`.
+  - The run status is PARTIAL because one judge "verify" call failed (Gemini 503) after 3 retries. That finding was
+    escalated, not dropped.
+- Per decision:
+  - Q1: TC-007/008/009/010 APPROVED (both branches of Phone-for-Web, plus the 10-digit rule).
+  - Q2: TC-036 (each approved title) and TC-015 (invalid title rejected) APPROVED.
+  - Q3: TC-031 (open Case blocks delete) is **REVIEW_REQUIRED**. The judge asked for the positive counterpart
+    ("a Contact with only closed Cases can be deleted"), which BR-08 and your answer do not state. It is recorded as
+    known defect `eval/golden/SF-219/known_defects.json` KD-SF-219-001, expected outcome FAIL, for the Phase 7 demo.
+  - C1: TC-049 (Email empty as Sales Rep) is REVIEW_REQUIRED with its step UNKNOWN_OR_CONTRADICTORY (org conflict
+    OC-003). It is never asserted or generated until the Email_Required_For_Sales_Reps rule exists. The Sales Rep
+    user already exists and is active (read-only SOQL), so the other Sales Rep cases (TC-032/044/045/047/048) are
+    APPROVED.
+  - C2: TC-050 (duplicate warning) APPROVED.
+  - Still REVIEW_REQUIRED for reasons outside these decisions: R20 / BR-07 (no stated edit outcome; TC-016/017)
+    and NFR-01 (no measurement method; TC-021). TC-011 stays BLOCKED-NO-PERSONA (no read-only user).
+- **Case ids changed** compared with run-p3-live-5 for re-planned obligations. The specs in `tests/generated/SF-219/`
+  still come from run-p3-live-5 until `qa build --from-run run-p4-design-decided-1` is run.
+
+## Specs regenerated from the decided design (2026-11-25)
+
+`qa build --from-run run-p4-design-decided-1 --org qa-prod` for the 20 APPROVED cases. It took three builds, and
+each one exposed a generator gap that was fixed in code:
+
+| Run | Coder-generated | Skeleton | What it showed | Fix |
+|---|---|---|---|---|
+| run-p4-build-decided-1 | 7 | 13 | The coder clicks the related-list "New" button itself and types the parent Account into the pre-filled lookup. Old skeletons of the previous design (TC-002/003) were not removed. | `navigationShorthand` in `normalizeIr`: click → `openNewFromRelatedList`; a parent-lookup fill with the parent is dropped, with a note. `isGeneratedSpec` also removes old skeletons. |
+| run-p4-build-decided-2 | 4 | 16 | Lead Source = Web (Q1 cases) cannot be expressed: the IR had no picklist action. | New IR action `select` (renders `selectPicklist`). Its value must be an active picklist value in the snapshot, so it is grounded by the org. `fill` on a picklist combobox is rewritten to `select`. |
+| run-p4-build-decided-3 | 12 | 8 | Pass 2 failed: both judge models (NIM minimax, Gemini 3.1 flash-lite) returned 503 for hours, so the build ended without updating the manifest. TC-012/051 had the build-time synthetic Account name as a literal. | `qa review --pass 2` degrades on a judge outage (deterministic checks only, nothing APPROVED, reason recorded) and rewrites the manifest entries of the reviewed build. A literal equal to a run-specific recipe value becomes a `data` ref. |
+
+**State checked in** (manifest = run-p4-build-decided-3, reviewed by `review2-20261125-203039-29fd`, judge
+unavailable):
+- 20 specs. tsc and ESLint are clean, 20/20 list, live dry-run 47/47.
+- **All 20 are REVIEW_REQUIRED:**
+  - 10 have only "judge unavailable" as their reason: TC-007/008/009 (Phone for Web), 015 (invalid Title), 023, 032,
+    046, 048, 052, 053.
+  - 2 have a deterministic finding, the baked-in synthetic name (TC-012, TC-051). The code fix above applies at the
+    next generation.
+  - 8 are skeletons: TC-004, 010, 026, 036, 044, 045, 047, 050. NIM laguna still fails them on adopt/cleanup
+    bookkeeping and value kinds; Groq returns bad JSON or 429s; Gemini returns 503.
+- **Next, once the judge providers are back:**
+  - `qa review --pass 2 --run run-p4-build-decided-3` to get real verdicts;
+  - `qa build --from-run run-p4-design-decided-1 --org qa-prod --cases <skeletons + 012,051>` to regenerate the rest.
+- Known gap: inside `qa build`, a judge outage still escalates (the graph retries TRANSIENT), and the manifest is only
+  written when pass 2 settles. `qa review --pass 2` is the recovery path.
+
+## Judge resilience and code-owned cleanup (2026-11-25, operator request)
+
+- **`qa build` survives a judge outage.**
+  - The review2 node retries a TRANSIENT judge failure with the policy backoff (2 / 8 / 30 s). The router chain is
+    the provider fallback: NIM judge → Gemini.
+  - If both still fail, the round is deterministic-only and nothing becomes APPROVED ("judge unavailable"). A
+    DEGRADED issue is recorded, and **the manifest is always written.**
+  - Proof: `build.test.ts` (judge always 503), and live run run-p4-build-decided-4 (round 1 judge 503 ×4, round 2
+    judge answered).
+- **Record cleanup is no longer written by the model.**
+  - The IR contract no longer offers `adopt`; model-written adopts are removed with a note, and a legacy spec that
+    has one is BLOCKED by pass 2.
+  - The renderer emits `data.adoptCreated(as, object, id)` after every recordView that follows a create-dialog Save.
+  - The data engine first proves the record is ours (`CreatedById` = the persona's user, `CreatedDate` ≥ test start
+    − 5 min), then tags it and adds it to the cleanup ledger.
+  - The model's only obligation is an assertion: a create Save must be followed by recordView, or by a rejection
+    assertion.
+  - Tests: `data.test.ts` (ownership refusals, cleanup CLEAN), `promptParts.test.ts`.
+- **The judge times out on large reviews.** NIM `nemotron-3-ultra` hit its 120 s limit on a 10-spec review, so
+  one-case reviews were used.
+- **Live results:** builds run-p4-build-decided-4 and -5, plus one-case reviews of the build-3 specs.
+  - **20 specs, 3 APPROVED** (TC-026, 044, 051), **17 REVIEW_REQUIRED**, 14 coder-generated, 6 skeletons.
+  - Skeletons: TC-007, 012, 032, 045, 047, 050.
+  - The most frequent judge finding: the expected error *text* / field value / pre-filled Account Name is not
+    asserted. The IR's `fieldError` checks presence only, so it needs an optional message taken from the org's
+    validation rule.
+  - TC-015 was reviewed deterministic-only (judge timeout).
+  - TC-009 used Lead Source "Word of mouth" instead of the case's "Phone Inquiry"; the select check only allows
+    snapshot values, and qa-prod's picklist lacks "Phone Inquiry".
+
+
+## Expected error messages and pre-filled values from org evidence (2026-11-26, operator request)
+
+- **Error text comes only from the org.**
+  - `fieldError` takes an optional `message: { rule }`. The model names an active validation rule; code
+    (`fieldErrorRule`, `context.ts`) reads that rule's `errorMessage` from the snapshot. The rule must be active,
+    on the field's object, and display its error on that field (`errorDisplayField`). The renderer emits
+    `expectFieldError(field, '<org text>') // message of rule <name> (org snapshot)`, which checks `aria-invalid`
+    and the field's accessible description (`aria-describedby`).
+  - The schema has no free-text message, so text the model writes is dropped at parsing.
+  - In run-p4-build-decided-6, the coder named the duplicate rule `Contact_Same_Email_Same_Account` as a
+    validation rule. The check rejected it and the model omitted the message.
+  - qa-prod's Phone format rule reads **"Enter a 10-digit phone number."** (snapshot 2026-11-25). The operator's
+    example wording ("Phone must be exactly 10 digits.") is not the org text; the specs use the org text.
+- **No evidence → REVIEW_REQUIRED.**
+  - New pass-2 rule `message-unevidenced` (M, not regenerable): a case step whose expected result names an error
+    message, but whose field error asserts no evidenced text, keeps the spec REVIEW_REQUIRED.
+  - The standard Salesforce required-field message ("Complete this field.") is noted in phase-0 notes, but no
+    exploration run captured it as an org observation, so Last Name cases stay presence-only + REVIEW_REQUIRED.
+- **Field values:** `inputValue` now accepts comboboxes. A pre-filled lookup (Account Name) renders `toHaveValue`;
+  a picklist renders `toContainText`.
+- **Operator case edits:**
+  - `qa build --case-edits examples/case-edits/SF-219.yaml` applies exact-text edits to case wording. An edit
+    that matches nothing is an error, and the applied edits are listed in `build/case-edits-applied.md`.
+  - SF-219: "Phone Inquiry" (not a qa-prod Lead Source) became "any non-Web value (e.g. 'Word of mouth')" in
+    TC-007, TC-009 and TC-010, since all three only need a non-Web Lead Source.
+- **Live build run-p4-build-decided-6** (10 cases):
+  - tsc 0, ESLint 0, listed 10/10, dry-run 12/12 LIVE.
+  - 6 APPROVED / 4 REVIEW_REQUIRED before the `message-unevidenced` re-review.
+  - TC-007 is now coder-generated (it was a skeleton).
+- **Re-review and build run-p4-build-decided-7:**
+  - The 9 previously APPROVED specs were re-reviewed one case at a time. Only TC-008, 009 and 010 stayed APPROVED.
+    TC-046 is held by `message-unevidenced`; the judge flagged TC-007, 015, 026, 044 and 051.
+  - Build 7 regenerated TC-007, 015, 026 and 044 with the new checks: 3 APPROVED, 1 REVIEW_REQUIRED.
+    `pnpm validate:build run-p4-build-decided-7`: all valid. Dry-run 12/12 LIVE.
+- **SF-219 now:** 20 specs, **6 APPROVED** (TC-007, 008, 009, 010, 015, 026) and **14 REVIEW_REQUIRED**. 17 are
+  coder-generated and 3 are skeletons (TC-012, 045, 047).
+- **Open judge themes:**
+  - Detail-page UI values are checked by SOQL only (TC-044, TC-032). There is no record-page field-value check
+    yet.
+  - The duplicate warning text is not evidenced (TC-050).
+  - "Review execution record of MTC-00x" steps (TC-051, 052) are not automatable: a case-design issue.
+- **Nit:** the generated dialog step asserts `newContactDialog.root` visible twice: once from
+  `openNewFromRelatedList`, and once more when the model asks for it.
+
+## Final round and Phase 4 close (2026-11-26, operator request)
+
+- **Record-page field values.**
+  - Record pages get a derived member `<field>Field` per verified inline-edit button: the details list item that
+    holds it, `getByRole('main').getByRole('listitem').filter({ has: … 'Edit <Field>' … })`.
+  - The safe locator grammar gained `filter({ has })`.
+  - New IR check `recordField` renders `expect(<page>.<field>Field).toContainText(value)`.
+  - Phone, date and number fields are refused, because the record page shows them locale-formatted; those are
+    checked with `soqlField`.
+  - Used in TC-012, 023, 032, 044 and 050. The live dry-run resolved every derived member used (50/50).
+- **Duplicate assertions.** Identical assertion lines inside a step are rendered once, which removes the doubled
+  "dialog visible" check.
+- **Manual-only cases.**
+  - `manualOnly` in `examples/case-edits/SF-219.yaml` covers TC-051 and TC-052, whose steps review another manual
+    test's execution record.
+  - Neither case gets a spec, and pass 2 does not ask for one. The manifest lists both under `manualOnly`, and
+    `validate:build` checks that they have no spec.
+  - The build writes `build/rtm-automation.md|json`: per requirement, the automated cases with their spec status,
+    the manual-only cases, and the cases with no spec.
+- **Two deterministic pass-2 checks were added after build 8 approved specs they should not have.**
+  - `message-unevidenced` now also covers warnings and "error … indicating …". The build had approved TC-048
+    (email format error) and TC-050 (duplicate warning) with no evidence for the text.
+  - A spec whose case persona differs from the dry-run persona is REVIEW_REQUIRED: its locators are unverified for
+    that persona. This applies to the sales-rep cases TC-032, 044, 047 and 048 (the sales-rep user now exists in
+    `personas.yaml`; the dry-run ran as system-admin).
+  - These 5 specs were re-reviewed once (`review2-20261126-095851-512d`).
+- **Phase 5 plan.** The Application Explorer captures the Last Name required-field message and the duplicate-warning
+  text by observation (a rejected save creates no record; SOQL confirms none). Then TC-004, 046, 048 and 050 are
+  re-reviewed (PLAN.md Phase 5).
+- **Final SF-219 state** (`run-p4-build-decided-8` plus the re-review; story manifest `tests/generated/SF-219/manifest.json`):
+  - 26 design cases: 20 APPROVED at design, of which 18 are automated and 2 are manual-only (TC-051, 052).
+  - 18 specs: **8 APPROVED** (TC-007, 008, 009, 010, 015, 026, 036, 053) and **10 REVIEW_REQUIRED**, 0 BLOCKED.
+  - 17 specs are coder-generated; 1 is a skeleton (TC-045).
+  - tsc 0, ESLint 0, `playwright test --list` 18/18 SF-219 specs, live dry-run 50/50, `pnpm validate:build
+    run-p4-build-decided-8` all valid.
+  - Reasons the 10 specs need review:
+    - unevidenced message text: TC-004, 046, 048, 050;
+    - locators not dry-run as sales-rep: TC-032, 044, 047, 048;
+    - judge findings: field values and steps not fully asserted (TC-012, 023, 032, 044, 047, 050);
+    - skeleton: TC-045.
+  - Nothing has been executed; execution is Phase 5.
+- **Phase 4 is closed.**
+
+## Spec staleness (2026-11-26, operator request — Phase 4 follow-up)
+
+- **What happened:**
+  - The operator changed `Contact.Phone_Must_Be_10_Digits` back to "Phone must be exactly 10 digits." after
+    snapshot `…93cc`, so build 8's TC-009/010 still asserted "Enter a 10-digit phone number."
+  - Nothing noticed this: discovery marked locators, manual tests and requirements RE_VERIFY, but not specs, and
+    `qa build` used the latest snapshot without saying that existing specs were older.
+  - `qa discover` (`run-p4-discover-5`, snapshot `…adbb`): 1 changed, `errorMessage` only.
+- **Dependency records:**
+  - Every generated spec now records in `dependsOn` the content hashes of the fields it types, selects, reads or
+    queries; of the validation rules whose message it asserts or whose formula reads those fields; and of every
+    locator it uses (registry expression + status). `snapshotId` is now the snapshot the spec was built on.
+  - `scripts/backfill-spec-deps.ts` recorded the 18 build-8 specs deterministically: each spec's IR, its build
+    snapshot and the committed page catalog. No model was used.
+- **STALE marks:**
+  - `qa discover` and `qa build` compare every spec's dependencies with the latest snapshot and the locator
+    registry, then mark changed, removed or RE_VERIFY dependencies as `stale` in the manifest.
+  - Marks are only added; a rebuild clears them. The discovery report gets a "Generated specs" section.
+- **`qa build`:**
+  - It warns when a newer snapshot exists than the specs were built on, and lists the STALE specs.
+  - `--stale` rebuilds exactly those.
+  - Case wording that quotes an outdated validation-rule message is refreshed from the latest snapshot (exact quotes
+    only), and the case moves to that snapshot.
+  - A partial rebuild now keeps the manifest's manual-only rulings. Build 9 ran the old code and lost them; they
+    were restored from the previous commit.
+- **Gate:**
+  - `src/runner/gate.ts` re-checks staleness first. A stale spec is BLOCKED with
+    "stale: <component> changed in <snapshot>", and a spec without a dependency record is BLOCKED; only APPROVED,
+    current specs execute.
+  - `qa run --story <key> --org <alias> --plan-only` shows the plan; execution itself is Phase 5.
+  - Pass 2 gained `message-mismatch`: a case that quotes a message other than the org rule text the spec asserts.
+- **Unit test** (`build.test.ts`): a spec typing Phone depends on `ValidationRule:Contact.Phone_Must_Be_10_Digits`.
+  A fixture snapshot with a changed message marks it STALE, the gate BLOCKs it with the exact reason, and a rebuild
+  from the new snapshot clears it.
+- **Live, step by step:**
+  1. `qa run --plan-only` (`run-p4-gate-1`) found 7 stale specs: TC-007, 008, 009, 010, 032, 044 and 053, which
+     all depend on the Phone rule; the Phone locator was also RE_VERIFY.
+  2. `qa locators discover --org qa-prod` (observe only) set the Phone locators back to ACTIVE.
+  3. `qa build --stale` (`run-p4-build-decided-9`) printed the newer-snapshot warning and refreshed TC-009 and
+     TC-010 (3 steps) to "Phone must be exactly 10 digits.". The rebuilt specs assert that text, and their header
+     names snapshot `…adbb`. Dry-run 48/48; 4 APPROVED.
+  4. TC-044 degraded to a skeleton (invalid coder output). It was retried in `run-p4-build-decided-10`: generated,
+     REVIEW_REQUIRED.
+  5. `qa run --plan-only` (`run-p4-gate-2`): 7 EXECUTE, 0 BLOCKED, 11 NOT_APPROVED, 2 MANUAL.
+- **SF-219 now:** 18 specs, **7 APPROVED** (TC-007, 008, 009, 010, 015, 026, 036) and **11 REVIEW_REQUIRED**. 17 are
+  coder-generated and 1 is a skeleton (TC-045); none are stale; TC-051 and 052 are manual-only.
+  - TC-053 dropped from APPROVED: the judge found its step 5 tests the record page, not the list view.
+  - `pnpm validate:build run-p4-build-decided-10`: all valid.

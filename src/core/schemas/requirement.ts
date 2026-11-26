@@ -27,8 +27,8 @@ export const Requirement = z.object({
   assumptions: z.object({ known: z.array(z.string()), unknown: z.array(z.string()) }),
   sources: z.array(SourceRef).min(1),
   type: z.enum(['functional', 'validation', 'security', 'data', 'ui', 'integration', 'non-functional']),
-  /** No clear expected outcome → REVIEW_REQUIRED. */
-  status: z.enum(['EXECUTABLE', 'REVIEW_REQUIRED']),
+  /** No clear expected outcome → REVIEW_REQUIRED. DEFERRED = out of scope by operator decision (not designed). */
+  status: z.enum(['EXECUTABLE', 'REVIEW_REQUIRED', 'DEFERRED']),
   /** Why the requirement is REVIEW_REQUIRED (open question, unclear outcome, unconfirmed assumption …). */
   reviewReasons: z.array(z.string()).default([]),
   /** Short human title (optional; businessObjective stays the canonical statement). */

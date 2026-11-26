@@ -1,0 +1,18 @@
+[
+  {
+    "id": "KD-SF-219-001",
+    "storyKey": "SF-219",
+    "requirementId": "SF-219-R22",
+    "refs": ["BRD-CON-012#BR-08", "SF-219-DECISIONS#Q3"],
+    "testCaseId": "TC-SF-219-031",
+    "designRun": "run-p4-design-decided-1",
+    "org": "dedicated-qa-prod",
+    "summary": "A Contact that has open Cases can be deleted; BR-08 says deletion must be blocked and the Contact must still exist.",
+    "expectedResult": "Deleting a Contact that has an open Case is blocked and the Contact still exists (no exact error text asserted).",
+    "expectedTestOutcome": "FAIL",
+    "classification": "APPLICATION_DEFECT",
+    "seeded": true,
+    "reason": "Intentionally not implemented in the org (operator decision 2026-11-25). Used as the real defect for the Phase 7 investigation demo; the test is kept and its failure is expected.",
+    "recordedOn": "2026-11-25"
+  }
+]

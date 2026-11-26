@@ -5,12 +5,12 @@ import ts from 'typescript';
 import type { Logger } from 'pino';
 import { QAError } from '../../core/errors.js';
 import type { ReviewFinding } from '../../core/schemas/design.js';
-import type { DryRunReport, GeneratedArtifact } from '../../core/schemas/generation.js';
-import type { ReviewStatus, TestCase } from '../../core/schemas/testCase.js';
+import type { DryRunReport, GeneratedArtifact, TestIR } from '../../core/schemas/generation.js';
+import { isAutomatable, type ReviewStatus, type TestCase } from '../../core/schemas/testCase.js';
 import type { ModelRouter } from '../../models/router.js';
 import type { Redactor } from '../../security/redact.js';
 import type { SkillLoader } from '../../skills/skillLoader.js';
-import { irProblems, type GenerationContext } from '../test-generator/context.js';
+import { fieldErrorRule, irProblems, type GenerationContext } from '../test-generator/context.js';
 import type { GeneratedSpec } from '../test-generator/graph.js';
 import { findMember } from '../test-generator/pageObjects.js';
 import { A11Y_SCOPE_NOTE } from '../test-generator/render.js';
@@ -61,6 +61,11 @@ export interface Pass2Input {
   prior: readonly ReviewFinding[];
   round: number;
   mode: 'llm' | 'mechanical';
+  /**
+   * A judge outage (TRANSIENT after the router's own failover) degrades this round instead of failing it. The graph
+   * node leaves this off so the QA Lead retries the node; `qa review --pass 2` sets it (no retry loop there).
+   */
+  transientDegrades?: boolean;
 }
 
 export interface Pass2Deps {
@@ -119,6 +124,48 @@ export function astViolations(text: string): { rule: ReviewFinding['rule']; text
   return out;
 }
 
+const EXPECTS_MESSAGE =
+  /\b(?:error|validation|warning)\s+message\b|\bmessage\b.*\b(?:displayed|shown)\b|\b(?:error|warning)\s+'[^']+'|\b(?:error|warning)\b[^.;]*\b(?:indicating|stating|saying)\b/i;
+
+/** Case steps (0-based) that expect an error / warning message but assert no org-evidenced message text. */
+export function unevidencedMessageSteps(tc: TestCase, ir: TestIR): number[] {
+  const out: number[] = [];
+  tc.steps.forEach((st, n) => {
+    if (!EXPECTS_MESSAGE.test(st.expected.text)) return;
+    const errs = ir.steps
+      .filter((x) => x.caseStep === n)
+      .flatMap((x) => x.assertions)
+      .filter((a) => a.check === 'fieldError');
+    // Only a field error whose text comes from an org validation rule evidences the message (warnings and standard
+    // Salesforce messages have no captured evidence yet: Phase 5 Explorer capture).
+    if (!errs.some((a) => a.message)) out.push(n);
+  });
+  return out;
+}
+
+/**
+ * Steps whose expected result quotes a message ('…' or "…") while the spec asserts a rule message that is none of
+ * the quotes — the case and the org disagree (e.g. the org rule changed after design).
+ */
+export function messageMismatches(tc: TestCase, ir: TestIR, ctx: GenerationContext): { step: number; text: string }[] {
+  const out: { step: number; text: string }[] = [];
+  for (const st of ir.steps) {
+    const exp = tc.steps[st.caseStep]?.expected.text ?? '';
+    const quotes = [...exp.matchAll(/'([^']+)'|"([^"]+)"/g)].map((m) => m[1] ?? m[2] ?? '');
+    if (!quotes.length) continue;
+    for (const a of st.assertions) {
+      if (a.check !== 'fieldError' || !a.message) continue;
+      const r = fieldErrorRule(ctx, a.element, a.message.rule);
+      if ('message' in r && !quotes.includes(r.message))
+        out.push({
+          step: st.caseStep,
+          text: `step ${String(st.caseStep + 1)} quotes ${quotes.map((q) => `"${q}"`).join(', ')} but ${r.rule} says "${r.message}" in the org snapshot — update the case (qa build refreshes quoted rule messages)`,
+        });
+    }
+  }
+  return out;
+}
+
 /** Pass-2 deterministic checklist; pure function of the current specs + tool results. */
 export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): (FindingDraft & { paths: string[] })[] {
   const out: (FindingDraft & { paths: string[] })[] = [];
@@ -127,7 +174,7 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
   ): void => {
     out.push({ refs: [], requirementIds: [], ...f });
   };
-  for (const tc of i.cases.filter((c) => c.reviewStatus === 'APPROVED')) {
+  for (const tc of i.cases.filter(isAutomatable)) {
     const spec = i.specs.find((s) => s.caseId === tc.id);
     const req = tc.requirementIds;
     if (!spec) {
@@ -167,6 +214,26 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
       const recipe = i.ctx.recipes.find((r) => spec.artifact.dataBindings.includes(r.name));
       for (const msg of irProblems(tc, spec.ir, i.ctx, recipe ?? i.ctx.recipes[0])) {
         add({ ...base, key: `ir:${tc.id}:${msg}`, severity: 'H', rule: classify(msg), text: msg });
+      }
+      // Expected error text needs org evidence (a validation rule's message). A step whose expected result names an
+      // error message but whose fieldError has none stays with a human (operator 2026-11-26: never invent text).
+      for (const mm of messageMismatches(tc, spec.ir, i.ctx)) {
+        add({
+          ...base,
+          key: `msg-mismatch:${tc.id}:${mm.text}`,
+          severity: 'M',
+          rule: 'message-mismatch',
+          text: mm.text,
+        });
+      }
+      for (const n of unevidencedMessageSteps(tc, spec.ir)) {
+        add({
+          ...base,
+          key: `msg:${tc.id}:${String(n)}`,
+          severity: 'M',
+          rule: 'message-unevidenced',
+          text: `step ${String(n + 1)} expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid`,
+        });
       }
       for (const b of spec.artifact.dataBindings) {
         const r = i.ctx.recipes.find((x) => x.name === b);
@@ -239,13 +306,24 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
         });
       }
     }
+    // The dry-run verifies locators for one persona; a case run as another persona has unverified locators (the
+    // persona may see a different layout or no button at all).
+    if (i.dryRun && i.dryRun.persona !== tc.persona && spec.artifact.locatorsUsed.length) {
+      add({
+        ...base,
+        key: `dry-persona:${tc.id}`,
+        severity: 'M',
+        rule: 'locator-unresolved',
+        text: `locators were dry-run as ${i.dryRun.persona}, not as the case persona ${tc.persona}: unverified for ${tc.persona}`,
+      });
+    }
     if (!i.dryRun) {
       add({
         ...base,
         key: `dry:${tc.id}:none`,
         severity: 'M',
         rule: 'locator-unresolved',
-        text: 'no locator dry-run for this build (offline): locators are unverified',
+        text: 'no locator dry-run result for this review: locators are unverified',
       });
     }
     // Toolchain (typecheck / lint / list).
@@ -279,6 +357,8 @@ export interface Pass2Result {
   environment: 'LIVE' | 'MOCK' | 'NONE';
   models: string[];
   judgeDegraded: boolean;
+  /** Why the judge was unavailable (error kind + message), when degraded by an error. */
+  judgeError?: { kind: string; message: string };
   /** Per case id: open findings the generator should fix by regenerating. */
   feedback: Record<string, string[]>;
 }
@@ -320,6 +400,7 @@ export async function reviewPass2Round(i: Pass2Input, deps: Pass2Deps): Promise<
   let environment: Pass2Result['environment'] = 'NONE';
   const models: string[] = [];
   let judgeDegraded = false;
+  let judgeError: Pass2Result['judgeError'];
   const generated = i.specs.filter((s) => s.artifact.origin === 'generated');
   if (i.mode === 'llm' && deps.router && generated.length) {
     try {
@@ -402,8 +483,15 @@ export async function reviewPass2Round(i: Pass2Input, deps: Pass2Deps): Promise<
         }
       }
     } catch (e) {
-      if (!(e instanceof QAError) || (e.kind !== 'INVALID_LLM_OUTPUT' && e.kind !== 'TOOL_UNAVAILABLE')) throw e;
+      const degradable =
+        e instanceof QAError &&
+        (e.kind === 'INVALID_LLM_OUTPUT' ||
+          e.kind === 'TOOL_UNAVAILABLE' ||
+          (e.kind === 'TRANSIENT' && i.transientDegrades === true));
+      if (!degradable) throw e;
+      deps.logger?.warn({ err: e.message }, 'pass 2 judge unavailable: deterministic review only');
       judgeDegraded = true;
+      judgeError = { kind: e.kind, message: e.message };
     }
   } else if (i.mode === 'llm' && !deps.router) {
     judgeDegraded = true;
@@ -413,7 +501,7 @@ export async function reviewPass2Round(i: Pass2Input, deps: Pass2Deps): Promise<
   for (const f of findings.filter((x) => x.status === 'OPEN' && REGENERABLE.has(x.rule))) {
     for (const c of f.caseIds) (feedback[c] ??= []).push(f.text);
   }
-  return { findings, environment, models, judgeDegraded, feedback };
+  return { findings, environment, models, judgeDegraded, ...(judgeError ? { judgeError } : {}), feedback };
 }
 
 export interface SettlePass2Result {
@@ -426,6 +514,25 @@ export interface SettlePass2Result {
  * everything else open → REVIEW_REQUIRED for a human (finding JUSTIFIED + escalated). Specs with no open finding,
  * generated by the model, with a resolved dry-run → APPROVED.
  */
+/**
+ * Without the judge nothing is APPROVED (the deterministic checks cannot judge "test matches the case"): APPROVED
+ * artifacts become REVIEW_REQUIRED with the reason.
+ */
+export function withoutJudge(artifacts: readonly GeneratedArtifact[]): GeneratedArtifact[] {
+  return artifacts.map((a): GeneratedArtifact =>
+    a.reviewStatus === 'APPROVED'
+      ? {
+          ...a,
+          reviewStatus: 'REVIEW_REQUIRED',
+          reviewReasons: [
+            ...a.reviewReasons,
+            'judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2',
+          ],
+        }
+      : a,
+  );
+}
+
 export function settlePass2(findings: readonly ReviewFinding[], specs: readonly GeneratedSpec[]): SettlePass2Result {
   const out = findings.map((f) => ({ ...f }));
   for (const f of out) {

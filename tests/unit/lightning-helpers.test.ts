@@ -103,6 +103,8 @@ describe('Lightning + a11y helpers on the offline fixture (real Chromium, FIXTUR
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await waitForSpinners(page);
     await expectFieldError(lastName);
+    await expectFieldError(lastName, 'Complete this field.'); // the fixture's own error text (FIXTURE)
+    await expect(expectFieldError(lastName, 'Some other message')).rejects.toThrow();
     expect(await pageError(dialog).textContent()).toContain('We hit a snag');
 
     const name = `QA-helpers-${Date.now().toString(36)}`;

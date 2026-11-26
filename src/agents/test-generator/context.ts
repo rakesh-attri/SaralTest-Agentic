@@ -1,9 +1,9 @@
 // Generation context + deterministic IR checks (the Test Generator reflects these back to the model; Test Reviewer
 // pass 2 re-runs them on the stored IR). Code decides what is allowed; the model only maps case steps to the IR.
 import type { DataPlan, DataPlanStep } from '../../core/schemas/data.js';
-import type { IrAction, IrAssertion, IrStep, TestIR, ValueRef } from '../../core/schemas/generation.js';
+import type { IrAction, IrAssertion, TestIR, ValueRef } from '../../core/schemas/generation.js';
 import { isAssertable, type TestCase } from '../../core/schemas/testCase.js';
-import type { SnapshotFacts } from '../../sf/data/plan.js';
+import type { FieldFact, SnapshotFacts } from '../../sf/data/plan.js';
 import { findMember, relatedListNewButton, type CatalogPage, type PageCatalog } from './pageObjects.js';
 
 export interface RecipeView {
@@ -106,6 +106,39 @@ export function derivableErrorCodes(
 }
 
 const FILLABLE = new Set(['textbox', 'spinbutton', 'searchbox']);
+const VALUED = new Set([...FILLABLE, 'combobox']);
+/** Field types the record page displays exactly as stored (others are locale-formatted: phone, dates, numbers). */
+const DISPLAYED_AS_ENTERED = new Set(['string', 'textarea', 'email', 'picklist', 'reference', 'url', 'id']);
+
+/**
+ * The error message a field must show for a validation rule — taken only from the org snapshot (DECLARED
+ * metadata): the rule must be active, on the field's object, and display its error on that field.
+ */
+export function fieldErrorRule(
+  ctx: GenerationContext,
+  element: string,
+  rule: string,
+): { rule: string; message: string } | { problem: string } {
+  const m = findMember(ctx.catalog, element);
+  const [object, field] = m?.member.fieldApiName?.split('.') ?? [];
+  if (!object || !field) return { problem: `${element} is not bound to a field, so no rule message applies` };
+  const name = rule.includes('.') ? rule : `${object}.${rule}`;
+  const vr = ctx.facts.activeValidationRules(object).find((c) => c.apiName === name);
+  if (!vr) return { problem: `${name} is not an active validation rule on ${object} in the snapshot (omit message)` };
+  const msg = vr.body?.['errorMessage'];
+  if (typeof msg !== 'string' || !msg.trim()) return { problem: `${name} has no error message in the snapshot` };
+  if (vr.body?.['errorDisplayField'] !== field)
+    return { problem: `${name} shows its message at the top of the form, not on ${field} (omit message)` };
+  return { rule: name, message: msg };
+}
+
+/** The snapshot field behind a picklist combobox member, if it is one. */
+export function picklistFact(ctx: GenerationContext, ref: string): FieldFact | undefined {
+  const m = findMember(ctx.catalog, ref);
+  const [object, field] = m?.member.fieldApiName?.split('.') ?? [];
+  const fact = object && field ? ctx.facts.field(object, field) : undefined;
+  return fact && (fact.type === 'picklist' || fact.type === 'multipicklist') ? fact : undefined;
+}
 const CLICKABLE = new Set(['button', 'tab', 'link', 'menuitem', 'checkbox', 'radio', 'option']);
 
 /**
@@ -218,19 +251,20 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
       p.push(`${where}: caseStep ${st.caseStep} does not exist (case has ${tc.steps.length})`);
     if (!st.actions.length && !st.assertions.length) p.push(`${where}: no action and no assertion`);
     for (const a of st.actions) action(a, `${where} ${a.do}`, st.caseStep);
-    // A record the test creates in the UI and captures must also be adopted (tagged + cleaned up), or it stays in
-    // the org after the run (run-p4-tc004-1: two Contacts created at 79 / 80 characters were never adopted).
-    // Only Save in a create dialog creates a record; recordView after openRecord just captures an existing one.
-    const adoptedHere = st.actions.filter((x) => x.do === 'adopt').length;
-    const createSaves = st.actions.filter((x) => {
-      if (x.do !== 'click') return false;
-      const m = findMember(ctx.catalog, x.element);
-      return m?.page.kind === 'dialog' && m.member.role === 'button' && /^Save$/.test(m.member.accessibleName ?? '');
-    }).length;
-    const viewedHere = st.assertions.filter((x) => x.check === 'recordView').length;
-    if (Math.min(createSaves, viewedHere) > adoptedHere) {
+    // Cleanup of UI-created records is code-owned (render.ts registers the record shown after a create-dialog
+    // Save). The model's part is the assertion: a Save the case expects to succeed must be followed by recordView —
+    // without it the new record cannot be registered and would stay in the org.
+    const createSave = st.actions.some((x) => x.do === 'click' && isCreateSave(ctx, x.element));
+    const rejected = st.assertions.some(
+      (x) =>
+        x.check === 'fieldError' ||
+        x.check === 'soqlNoRecord' ||
+        x.check === 'apiRejects' ||
+        (x.check === 'visible' && findMember(ctx.catalog, x.element)?.page.kind === 'dialog'),
+    );
+    if (createSave && !rejected && !st.assertions.some((x) => x.check === 'recordView')) {
       p.push(
-        `${where}: the record this step creates in the UI is not adopted — add {"do":"adopt","as":"<name>","object":"<Object>","field":"<field>","value":<the unique / length value typed into that field>} after Save so cleanup removes it`,
+        `${where}: after Save in the create dialog assert {"check":"recordView","object":"<Object>","as":"<name>"} (the saved record) — or assert the rejection (fieldError / visible dialog / soqlNoRecord). Cleanup is automatic; never write adopt`,
       );
     }
     for (const a of st.assertions) {
@@ -289,6 +323,22 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         if (a.value.kind === 'unique') typedUniques.add(a.value.label);
         if (a.value.kind === 'length') typedLengths.add(a.value.length);
         break;
+      case 'select': {
+        member(a.element, new Set(['combobox']), true);
+        const fact = picklistFact(ctx, a.element);
+        if (!fact) {
+          p.push(`${where}: ${a.element} is not a picklist field in the snapshot (select is for picklists only)`);
+        } else if (a.value.kind === 'literal' && fact.picklistValues?.includes(a.value.value)) {
+          // grounded by the org: an active value of this picklist in the snapshot (DECLARED_CONFIG)
+        } else if (a.value.kind === 'literal') {
+          p.push(
+            `${where}: "${a.value.value}" is not an active value of ${fact.apiName} (values: ${(fact.picklistValues ?? []).join(', ')})`,
+          );
+        } else {
+          value(a.value, where, caseStep);
+        }
+        break;
+      }
       case 'clear':
         member(a.element, FILLABLE, true);
         break;
@@ -320,21 +370,8 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         break;
       }
       case 'adopt':
-        if (a.value.kind === 'length') {
-          // data.ofLength(n) values start with QA-<runId>- (run-unique) once n is long enough to hold the prefix.
-          if (a.value.length < 40 || !typedLengths.has(a.value.length)) {
-            p.push(
-              `${where}: adopt by a length value needs the same 40+ character value the test typed into the record`,
-            );
-          }
-        } else if (a.value.kind !== 'unique' || a.value.format !== 'text') {
-          p.push(`${where}: adopt needs a run-unique text value (kind unique, format text) — never foreign data`);
-        } else if (!typedUniques.has(a.value.label)) {
-          p.push(
-            `${where}: adopt must use the same unique value the test typed into the record. Type it first: {"do":"fill","element":"<the ${a.field} field>","value":{"kind":"unique","label":"${a.value.label}"}} — never a recipe "data" value for a record the test creates in the UI`,
-          );
-        }
-        if (!ctx.facts.field(a.object, a.field)) p.push(`${where}: ${a.object}.${a.field} is not in the snapshot`);
+        // Legacy IR: normalizeIr removes model-written adopts (cleanup is code-owned since run-p4-build-decided-3).
+        p.push(`${where}: adopt is written by code — remove it (assert recordView after Save instead)`);
         created.add(a.as);
         break;
     }
@@ -345,11 +382,18 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
     switch (a.check) {
       case 'visible':
       case 'hidden':
-      case 'fieldError':
         member(a.element);
         break;
+      case 'fieldError':
+        member(a.element);
+        if (a.message) {
+          const r = fieldErrorRule(ctx, a.element, a.message.rule);
+          if ('problem' in r) p.push(`${where}: ${r.problem}`);
+        }
+        break;
       case 'inputValue':
-        member(a.element, FILLABLE);
+        // comboboxes too: a pre-filled lookup (Account Name) or a picklist's current value
+        member(a.element, VALUED);
         value(a.equals, where, cs);
         break;
       case 'toast':
@@ -365,6 +409,19 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
       case 'recordTitle':
         value(a.contains, where, cs);
         break;
+      case 'recordField': {
+        const pg = member(a.element, new Set(['listitem']));
+        const m = findMember(ctx.catalog, a.element);
+        if (pg && pg.kind !== 'record') p.push(`${where}: recordField needs a record-page field member`);
+        const [obj, f] = m?.member.fieldApiName?.split('.') ?? [];
+        const t = obj && f ? ctx.facts.field(obj, f)?.type : undefined;
+        if (t && !DISPLAYED_AS_ENTERED.has(t))
+          p.push(
+            `${where}: ${obj ?? ''}.${f ?? ''} is a ${t} field; the record page shows it locale-formatted — check it with soqlField instead`,
+          );
+        value(a.contains, where, cs);
+        break;
+      }
       case 'relatedListHasRecord': {
         recordRef(a.parentRef, where);
         const parent = steps.find((s) => s.stepId === a.parentRef)?.object;
@@ -481,8 +538,25 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
   };
   let caseStep = 0; // the IR step being normalised (for omitted evidence ids)
   const stepEvidence = (): string[] => tc?.steps[caseStep]?.expected.evidenceIds ?? [];
+  // A literal equal to a synthetic recipe value (e.g. the build-preview Account name `QA-<run>-…`) is that recipe
+  // field: the value differs per run, so it must be read from the data plan at run time (run-p4-build-decided-3).
+  const runId = recipe?.plan.runId;
+  const recipeField = (v: string): ValueRef | undefined => {
+    for (const st of steps) {
+      for (const [field, fv] of Object.entries(st.fields)) {
+        if (typeof fv === 'string' && fv === v && runId && fv.includes(runId)) {
+          return { kind: 'data', ref: st.stepId, field };
+        }
+      }
+    }
+    return undefined;
+  };
   const val = (x: ValueRef): ValueRef => {
     if (x.kind === 'data' || x.kind === 'recordId') return { ...x, ref: ref(x.ref) };
+    if (x.kind === 'literal') {
+      const d = recipeField(x.value);
+      if (d) return d;
+    }
     if ((x.kind === 'literal' || x.kind === 'length') && !x.evidenceIds.length)
       return { ...x, evidenceIds: stepEvidence() };
     return x;
@@ -496,6 +570,11 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
       case 'openNewFromRelatedList':
         return { ...a, parentRef: ref(a.parentRef), relatedList: canonicalList(ctx.catalog, a.relatedList) };
       case 'fill':
+        // `fill` on a picklist combobox means choosing that option (same intent; the renderer needs `select`)
+        return picklistFact(ctx, a.element)
+          ? { do: 'select', element: a.element, value: val(a.value) }
+          : { ...a, value: val(a.value) };
+      case 'select':
         return { ...a, value: val(a.value) };
       case 'apiUpdate':
         return { ...a, ref: ref(a.ref), fields: fields(a.fields) };
@@ -536,52 +615,87 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
   };
   const data = [...new Set(ir.data.map(ref))];
   const notes = [...ir.notes];
+  const nav = {
+    record: undefined as { ref: string; object: string } | undefined,
+    parent: undefined as { ref: string; object: string } | undefined,
+  };
+  let unnamed = 0;
   const out = ir.steps.map((st) => {
     caseStep = st.caseStep;
-    const n = { ...st, actions: st.actions.map(action), assertions: st.assertions.map(assertion) };
-    const adopt = missingAdopt(n, ctx);
-    if (!adopt) return n;
-    notes.push(
-      `cleanup: the ${adopt.object} created in "${st.title}" is adopted by its typed ${adopt.field} (added by code)`,
-    );
-    return { ...n, actions: [...n.actions, adopt] };
+    const actions = navigationShorthand(st.actions.map(action), ctx, nav, notes);
+    const dropped = actions.filter((a) => a.do === 'adopt');
+    if (dropped.length) notes.push(`cleanup: ${dropped.length} model-written adopt(s) removed — cleanup is code-owned`);
+    const saves = actions.some((a) => a.do === 'click' && isCreateSave(ctx, a.element));
+    const assertions = st.assertions
+      .map(assertion)
+      .map((a) =>
+        a.check === 'recordView' && !a.as && saves ? { ...a, as: `created${a.object}${String(++unnamed)}` } : a,
+      );
+    const n = { ...st, actions: actions.filter((a) => a.do !== 'adopt'), assertions };
+    for (const a of n.assertions) if (a.check === 'recordView' && a.as) nav.record = { ref: a.as, object: a.object };
+    return n;
   });
   return { ...ir, data, notes, steps: out };
 }
 
 /**
- * Cleanup bookkeeping (not test meaning): a step that saves a create dialog and captures the new record must adopt
- * it, so cleanup removes it. When exactly one run-unique value (unique text, or a 40+ char length value) was typed
- * into a field of the dialog's object in that step and nothing is adopted, the adopt is added by code
- * (run-p4-tc004-2: the NIM coder ignored the hint three times). Ambiguous steps are left to the check.
+ * Navigation shorthand the coder keeps writing (run-p4-build-decided-1: 12 of 20 cases fell back to skeletons on it),
+ * rewritten to the equivalent IR. The test's meaning is unchanged:
+ * - `click` on a related list's "New" button of the record just opened = `openNewFromRelatedList` on that record;
+ * - in a dialog opened that way, `fill` of the lookup to the parent with the parent's own record (its id or a field
+ *   of it) is dropped: Salesforce pre-fills that lookup with the parent (the dialog shows "Clear <lookup> Selection").
+ * Anything else is left to the checks.
  */
-function missingAdopt(st: IrStep, ctx: GenerationContext): Extract<IrAction, { do: 'adopt' }> | undefined {
-  if (st.actions.some((a) => a.do === 'adopt')) return undefined;
-  const save = st.actions.find((a) => {
-    if (a.do !== 'click') return false;
-    const m = findMember(ctx.catalog, a.element);
-    return m?.page.kind === 'dialog' && m.member.role === 'button' && m.member.accessibleName === 'Save';
-  });
-  const view = st.assertions.find((a) => a.check === 'recordView');
-  if (save?.do !== 'click' || view?.check !== 'recordView') return undefined;
-  const dialog = findMember(ctx.catalog, save.element)?.page;
-  if (!dialog) return undefined;
-  const typed = st.actions.flatMap((a) => {
-    if (a.do !== 'fill') return [];
-    const m = findMember(ctx.catalog, a.element);
-    const field = m?.member.fieldApiName;
-    if (!m || m.page.id !== dialog.id || !field?.startsWith(`${dialog.object}.`)) return [];
-    const runUnique =
-      (a.value.kind === 'unique' && a.value.format === 'text') || (a.value.kind === 'length' && a.value.length >= 40);
-    return runUnique ? [{ field: field.split('.')[1] ?? '', value: a.value }] : [];
-  });
-  const only = typed.length === 1 ? typed[0] : undefined;
-  if (!only) return undefined;
-  return {
-    do: 'adopt',
-    as: view.as ?? `created${dialog.object}`,
-    object: dialog.object,
-    field: only.field,
-    value: only.value,
-  };
+function navigationShorthand(
+  actions: IrAction[],
+  ctx: GenerationContext,
+  nav: { record: { ref: string; object: string } | undefined; parent: { ref: string; object: string } | undefined },
+  notes: string[],
+): IrAction[] {
+  const out: IrAction[] = [];
+  for (const a of actions) {
+    if (a.do === 'openRecord') {
+      nav.record = { ref: a.ref, object: a.object };
+      nav.parent = undefined;
+    } else if (a.do === 'openNewFromRelatedList') {
+      nav.parent = { ref: a.parentRef, object: nav.record?.ref === a.parentRef ? nav.record.object : '' };
+    } else if (a.do === 'click') {
+      const m = findMember(ctx.catalog, a.element);
+      const list = m?.member.scopeName;
+      if (
+        m?.page.kind === 'record' &&
+        m.member.role === 'button' &&
+        m.member.accessibleName === 'New' &&
+        list &&
+        nav.record?.object === m.page.object
+      ) {
+        const relatedList = canonicalList(ctx.catalog, list);
+        out.push({ do: 'openNewFromRelatedList', parentRef: nav.record.ref, relatedList });
+        nav.parent = { ...nav.record };
+        notes.push(
+          `navigation: click on ${a.element} written as openNewFromRelatedList(${nav.record.ref}, ${relatedList}) (by code)`,
+        );
+        continue;
+      }
+    } else if (a.do === 'fill' && nav.parent?.object) {
+      const m = findMember(ctx.catalog, a.element);
+      const field = m?.member.fieldApiName?.split('.')[1];
+      const v = a.value;
+      const sameParent = (v.kind === 'data' || v.kind === 'recordId') && v.ref === nav.parent.ref;
+      if (m?.page.kind === 'dialog' && field === `${nav.parent.object}Id` && sameParent) {
+        notes.push(
+          `navigation: fill of ${a.element} with ${nav.parent.ref} dropped — Salesforce pre-fills it when New is opened from ${nav.parent.ref}'s related list (by code)`,
+        );
+        continue;
+      }
+    }
+    out.push(a);
+  }
+  return out;
+}
+
+/** A click on the Save button of a create dialog (the only UI action that creates a record). */
+export function isCreateSave(ctx: GenerationContext, ref: string): boolean {
+  const m = findMember(ctx.catalog, ref);
+  return m?.page.kind === 'dialog' && m.member.role === 'button' && m.member.accessibleName === 'Save';
 }

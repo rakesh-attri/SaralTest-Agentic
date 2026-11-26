@@ -17,6 +17,8 @@ import { createReadline, createRuntime, loadAnswersFile, resumeAnalysis, startAn
 import { registerAuth } from './auth.js';
 import { registerBuild } from './build.js';
 import { registerData } from './data.js';
+import { registerDecide } from './decide.js';
+import { registerRun } from './run.js';
 import { createDiscoverHook, registerDiscover } from './discover.js';
 import { createDesignHook, designSummary, registerDesign } from './design.js';
 import { registerIngest } from './ingest.js';
@@ -84,6 +86,8 @@ export function buildCli(): Command {
   registerDesign(program, rootOf, say);
   registerBuild(program, rootOf, say);
   registerData(program, rootOf, say);
+  registerDecide(program, rootOf, say);
+  registerRun(program, rootOf, say);
 
   const mcp = program.command('mcp').description('MCP server utilities');
   mcp
@@ -301,7 +305,6 @@ export function buildCli(): Command {
 
   // Commands from CLAUDE.md that later phases implement. They say so instead of failing obscurely.
   const later: [string, string, number][] = [
-    ['run', 'Full run / regression sets', 5],
     ['explore', 'Goal-directed exploration', 7],
     ['report', 'Rebuild reports', 5],
     ['history', 'Past runs and trends', 9],

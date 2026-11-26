@@ -11,7 +11,8 @@ const literals = (u: { options: readonly { shape: Record<string, unknown> }[] },
 
 describe('compact IR contract (prompt size, run-p4-coder-groq-1: 9.6k tokens > Groq 7–8k TPM)', () => {
   it('names every action, assertion and value kind the schema accepts (kept in sync with the Zod schema)', () => {
-    for (const k of literals(IrAction, 'do')) expect(IR_CONTRACT).toContain(`do: "${k}"`);
+    // adopt stays in the schema for old IR files only: cleanup is code-owned and not offered to the model.
+    for (const k of literals(IrAction, 'do').filter((x) => x !== 'adopt')) expect(IR_CONTRACT).toContain(`do: "${k}"`);
     for (const k of literals(IrAssertion, 'check')) expect(IR_CONTRACT).toContain(`"${k}"`);
     for (const k of literals(ValueRefUnion, 'kind')) expect(IR_CONTRACT).toContain(`kind: "${k}"`);
     expect(IR_CONTRACT.length).toBeLessThan(4000);
@@ -203,37 +204,6 @@ describe('oracle checks from run-p4-coder-nim-4 (judge findings made determinist
   });
 });
 
-describe('UI-created records must be adopted (run-p4-tc004-1: boundary Contacts were not cleaned up)', () => {
-  it('rejects a captured UI record without adopt; accepts adopt by the typed boundary value', () => {
-    const ctx = generationContext();
-    const recipe = bindRecipe(CASE, ctx);
-    const v79 = { kind: 'length' as const, length: 79, evidenceIds: ['SF-219#AC2'] };
-    const tc = {
-      ...CASE,
-      steps: [
-        { ...CASE.steps[0]!, action: 'Enter a Last Name with exactly 79 characters and click Save' },
-        CASE.steps[1]!,
-      ],
-    };
-    const ir = structuredClone(GOOD_IR);
-    ir.steps[0] = {
-      caseStep: 0,
-      title: 'Save a 79-character Last Name',
-      actions: [
-        { do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' },
-        { do: 'fill', element: 'contact-new.lastName', value: v79 },
-        { do: 'click', element: 'contact-new.saveButton' },
-      ],
-      assertions: [
-        { check: 'recordView', object: 'Contact', as: 'c79', expect: { caseStep: 0, evidenceIds: ['SF-219#AC2'] } },
-      ],
-    };
-    expect(irProblems(tc, ir, ctx, recipe).join('\n')).toMatch(/the record this step creates in the UI is not adopted/);
-    ir.steps[0].actions.push({ do: 'adopt', as: 'c79', object: 'Contact', field: 'LastName', value: v79 });
-    expect(irProblems(tc, ir, ctx, recipe)).toEqual([]);
-  });
-});
-
 describe('value shorthand without kind (run-p4-coder-nim-7, TC-003)', () => {
   it('maps {data, field} / {unique} / {length} to the canonical value; leaves unknown shapes to the schema', () => {
     const step = (value: unknown) => ({
@@ -254,19 +224,19 @@ describe('value shorthand without kind (run-p4-coder-nim-7, TC-003)', () => {
   });
 });
 
-describe('cleanup bookkeeping added by code (run-p4-tc004-2)', () => {
-  it('adds the missing adopt for the one run-unique value typed into the created record; never when ambiguous', () => {
-    const ctx = generationContext();
-    const recipe = bindRecipe(CASE, ctx);
-    const v79 = { kind: 'length' as const, length: 79, evidenceIds: ['SF-219#AC2'] };
-    const ev = { caseStep: 0, evidenceIds: ['SF-219#AC2'] };
-    const tc = {
-      ...CASE,
-      steps: [
-        { ...CASE.steps[0]!, action: 'Enter a Last Name with exactly 79 characters and click Save' },
-        CASE.steps[1]!,
-      ],
-    };
+describe('cleanup is code-owned (operator 2026-11-25: the model never writes cleanup)', () => {
+  const ctx = generationContext();
+  const recipe = bindRecipe(CASE, ctx);
+  const v79 = { kind: 'length' as const, length: 79, evidenceIds: ['SF-219#AC2'] };
+  const ev = { caseStep: 0, evidenceIds: ['SF-219#AC2'] };
+  const tc = {
+    ...CASE,
+    steps: [
+      { ...CASE.steps[0]!, action: 'Enter a Last Name with exactly 79 characters and click Save' },
+      CASE.steps[1]!,
+    ],
+  };
+  const saveStep = (assertions: TestIR['steps'][number]['assertions'], extra: IrAction[] = []): TestIR => {
     const ir = structuredClone(GOOD_IR);
     ir.steps[0] = {
       caseStep: 0,
@@ -275,26 +245,290 @@ describe('cleanup bookkeeping added by code (run-p4-tc004-2)', () => {
         { do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' },
         { do: 'fill', element: 'contact-new.lastName', value: v79 },
         { do: 'click', element: 'contact-new.saveButton' },
+        ...extra,
       ],
-      assertions: [{ check: 'recordView', object: 'Contact', as: 'c79', expect: ev }],
+      assertions,
     };
-    const n = normalizeIr(ir, ctx, recipe, tc);
-    expect(n.steps[0]!.actions.at(-1)).toEqual({
-      do: 'adopt',
-      as: 'c79',
-      object: 'Contact',
-      field: 'LastName',
-      value: v79,
-    });
-    expect(n.notes.join(' ')).toMatch(/adopted by its typed LastName \(added by code\)/);
+    return ir;
+  };
+
+  it('the record shown after a create-dialog Save is registered by the renderer (data.adoptCreated)', () => {
+    const n = normalizeIr(saveStep([{ check: 'recordView', object: 'Contact', expect: ev }]), ctx, recipe, tc);
+    expect(n.steps[0]!.assertions[0]).toMatchObject({ check: 'recordView', as: 'createdContact1' });
     expect(irProblems(tc, n, ctx, recipe)).toEqual([]);
-    // Two run-unique values typed: which one identifies the record is ambiguous → left to the check.
-    const two = structuredClone(ir);
-    two.steps[0]!.actions.splice(2, 0, {
-      do: 'fill',
-      element: 'contact-new.firstName',
-      value: { kind: 'unique', label: 'f', format: 'text' },
+    const text = renderSpec({ tc, ir: n, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
+    expect(text).toContain("viewed['createdContact1'] = await recordIdFromView(page, 'Contact');");
+    expect(text).toContain("await data.adoptCreated('createdContact1', 'Contact', viewed['createdContact1']);");
+  });
+
+  it('model-written adopts are removed; a Save with neither recordView nor a rejection assertion is a problem', () => {
+    const withAdopt = saveStep(
+      [{ check: 'recordView', object: 'Contact', as: 'c79', expect: ev }],
+      [{ do: 'adopt', as: 'c79', object: 'Contact', field: 'LastName', value: v79 }],
+    );
+    const n = normalizeIr(withAdopt, ctx, recipe, tc);
+    expect(n.steps[0]!.actions.some((a) => a.do === 'adopt')).toBe(false);
+    expect(n.notes.join(' ')).toMatch(/adopt\(s\) removed — cleanup is code-owned/);
+    expect(irProblems(tc, normalizeIr(saveStep([]), ctx, recipe, tc), ctx, recipe).join('\n')).toMatch(
+      /after Save in the create dialog assert \{"check":"recordView"/,
+    );
+    const rejected = saveStep([{ check: 'fieldError', element: 'contact-new.lastName', expect: ev }]);
+    expect(irProblems(tc, normalizeIr(rejected, ctx, recipe, tc), ctx, recipe)).toEqual([]);
+  });
+
+  it('the IR contract no longer offers adopt', () => {
+    expect(IR_CONTRACT).not.toContain('do: "adopt"');
+    expect(IR_CONTRACT).toMatch(/Cleanup is automatic/);
+  });
+});
+
+describe('navigation shorthand rewritten by code (run-p4-build-decided-1)', () => {
+  const ctx = generationContext();
+  const recipe = bindRecipe(CASE, ctx);
+  const withActions = (actions: IrAction[]): TestIR => {
+    const ir = structuredClone(GOOD_IR);
+    ir.steps[0]!.actions = actions;
+    return ir;
+  };
+
+  it('click on the related list New button after opening the parent = openNewFromRelatedList; parent lookup fill dropped', () => {
+    const n = normalizeIr(
+      withActions([
+        { do: 'openRecord', ref: 'Account', object: 'Account' },
+        { do: 'click', element: 'account-record.contactsNewButton' },
+        { do: 'fill', element: 'contact-new.accountId', value: { kind: 'data', ref: 'Account', field: 'Name' } },
+        { do: 'click', element: 'contact-new.saveButton' },
+      ]),
+      ctx,
+      recipe,
+      CASE,
+    );
+    expect(n.steps[0]!.actions).toEqual([
+      { do: 'openRecord', ref: 'Account', object: 'Account' },
+      { do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' },
+      { do: 'click', element: 'contact-new.saveButton' },
+    ]);
+    expect(n.notes.join(' ')).toMatch(/pre-fills it/);
+    expect(irProblems(CASE, n, ctx, recipe)).toEqual([]);
+  });
+
+  it('leaves anything else to the checks: a New click with no record opened, a lookup filled with another record', () => {
+    const lone = normalizeIr(withActions([{ do: 'click', element: 'account-record.contactsNewButton' }]), ctx, recipe);
+    expect(lone.steps[0]!.actions).toEqual([{ do: 'click', element: 'account-record.contactsNewButton' }]);
+    const other = normalizeIr(
+      withActions([
+        { do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' },
+        { do: 'fill', element: 'contact-new.accountId', value: { kind: 'data', ref: 'OtherAccount', field: 'Name' } },
+      ]),
+      ctx,
+      recipe,
+    );
+    expect(other.steps[0]!.actions).toHaveLength(2);
+  });
+});
+
+describe('picklists: select (run-p4-build-decided-2: Lead Source = Web could not be expressed)', () => {
+  const ctx = generationContext();
+  const recipe = bindRecipe(CASE, ctx);
+  const withActions = (actions: IrAction[]): TestIR => {
+    const ir = structuredClone(GOOD_IR);
+    ir.steps[0]!.actions = [
+      { do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' },
+      ...actions,
+    ];
+    return ir;
+  };
+  const web = { kind: 'literal' as const, value: 'Web', evidenceIds: [] };
+
+  it('fill on a picklist combobox becomes select; an active snapshot value is grounded by the org; renders selectPicklist', () => {
+    const n = normalizeIr(
+      withActions([
+        { do: 'fill', element: 'contact-new.leadSource', value: web },
+        { do: 'click', element: 'contact-new.saveButton' },
+      ]),
+      ctx,
+      recipe,
+      CASE,
+    );
+    expect(n.steps[0]!.actions[1]).toMatchObject({ do: 'select', element: 'contact-new.leadSource' });
+    expect(irProblems(CASE, n, ctx, recipe)).toEqual([]);
+    const spec = renderSpec({ tc: CASE, ir: n, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
+    expect(spec).toContain("await selectPicklist(page, newContactDialog.leadSource, 'Web');");
+    expect(spec).toMatch(/import \{[^}]*selectPicklist[^}]*\} from/);
+  });
+
+  it('rejects a value the picklist does not have and select on a non-picklist field', () => {
+    const bad = withActions([
+      { do: 'select', element: 'contact-new.leadSource', value: { ...web, value: 'Partner' } },
+      { do: 'select', element: 'contact-new.lastName', value: web },
+    ]);
+    const problems = irProblems(CASE, normalizeIr(bad, ctx, recipe, CASE), ctx, recipe).join(' | ');
+    expect(problems).toMatch(/"Partner" is not an active value of Contact\.LeadSource \(values: Web, Phone Inquiry\)/);
+    expect(problems).toMatch(/contact-new\.lastName is not a picklist field/);
+  });
+});
+
+describe('run-specific recipe values written as literals (run-p4-build-decided-3: TC-012, TC-051)', () => {
+  it('a literal equal to a synthetic recipe value becomes a data ref; a plain literal is kept', () => {
+    const ctx = generationContext();
+    const recipe = bindRecipe(CASE, ctx);
+    const name = String(recipe?.plan.steps.find((s) => s.stepId === 'Account')?.fields['Name']);
+    expect(name).toContain(recipe?.plan.runId);
+    const ir = structuredClone(GOOD_IR);
+    ir.steps[0]!.assertions = [
+      {
+        check: 'relatedListHasRecord',
+        parentRef: 'Account',
+        relatedList: 'Contacts',
+        name: { kind: 'literal', value: name, evidenceIds: [] },
+        expect: { caseStep: 0, evidenceIds: ['SF-219#AC2'] },
+      },
+      {
+        check: 'toast',
+        contains: { kind: 'literal', value: 'Contact', evidenceIds: [] },
+        expect: { caseStep: 0, evidenceIds: ['SF-219#AC2'] },
+      },
+    ];
+    const n = normalizeIr(ir, ctx, recipe, CASE);
+    expect(n.steps[0]!.assertions[0]).toMatchObject({ name: { kind: 'data', ref: 'Account', field: 'Name' } });
+    expect(n.steps[0]!.assertions[1]).toMatchObject({ contains: { kind: 'literal', value: 'Contact' } });
+  });
+});
+
+describe('expected error messages and pre-filled values come from org evidence (operator 2026-11-26)', () => {
+  const ctx = generationContext();
+  const recipe = bindRecipe(CASE, ctx);
+  const ev = { caseStep: 0, evidenceIds: ['SF-219#AC2'] };
+  const step = (assertions: TestIR['steps'][number]['assertions']): TestIR => {
+    const ir = structuredClone(GOOD_IR);
+    ir.steps = [
+      {
+        caseStep: 0,
+        title: 'Check the dialog',
+        actions: [{ do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' }],
+        assertions,
+      },
+    ];
+    return ir;
+  };
+  const tc = { ...CASE, steps: [CASE.steps[0]!] };
+  const problems = (ir: TestIR): string => irProblems(tc, ir, ctx, recipe).join('\n');
+
+  it('a fieldError message names a validation rule; code renders the rule text from the snapshot', () => {
+    const ir = step([
+      { check: 'fieldError', element: 'contact-new.phone', message: { rule: 'Phone_Must_Be_10_Digits' }, expect: ev },
+    ]);
+    expect(problems(ir)).not.toMatch(/Phone_Must_Be_10_Digits/);
+    const text = renderSpec({ tc, ir, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
+    expect(text).toContain(
+      "await expectFieldError(newContactDialog.phone, 'Enter a 10-digit phone number.'); // message of rule Contact.Phone_Must_Be_10_Digits (org snapshot)",
+    );
+  });
+
+  it('an unknown rule, or a rule that shows its error on another field, is a problem (no invented text)', () => {
+    expect(
+      problems(step([{ check: 'fieldError', element: 'contact-new.phone', message: { rule: 'Made_Up' }, expect: ev }])),
+    ).toMatch(/Contact\.Made_Up is not an active validation rule on Contact in the snapshot/);
+    expect(
+      problems(
+        step([
+          {
+            check: 'fieldError',
+            element: 'contact-new.lastName',
+            message: { rule: 'Phone_Must_Be_10_Digits' },
+            expect: ev,
+          },
+        ]),
+      ),
+    ).toMatch(/shows its message at the top of the form, not on LastName/);
+    // the schema has no free-text message: a model-written message is dropped by parsing, never rendered
+    const parsed = IrAssertion.parse({
+      check: 'fieldError',
+      element: 'contact-new.lastName',
+      message: { rule: 'X', text: 'Complete this field.' },
+      expect: ev,
     });
-    expect(irProblems(tc, normalizeIr(two, ctx, recipe, tc), ctx, recipe).join('\n')).toMatch(/not adopted/);
+    expect(JSON.stringify(parsed)).not.toContain('Complete this field.');
+  });
+
+  it('inputValue reads a pre-filled lookup (toHaveValue) and a picklist (toContainText)', () => {
+    const ir = step([
+      {
+        check: 'inputValue',
+        element: 'contact-new.accountId',
+        equals: { kind: 'data', ref: 'Account', field: 'Name' },
+        expect: ev,
+      },
+      {
+        check: 'inputValue',
+        element: 'contact-new.leadSource',
+        equals: { kind: 'literal', value: 'Web', evidenceIds: ['SF-219#AC2'] },
+        expect: ev,
+      },
+    ]);
+    expect(problems(ir)).not.toMatch(/accountId|leadSource|is not a page-object member/);
+    const text = renderSpec({ tc, ir, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
+    expect(text).toContain("await expect(newContactDialog.accountId).toHaveValue(data.value('Account', 'Name'));");
+    expect(text).toContain("await expect(newContactDialog.leadSource).toContainText('Web');");
+  });
+});
+
+describe('record-page field values, duplicate expects (operator 2026-11-26)', () => {
+  const ctx = generationContext();
+  const recipe = bindRecipe(CASE, ctx);
+  const ev = { caseStep: 0, evidenceIds: ['SF-219#AC2'] };
+  const tc = { ...CASE, steps: [CASE.steps[0]!] };
+
+  it('record pages get a <field>Field member per inline-edit button (the details list item holding it)', () => {
+    const page = ctx.catalog.pages.find((p) => p.id === 'contact-record');
+    const title = page?.members.find((m) => m.name === 'titleField');
+    expect(title).toMatchObject({ role: 'listitem', fieldApiName: 'Contact.Title' });
+    expect(title?.expression).toBe(
+      "getByRole('main').getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Edit Title', exact: true }) })",
+    );
+  });
+
+  it('recordField renders toContainText on the field item; locale-formatted types must use soqlField', () => {
+    const ir = structuredClone(GOOD_IR);
+    ir.data = [...new Set([...ir.data, 'Contact'])];
+    ir.steps = [
+      {
+        caseStep: 0,
+        title: 'Check the record page',
+        actions: [{ do: 'openRecord', ref: 'Contact', object: 'Contact' }],
+        assertions: [
+          {
+            check: 'recordField',
+            element: 'contact-record.titleField',
+            contains: { kind: 'data', ref: 'Contact', field: 'LastName' },
+            expect: ev,
+          },
+        ],
+      },
+    ];
+    expect(irProblems(tc, ir, ctx, recipe).join('\n')).not.toMatch(/recordField|titleField/);
+    const text = renderSpec({ tc, ir, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
+    expect(text).toContain(
+      "await expect(contactRecordPage.titleField).toContainText(data.value('Contact', 'LastName'));",
+    );
+    const phone = structuredClone(ir);
+    phone.steps[0]!.assertions[0] = { ...ir.steps[0]!.assertions[0]!, element: 'contact-record.phoneField' } as never;
+    expect(irProblems(tc, phone, ctx, recipe).join('\n')).toMatch(
+      /Contact\.Phone is a phone field; the record page shows it locale-formatted — check it with soqlField instead/,
+    );
+  });
+
+  it('an assertion identical to one already in the step is rendered once', () => {
+    const ir = structuredClone(GOOD_IR);
+    ir.steps = [
+      {
+        caseStep: 0,
+        title: 'Open the dialog',
+        actions: [{ do: 'openNewFromRelatedList', parentRef: 'Account', relatedList: 'Contacts' }],
+        assertions: [{ check: 'visible', element: 'contact-new.root', expect: ev }],
+      },
+    ];
+    const text = renderSpec({ tc, ir, ctx, recipe, caseHash: 'h', irHash: 'h', model: 'm' });
+    expect(text.split('await expect(newContactDialog.root).toBeVisible();').length - 1).toBe(1);
   });
 });
