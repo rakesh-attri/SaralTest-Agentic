@@ -157,6 +157,16 @@ describe('test data engine on the offline fixture (FIXTURE)', () => {
     return expect(engine.create()).rejects.toThrow(/plan has errors/);
   });
 
+  it('a negative variant never reuses the synthetic values of the positive record (active duplicate rules)', () => {
+    const p = plan('run-neg-uniq-1');
+    const contact = p.steps.find((x) => x.stepId === 'Contact');
+    const neg = p.negatives[0];
+    expect(neg?.fields['Email']).toMatch(/^qa\+run-neg-uniq-1-[a-z0-9]+@example\.invalid$/);
+    expect(neg?.fields['Email']).not.toBe(contact?.fields['Email']);
+    expect(neg?.fields['FirstName']).not.toBe(contact?.fields['FirstName']);
+    expect(neg?.fields).not.toHaveProperty('LastName');
+  });
+
   it('synthetic values are deterministic per run (stable across resume) and differ between runs', () => {
     expect(syntheticToken('run-a', 'Contact', 'LastName')).toBe(syntheticToken('run-a', 'Contact', 'LastName'));
     expect(syntheticToken('run-a', 'Contact', 'LastName')).not.toBe(syntheticToken('run-b', 'Contact', 'LastName'));
