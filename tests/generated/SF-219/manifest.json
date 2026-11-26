@@ -1,7 +1,7 @@
 {
   "storyKey": "SF-219",
   "designRun": "run-p4-design-decided-1",
-  "buildRun": "run-p5-build-2",
+  "buildRun": "run-p5-build-4",
   "org": "qa-prod",
   "environment": "LIVE",
   "artifacts": [
@@ -1169,12 +1169,12 @@
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-050-duplicate-contact-warning-shown-when-saving-contac.spec.ts",
-      "hash": "08bf8b0f12910b10",
+      "hash": "c3f505f2ffa8ca57",
       "testCaseIds": [
         "TC-SF-219-050"
       ],
-      "caseHash": "aa6cf9fc2b7bf878",
-      "irHash": "b3ba4801ba26dddb",
+      "caseHash": "7d38047f0fdcc1b9",
+      "irHash": "1184f2eb52264521",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -1185,7 +1185,8 @@
         "contact-new.firstName",
         "contact-new.lastName",
         "contact-new.root",
-        "contact-new.saveButton"
+        "contact-new.saveButton",
+        "contact-record.emailField"
       ],
       "dependsOn": [
         {
@@ -1235,20 +1236,19 @@
         {
           "component": "Locator:contact-new/button:New Contact/Save",
           "hash": "388393889e843b68"
+        },
+        {
+          "component": "Locator:contact-record/button:Details/Edit Email",
+          "hash": "c0bafb6c095839d0"
         }
       ],
       "dataBindings": [
         "account-contact"
       ],
       "origin": "generated",
-      "reviewReasons": [
-        "RF-001 judge: Step 3 action mismatch — wrong Save button clicked: Case step 3 says 'Click Save on the duplicate warning dialog to confirm saving the duplicate Contact', but the test clicks `newContactDialog.saveButton` (the original New Contact dialog's Save button) instead of the duplicate warning popover's Save button. The `expectSavePopover` helper confirms the popover appears; per the locator skill, this popover is its own modal dialog that hides the form. The test should interact with the popover's Save button (e.g., via a `closeSavePopover(page, 'Save')` helper), not re-click the original dialog's button.",
-        "RF-002 judge: Step 4 assertion weaker than expectation — pre-existing Contact not verified via SOQL: Case step 4 expects 'SOQL query confirms the new Contact record exists on the Account with Email '<EMAIL_1>' alongside the pre-existing Contact'. The test's step 4 only polls SOQL for the new (Duplicate) Contact's Email and Account.Name. It does not query for the pre-existing Contact to confirm it still exists alongside the new one. The 'alongside the pre-existing Contact' part of the expectation is not asserted via SOQL.",
-        "RF-003 judge: Step 5 assertion not expected by case — UI check replaces meta verification: Case step 5 expects 'Test execution result shows PASS for the duplicate warning scenario, confirming RE_VERIFY status is satisfied' (a meta-check that a separate test case MTC-009 passes). The test instead asserts `relatedListRecord(accountRecordPage.contactsRelatedList, data.value('Contact', 'LastName')).toBeVisible()` — a UI check that the pre-existing Contact is visible. This is an assertion the case does not expect; the case's stated expectation is not automatable within this test and should be addressed in the test plan, not as a step assertion."
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p5-build-2",
-      "reviewedBy": "review2-20261126-221229-0ad9"
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p5-build-4"
     },
     {
       "kind": "spec",
