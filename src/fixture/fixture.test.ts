@@ -113,6 +113,13 @@ describe('fixture server', () => {
     expect(left.totalSize).toBe(0);
   });
 
+  it('deleting an Account deletes its Contacts (Salesforce cascade)', async () => {
+    const acc = (await (await post('Account', { Name: 'QA-cascade' })).json()) as { id: string };
+    const con = (await (await post('Contact', { LastName: 'QA-cascade', AccountId: acc.id })).json()) as { id: string };
+    expect((await fetch(api(`/sobjects/Account/${acc.id}`), { method: 'DELETE', headers: ADMIN })).status).toBe(204);
+    expect((await fetch(api(`/sobjects/Contact/${con.id}`), { headers: ADMIN })).status).toBe(404);
+  });
+
   it('Last Name is required (REQUIRED_FIELD_MISSING → DATA)', async () => {
     const r = await post('Contact', { FirstName: 'NoLast', AccountId: SEED_ACCOUNT });
     expect(r.status).toBe(400);

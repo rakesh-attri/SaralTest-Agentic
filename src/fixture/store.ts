@@ -213,6 +213,10 @@ export class FixtureStore {
   delete(object: string, id: string): void {
     this.get(object, id);
     this.table(object).delete(id);
+    // As Salesforce: deleting an Account deletes its Contacts (qa-prod run-p5-live-1 left none behind).
+    if (object.toLowerCase() === 'account') {
+      for (const c of this.children('Contact', 'AccountId', id)) this.table('Contact').delete(c.Id);
+    }
   }
 
   private resolve(object: string, rec: SObject, path: string): unknown {
