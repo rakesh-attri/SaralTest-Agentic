@@ -126,12 +126,21 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         if (!plan.valid) {
           throw new QAError('DATA', `data plan ${recipe} is invalid: ${plan.issues.map((i) => i.code).join(', ')}`);
         }
-        const status = recipeApproval(sfContext, plan, sfContext.policy.autonomy);
+        const autonomy =
+          process.env['QA_AUTONOMY'] === 'L1' ||
+          process.env['QA_AUTONOMY'] === 'L2' ||
+          process.env['QA_AUTONOMY'] === 'L3'
+            ? process.env['QA_AUTONOMY']
+            : sfContext.policy.autonomy;
+        const status = recipeApproval(sfContext, plan, autonomy);
         if (status.required && !status.approval) {
           throw new QAError('DATA', `recipe ${recipe} is not approved for ${sfContext.org.alias}: ${status.command}`);
         }
         const engine = new DataEngine({ sf, plan: { ...plan, negatives: [] }, ledger, org: sfContext.org });
         engines.push(engine);
+        // Written before any record exists: the Runner's post-run reconciliation needs the plan even when the
+        // worker dies before teardown.
+        writeDataOutputs(dir, { plan: engine.plan });
         await engine.create(steps);
       },
       id: (stepId) => find(stepId).recordId(stepId),

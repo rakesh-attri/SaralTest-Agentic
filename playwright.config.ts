@@ -1,6 +1,6 @@
 // Runner config for generated tests (tests/generated/**). Projects are generated from config/personas.yaml: one
 // auth-setup project and one test project per persona; a test runs in the project of its `@persona:<id>` tag.
-// Phase 4 only lists the tests (`npx playwright test --list`); the Runner (Phase 5) executes approved tests.
+// The Runner (src/runner/execute.ts, `qa run`) executes approved tests and sets QA_* / SF_BASE_URL.
 import { defineConfig, devices, type PlaywrightTestConfig } from '@playwright/test';
 import type { ReportingLabsOptions } from 'reporting-labs';
 import { join } from 'node:path';
@@ -54,7 +54,8 @@ export default defineConfig({
   },
   reporter: [
     ['list'],
-    ['json', { outputFile: join(s.runDir, 'results.json') }],
+    // results.json is the Runner's normalised TestResult[]; Playwright's own JSON goes next to it.
+    ['json', { outputFile: join(s.runDir, 'playwright-results.json') }],
     ['html', { open: 'never', outputFolder: join(s.runDir, 'playwright-report') }],
     ['reporting-labs', reportingLabs],
   ],

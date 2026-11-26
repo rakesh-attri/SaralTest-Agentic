@@ -11,7 +11,14 @@ export interface ExecResult {
 export type Runner = (
   cmd: string,
   args: readonly string[],
-  opts?: { timeoutMs?: number; cwd?: string },
+  opts?: {
+    timeoutMs?: number;
+    cwd?: string;
+    /** Extra environment variables (merged over process.env). */
+    env?: Record<string, string>;
+    /** Called with every output chunk (stdout and stderr) as it arrives — for streaming into a run log. */
+    onOutput?: (chunk: string, stream: 'stdout' | 'stderr') => void;
+  },
 ) => Promise<ExecResult>;
 
 /**
@@ -23,7 +30,11 @@ export const run: Runner = (cmd, args, opts = {}) =>
     let stdout = '';
     let stderr = '';
     let settled = false;
-    const child = spawn(cmd, [...args], { cwd: opts.cwd, windowsHide: true, env: process.env });
+    const child = spawn(cmd, [...args], {
+      cwd: opts.cwd,
+      windowsHide: true,
+      env: opts.env ? { ...process.env, ...opts.env } : process.env,
+    });
     const done = (r: ExecResult): void => {
       if (settled) return;
       settled = true;
@@ -34,8 +45,16 @@ export const run: Runner = (cmd, args, opts = {}) =>
       child.kill();
       done({ code: null, stdout, stderr, error: `timed out after ${opts.timeoutMs ?? 30_000} ms` });
     }, opts.timeoutMs ?? 30_000);
-    child.stdout?.on('data', (d: Buffer) => (stdout += d.toString('utf8')));
-    child.stderr?.on('data', (d: Buffer) => (stderr += d.toString('utf8')));
+    child.stdout?.on('data', (d: Buffer) => {
+      const t = d.toString('utf8');
+      stdout += t;
+      opts.onOutput?.(t, 'stdout');
+    });
+    child.stderr?.on('data', (d: Buffer) => {
+      const t = d.toString('utf8');
+      stderr += t;
+      opts.onOutput?.(t, 'stderr');
+    });
     child.on('error', (err) => {
       done({ code: null, stdout, stderr, error: err.message });
     });

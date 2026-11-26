@@ -56,6 +56,10 @@ export interface RuntimeOptions {
   design?: GraphDeps['design'];
   /** Phase 4: generation inputs + file checks (`qa build`). */
   build?: GraphDeps['build'];
+  /** Phase 5: the Runner (`qa run`). */
+  execute?: GraphDeps['execute'];
+  /** No model router (the run needs no LLM, e.g. `qa run`); unlike --offline the network stays available. */
+  noModels?: boolean;
   /**
    * Also write every log line (debug and up, redacted) to this file, e.g. `runs/<runId>/logs/run.log`, so model
    * warnings and errors are kept with the run whatever the console shows.
@@ -140,7 +144,9 @@ export async function createRuntime(o: RuntimeOptions): Promise<Runtime> {
   const policy = await requireConfig('policy', paths);
 
   let router: ModelRouter | undefined;
-  if (o.offline) {
+  if (o.noModels) {
+    // no model needed for this command
+  } else if (o.offline) {
     o.say('Offline: no model calls — requirements are derived mechanically and all need review.');
   } else {
     const models = await loadConfigFile('models', paths);
@@ -193,6 +199,7 @@ export async function createRuntime(o: RuntimeOptions): Promise<Runtime> {
     ...(o.discover && !o.offline ? { discover: o.discover } : {}),
     ...(o.design ? { design: o.design } : {}),
     ...(o.build ? { build: o.build } : {}),
+    ...(o.execute ? { execute: o.execute } : {}),
     ...(router ? { router } : {}),
     skills: SkillLoader.forProject(o.root),
     redactor,
