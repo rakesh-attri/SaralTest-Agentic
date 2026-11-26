@@ -45,6 +45,8 @@ const say = (msg: string): void => {
 
 export function buildCli(): Command {
   const program = new Command();
+  // Options after a subcommand belong to it (`qa report comment draft --run x`: report itself also has --run).
+  program.enablePositionalOptions();
   program
     .name('qa')
     .description('sf-qa-agent — autonomous Salesforce QA engineer (Phase 4: generation & data)')

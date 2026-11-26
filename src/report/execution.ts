@@ -72,6 +72,27 @@ export interface ReportData {
   jiraBaseUrl?: string;
 }
 
+/**
+ * Acceptance criteria → every case that covers them, from the RTM (the design summary lists one representative case
+ * per AC only). Falls back to the summary when the RTM has no AC refs.
+ */
+export function acsFromRtm(
+  rtm: readonly RtmRow[],
+  fallback: readonly { ref: string; caseIds: string[] }[],
+): { ref: string; caseIds: string[] }[] {
+  const m = new Map<string, Set<string>>();
+  for (const r of rtm)
+    for (const ref of r.refs.filter((x) => /^AC\d+$/.test(x))) {
+      const set = m.get(ref) ?? new Set<string>();
+      for (const c of r.testCaseIds) set.add(c);
+      m.set(ref, set);
+    }
+  for (const a of fallback) if (!m.has(a.ref)) m.set(a.ref, new Set(a.caseIds));
+  return [...m.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+    .map(([ref, ids]) => ({ ref, caseIds: [...ids] }));
+}
+
 /** Load everything the reports need from the run folder, the story manifest and the design / analysis runs. */
 export function loadReportData(o: {
   root: string;
@@ -99,7 +120,7 @@ export function loadReportData(o: {
       runId: manifest.designRun,
       cases: read(join(d, 'test-cases.json'), z.array(TestCase)) ?? [],
       rtm: read(join(d, 'rtm.json'), z.array(RtmRow)) ?? [],
-      acs: dr?.summary.acs ?? [],
+      acs: acsFromRtm(read(join(d, 'rtm.json'), z.array(RtmRow)) ?? [], dr?.summary.acs ?? []),
       risks: read(join(d, 'risks.json'), z.array(RiskItem)) ?? [],
       personas: read(join(d, 'charter.json'), CharterFile)?.personas ?? [],
     };

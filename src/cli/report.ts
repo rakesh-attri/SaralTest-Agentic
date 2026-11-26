@@ -19,6 +19,7 @@ export async function jiraBaseUrl(root: string): Promise<string | undefined> {
 export function registerReport(program: Command, rootOf: () => string, say: Say): Command {
   const report = program
     .command('report')
+    .enablePositionalOptions()
     .description('Rebuild the reports of an execution run (execution, release confidence, cleanup, coverage, history)')
     .option('--run <id>', 'run id of a `qa run`')
     .option('--analysis-run <id>', 'analysis run of the design (assumptions), for design runs that predate the link')

@@ -20,8 +20,15 @@ export const PUBLISH_CHECKPOINT = 'publish-run-comment';
 export const COMMENT_TOOL = 'addOrEditJiraIssueComment';
 export const commentSubject = (storyKey: string, sha256: string): string => `jira-comment:${storyKey}@${sha256}`;
 
-const failureKind = (reason: string): string =>
-  /timed out/i.test(reason) ? 'timed out' : /^failed: .*expect/i.test(reason) ? 'assertion failed' : 'failed';
+/** What the failure showed, in plain words, without record data (observation only — no cause is claimed). */
+const failureKind = (reason: string, error: string): string =>
+  /toHaveURL/.test(error) && /lightning\/r\/Account\//.test(error) && /Contact/.test(error)
+    ? 'after Save the page stayed on the Account record; the test expects the new Contact record page'
+    : /timed out/i.test(reason)
+      ? 'timed out'
+      : /^failed: .*expect/i.test(reason)
+        ? 'assertion failed'
+        : 'failed';
 
 /** The comment text (markdown, as Rovo MCP takes it). Deterministic: same run → same text → same sha256. */
 export function renderJiraComment(d: ReportData): string {
@@ -30,6 +37,12 @@ export function renderJiraComment(d: ReportData): string {
   const ran = d.results.filter((r) => d.gate.some((g) => g.decision === 'EXECUTE' && g.caseId === r.caseId));
   const title = (id: string): string => d.design?.cases.find((c) => c.id === id)?.title ?? '';
   const count = (k: string): number => d.gate.filter((g) => g.decision === k).length;
+  const notApproved = (status: string): number =>
+    d.gate.filter((g) => g.decision === 'NOT_APPROVED' && g.reason === `review status ${status}`).length;
+  // Specs blocked at review with an org-setup cause (e.g. the persona cannot see the object): said plainly.
+  const orgBlocked = (d.manifest?.artifacts ?? []).filter(
+    (a) => a.reviewStatus === 'BLOCKED' && a.reviewReasons.some((r) => /sObject type '\w+' is not supported/.test(r)),
+  );
   const L: string[] = [];
   L.push(
     `**SF QA automated run ${d.runId}** — ${environmentLabel(s.environment)} · org ${s.orgAlias} · ${s.browser} · ${s.finishedAt.slice(0, 10)}`,
@@ -40,7 +53,7 @@ export function renderJiraComment(d: ReportData): string {
   const x = s.executed;
   L.push(
     `- Executed ${String(ran.length)}: ${String(x.PASS)} passed, ${String(x.FAIL)} failed, ${String(x.UNCERTAIN)} uncertain, ${String(x.BLOCKED)} blocked (flaky ${String(s.flaky)}).`,
-    `- Not executed: ${String(count('NOT_APPROVED'))} awaiting review, ${String(count('BLOCKED'))} blocked (stale), ${String(count('MANUAL'))} manual-only.`,
+    `- Not executed: ${String(notApproved('REVIEW_REQUIRED'))} awaiting review, ${String(notApproved('BLOCKED'))} blocked at review, ${String(count('BLOCKED'))} stale, ${String(count('MANUAL'))} manual-only.`,
     `- Acceptance criteria with a passing executed test: ${String(rc.acCoverage.executedPassed)}/${String(rc.acCoverage.total)}.`,
     `- Test data: cleanup ${s.cleanup}${d.reconcile ? ` (${String(d.reconcile.subRuns.length)} test data sets, ${String(d.reconcile.remaining.length)} records remaining)` : ''}.`,
   );
@@ -49,8 +62,21 @@ export function renderJiraComment(d: ReportData): string {
     L.push('', '**Failures (not investigated yet):**');
     for (const f of fails)
       L.push(
-        `- ${f.caseId ?? ''} ${title(f.caseId ?? '')} — ${f.state === 'FAIL' ? failureKind(f.reason ?? '') : 'uncertain'}`,
+        `- ${f.caseId ?? ''} ${title(f.caseId ?? '')} — ${f.state === 'FAIL' ? failureKind(f.reason ?? '', f.errorSummary ?? '') : 'uncertain'}`,
       );
+  }
+  if (orgBlocked.length) {
+    const persona = (id: string): string => d.design?.cases.find((c) => c.id === id)?.persona ?? '?';
+    const ids = orgBlocked.map((a) => a.testCaseIds[0] ?? '');
+    const objects = [
+      ...new Set(
+        orgBlocked.flatMap((a) => a.reviewReasons.map((r) => /sObject type '(\w+)'/.exec(r)?.[1]).filter(Boolean)),
+      ),
+    ];
+    L.push(
+      '',
+      `**Blocked by org setup:** the ${[...new Set(ids.map(persona))].join(', ')} test user has no access to ${objects.join(', ')} on ${s.orgAlias}, so ${ids.join(', ')} cannot run (needs a permission set from the Salesforce admin).`,
+    );
   }
   const passed = ran.filter((r) => r.state === 'PASS').map((r) => r.caseId ?? '');
   if (passed.length) L.push('', `**Passed:** ${passed.join(', ')}`);

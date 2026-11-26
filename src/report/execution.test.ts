@@ -6,6 +6,7 @@ import type { ExecutionSummary } from '../core/schemas/execution.js';
 import type { TestResult } from '../core/schemas/result.js';
 import type { TestCase } from '../core/schemas/testCase.js';
 import {
+  acsFromRtm,
   releaseConfidence,
   renderCleanup,
   renderExecutionReport,
@@ -133,6 +134,25 @@ describe('release confidence (reporting skill template)', () => {
     expect(risky.reasons.join(' ')).toMatch(/1 of 2 acceptance criteria have no passing executed test/);
     expect(releaseConfidence(data({ results: [row('TC-1', 'PASS'), row('TC-2', 'FAIL')] })).verdict).toBe('Not ready');
     expect(releaseConfidence(data({ results: [row('TC-1', 'UNCERTAIN')] })).verdict).toBe('Ready with risks');
+  });
+});
+
+describe('AC coverage comes from the RTM (all cases), not the one-case design summary', () => {
+  it('unions the cases of every requirement that cites the AC', () => {
+    const row = (id: string, refs: string[], cases: string[]) =>
+      ({ requirementId: id, refs, testCaseIds: cases }) as unknown as Parameters<typeof acsFromRtm>[0][number];
+    const acs = acsFromRtm(
+      [row('R1', ['AC5', 'BR-04'], ['TC-7', 'TC-8']), row('R2', ['AC5'], ['TC-9']), row('R3', ['AC10'], ['TC-1'])],
+      [
+        { ref: 'AC5', caseIds: ['TC-7'] },
+        { ref: 'AC6', caseIds: ['TC-11'] },
+      ],
+    );
+    expect(acs).toEqual([
+      { ref: 'AC5', caseIds: ['TC-7', 'TC-8', 'TC-9'] },
+      { ref: 'AC6', caseIds: ['TC-11'] },
+      { ref: 'AC10', caseIds: ['TC-1'] },
+    ]);
   });
 });
 
