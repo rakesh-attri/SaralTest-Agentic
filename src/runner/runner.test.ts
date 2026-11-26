@@ -109,6 +109,23 @@ describe('Playwright JSON → TestResult (runner contract)', () => {
     });
   });
 
+  it('a retry that failed differently keeps the cause of the first attempt in the reason', () => {
+    const r = results([
+      spec('007', [
+        test('unexpected', [
+          result('failed', { errors: [{ message: 'Error: expect(page).toHaveURL(expected) failed' }] }),
+          result('failed', {
+            retry: 1,
+            errors: [{ message: 'TimeoutError: locator.click: Timeout 20000ms exceeded.' }],
+          }),
+        ]),
+      ]),
+    ]);
+    expect(r[0]?.reason).toBe(
+      'failed: TimeoutError: locator.click: Timeout 20000ms exceeded. (first attempt: Error: expect(page).toHaveURL(expected) failed)',
+    );
+  });
+
   it('auth-setup failure → dependent tests BLOCKED; fixme → SKIPPED', () => {
     const r = results(
       [

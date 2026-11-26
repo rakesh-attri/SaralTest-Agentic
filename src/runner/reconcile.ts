@@ -30,6 +30,11 @@ export interface ReconcileReport {
   /** Run-wide re-query (tag prefix) per object. */
   queries: string[];
   remaining: { object: string; recordId: string }[];
+  /**
+   * Records the run user created during the run that carry no run tag (e.g. a UI Save the test never adopted because
+   * it failed first). Never deleted automatically (not provably ours by tag): reported for a human.
+   */
+  untagged: { object: string; recordId: string; createdDate: string }[];
   status: 'CLEAN' | 'INCOMPLETE' | 'KEPT' | 'NONE';
 }
 
@@ -50,6 +55,8 @@ export async function reconcileRun(o: {
   sf: DataClient;
   keep?: boolean;
   log?: (m: string) => void;
+  /** Run window: records created by this user since `since` without this run's tag are reported (untagged). */
+  window?: { userId: string; since: string };
 }): Promise<ReconcileReport> {
   const subRuns: SubRunOutcome[] = [];
   const objects = new Set<string>();
@@ -95,12 +102,36 @@ export async function reconcileRun(o: {
     }
   }
   for (const s of subRuns) for (const r of s.remaining) remaining.set(`${r.object}:${r.recordId}`, r);
+  const untagged: ReconcileReport['untagged'] = [];
+  if (o.window && field && /^[a-zA-Z0-9]{15,18}$/.test(o.window.userId)) {
+    const since = o.window.since.replace(/\.\d+Z$/, 'Z');
+    for (const object of [...objects].sort()) {
+      const q =
+        o.org.environment === 'LIVE'
+          ? `SELECT Id, CreatedDate, ${field} FROM ${object} WHERE CreatedById = ${soqlString(o.window.userId)} AND CreatedDate >= ${since}`
+          : `SELECT Id, CreatedDate, ${field} FROM ${object} WHERE CreatedById = ${soqlString(o.window.userId)}`;
+      queries.push(q);
+      try {
+        for (const r of await o.sf.query<Record<string, unknown> & { Id: string; CreatedDate?: string }>(q)) {
+          const created = r.CreatedDate ?? '';
+          const tag = typeof r[field] === 'string' ? r[field] : '';
+          if (created && created < o.window.since) continue;
+          if (tag.startsWith(`${o.runId}-`)) continue;
+          untagged.push({ object, recordId: r.Id, createdDate: created });
+        }
+      } catch (err) {
+        o.log?.(
+          `  untagged-record check on ${object} not possible: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+  }
   const status: ReconcileReport['status'] = !subRuns.length
     ? 'NONE'
     : o.keep
       ? 'KEPT'
-      : remaining.size === 0 && subRuns.every((s) => s.status === 'CLEAN')
+      : remaining.size === 0 && untagged.length === 0 && subRuns.every((s) => s.status === 'CLEAN')
         ? 'CLEAN'
         : 'INCOMPLETE';
-  return { runId: o.runId, orgId: o.org.orgId, subRuns, queries, remaining: [...remaining.values()], status };
+  return { runId: o.runId, orgId: o.org.orgId, subRuns, queries, remaining: [...remaining.values()], untagged, status };
 }

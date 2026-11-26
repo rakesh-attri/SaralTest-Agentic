@@ -124,7 +124,12 @@ export function stateOf(
   const why = last?.status === 'timedOut' ? 'timed out' : 'failed';
   return {
     state: 'FAIL',
-    reason: `${why}: ${firstLines(lastErrors[0] ?? errors[0] ?? 'no error message', 2)}`,
+    reason: `${why}: ${firstLines(lastErrors[0] ?? errors[0] ?? 'no error message', 2)}${
+      // A retry that failed differently hides the first cause (qa-prod run-p5-live-1, TC-007): keep both.
+      t.results.length > 1 && errors[0] && firstLines(errors[0], 1) !== firstLines(lastErrors[0] ?? '', 1)
+        ? ` (first attempt: ${firstLines(errors[0], 1)})`
+        : ''
+    }`,
     cleanup,
   };
 }

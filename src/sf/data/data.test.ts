@@ -344,6 +344,20 @@ describe('test data engine on the offline fixture (FIXTURE)', () => {
     expect(dirty.remaining).toEqual([{ object: 'Account', recordId: stray }]);
     await sf.destroy('Account', stray, { cleanup: true, untaggedCount: 0 });
 
+    // An untagged record the run user created during the run (a UI Save the test never adopted) is reported.
+    const since = new Date(Date.now() - 1000).toISOString();
+    const loose = await sf.create('Contact', { LastName: 'QA-untagged-ui', AccountId: '001FX0000000001AAA' });
+    const withWindow = await reconcileRun({
+      runId: 'run-recon-1',
+      runDir,
+      org,
+      sf,
+      window: { userId: sf.identity.userId, since },
+    });
+    expect(withWindow.untagged.map((u) => u.recordId)).toEqual([loose]);
+    expect(withWindow.status).toBe('INCOMPLETE');
+    await sf.destroy('Contact', loose); // a plain delete in the test: the cleanup path rightly refuses untagged records
+
     // A sub-run ledger without a plan is listed, not guessed at.
     const orphan = join(runDir, 'data', 'bbbbbb');
     const l = new WriteLedger(join(orphan, 'writes.jsonl'));

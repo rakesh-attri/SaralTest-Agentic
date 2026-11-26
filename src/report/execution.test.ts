@@ -96,6 +96,7 @@ function data(o: {
       ],
       queries: ["SELECT Id FROM Account WHERE QA_Run_Id__c LIKE 'run-r1-%'"],
       remaining: [],
+      untagged: [],
       status: 'CLEAN',
     },
     design: {

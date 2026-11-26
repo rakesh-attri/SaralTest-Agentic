@@ -1,7 +1,7 @@
 // Behaviour of the fixture record pages (OFFLINE FIXTURE, Lightning-LIKE — not Salesforce markup).
 // - Account page: "New" in the Contacts related list opens the New Contact dialog (Mailing Address defaults from the
 //   Account's Billing Address, BRD BR-05 as implemented by this fixture). Save POSTs through the fixture REST API and,
-//   as Lightning does, opens the new Contact's record page with a success toast.
+//   as Lightning does, stays on the Account: the related list gets the new row and a success toast shows.
 // - Contact page: "Edit" opens the Edit dialog pre-filled from the record; Save PATCHes it and reloads the page.
 // - Every server error is shown: page-level ("We hit a snag.") plus field-level (aria-invalid + aria-describedby) for
 //   each field the error names — required fields and the validation rules the fixture enforces.
@@ -181,8 +181,27 @@
       location.reload();
       return;
     }
+    // As on live Lightning (qa-prod, run-p5-live-1): a Save from the related list STAYS on the Account page — the new
+    // row appears in the Contacts related list and a toast confirms it. (Phase 5 had briefly navigated to the new
+    // record here, from the specs' assumption rather than from an observation; corrected.)
     const created = await res.json();
-    sessionStorage.setItem('fixture-toast', `Contact "${name}" was created.`);
-    location.assign(`/lightning/r/Contact/${created.id}/view`);
+    const tbody = document.querySelector('table[aria-label="Contacts"] tbody');
+    const count = document.querySelector('.related-list .count');
+    if (tbody) {
+      const tr = document.createElement('tr');
+      const th = document.createElement('th');
+      th.scope = 'row';
+      const a = document.createElement('a');
+      a.href = `/lightning/r/Contact/${created.id}/view`;
+      a.textContent = name;
+      th.appendChild(a);
+      const td = document.createElement('td');
+      td.textContent = body.Email ?? '';
+      tr.append(th, td);
+      tbody.appendChild(tr);
+    }
+    if (count) count.textContent = String(Number(count.textContent) + 1);
+    close();
+    showToast(`Contact "${name}" was created.`, 'success');
   });
 })();

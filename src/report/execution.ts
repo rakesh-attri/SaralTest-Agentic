@@ -367,6 +367,10 @@ export function renderCleanup(d: ReportData): string {
     );
   L.push('', '## Run-wide re-query (tag prefix; never used to delete)', '');
   for (const q of r.queries) L.push(`- \`${q}\``);
+  if (r.untagged.length) {
+    L.push('', '## Untagged records created during the run (not deleted: not provably run-owned — check by hand)', '');
+    for (const x of r.untagged) L.push(`- ${x.object} ${maskId(x.recordId)} created ${x.createdDate}`);
+  }
   if (r.remaining.length) {
     L.push('', '## Remaining records (clean with `qa cleanup --run`)', '');
     for (const x of r.remaining) L.push(`- ${x.object} ${maskId(x.recordId)}`);

@@ -61,11 +61,33 @@ export function relatedListRecord(list: Locator, name: string): Locator {
 }
 
 /**
+ * Lightning shows a failed save as a popover ("We hit a snag." / "Similar Records Exist") that is its own modal
+ * dialog: while it is open the record form is hidden from the accessibility tree, so field checks and further typing
+ * cannot reach it (qa-prod, Phase 5). Close it — it is a notice, closing it saves nothing and changes no field.
+ */
+export async function closeSavePopover(page: Page, timeout = 10_000): Promise<void> {
+  const popover = page.getByRole('dialog', { name: /^(We hit a snag|Similar Records Exist)/ });
+  for (const b of await popover.getByRole('button', { name: 'Close error dialog' }).all()) {
+    if (await b.isVisible().catch(() => false)) await b.click();
+  }
+  await expect(popover).toHaveCount(0, { timeout });
+}
+
+/**
  * Field-level save error: the input is marked invalid (Lightning sets aria-invalid on the inner input). With a
  * message (generated tests take it from the org's validation rule), the field's error text — linked to the input
  * through aria-describedby — must contain it.
  */
 export async function expectFieldError(field: Locator, message?: string): Promise<void> {
+  const page = field.page();
+  // Whichever the failed save shows first: Lightning's error popover (form hidden), or the field marked invalid.
+  const popoverClose = page
+    .getByRole('dialog', { name: /^(We hit a snag|Similar Records Exist)/ })
+    .getByRole('button', { name: 'Close error dialog' });
+  await expect(popoverClose.or(field.and(page.locator('[aria-invalid="true"]'))))
+    .not.toHaveCount(0, { timeout: 15_000 })
+    .catch(() => undefined);
+  await closeSavePopover(page);
   await expect(field).toHaveAttribute('aria-invalid', 'true');
   if (message !== undefined) await expect(field).toHaveAccessibleDescription(new RegExp(escapeRegExp(message)));
 }

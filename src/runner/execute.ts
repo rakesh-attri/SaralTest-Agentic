@@ -393,9 +393,10 @@ export async function executeStory(o: ExecuteOptions, d: ExecuteDeps = {}): Prom
     org: ctx.org,
     sf,
     ...(o.keepData ? { keep: true } : {}),
+    window: { userId: sf.identity.userId, since: startedAt },
   });
   say(
-    `  data: ${reconcile.status} — ${reconcile.subRuns.length} sub-run(s), ${reconcile.remaining.length} record(s) remaining`,
+    `  data: ${reconcile.status} — ${reconcile.subRuns.length} sub-run(s), ${reconcile.remaining.length} record(s) remaining, ${reconcile.untagged.length} untagged record(s) created during the run`,
   );
   const ran = results.filter((r) => toRun.some((t) => t.caseId === r.caseId));
   // COMPLETE = Playwright reported every selected test with a definite outcome and the data is accounted for.

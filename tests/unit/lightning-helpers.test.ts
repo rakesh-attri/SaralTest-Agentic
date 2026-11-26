@@ -9,7 +9,6 @@ import { parseSoql } from '../../src/fixture/soql.js';
 import { REPO_ROOT } from '../helpers/tempProject.js';
 import {
   expectFieldError,
-  expectRecordTitle,
   expectToast,
   openRecord,
   pageError,
@@ -115,16 +114,12 @@ describe('Lightning + a11y helpers on the offline fixture (real Chromium, FIXTUR
     await lastName.fill(name);
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await waitForSpinners(page);
-    // As on live Lightning (Phase 5 parity): Save opens the new Contact's record page with a success toast.
-    const contactId = await recordIdFromView(page, 'Contact');
+    // As on live Lightning (qa-prod run-p5-live-1): Save from the related list stays on the Account page.
     await expectToast(page, /was created/);
-    await expectRecordTitle(page, name);
-    const main = await openRecord(page, 'Account', ACCOUNT);
-    await selectTab(main.getByRole('tab', { name: 'Related', exact: true }));
-    const list = relatedList(main, 'Contacts');
+    expect(await recordIdFromView(page, 'Account')).toBe(ACCOUNT);
+    const list = relatedList(page.getByRole('main'), 'Contacts');
     await relatedListRecord(list, name).waitFor();
     expect(await relatedListRecord(list, name).count()).toBe(1);
-    expect(await relatedListRecord(list, name).getAttribute('href')).toContain(contactId);
   });
 
   it('validation rules (FIXTURE copies of qa-prod rules): picklist select, field error with the rule message, no record', async () => {
@@ -157,7 +152,10 @@ describe('Lightning + a11y helpers on the offline fixture (real Chromium, FIXTUR
     const name = `QA-edit-${Date.now().toString(36)}`;
     await dialog.getByRole('textbox', { name: 'Last Name', exact: true }).fill(name);
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
-    const id = await recordIdFromView(page, 'Contact');
+    await expectToast(page, /was created/);
+    const row = server.store.query(parseSoql(`SELECT Id FROM Contact WHERE LastName = '${name}'`)).records[0];
+    const id = typeof row?.['Id'] === 'string' ? row['Id'] : '';
+    await openRecord(page, 'Contact', id);
     await page.getByRole('main').getByRole('button', { name: 'Edit', exact: true }).click();
     const edit = page.getByRole('dialog', { name: /^Edit / });
     await pwExpect(edit.getByRole('textbox', { name: 'Last Name', exact: true })).toHaveValue(name);
