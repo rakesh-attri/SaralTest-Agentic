@@ -310,3 +310,71 @@ describe('Phase 4 generation + data contracts', () => {
     expect(DataWriteState.options).toContain('FAILED');
   });
 });
+
+describe('Phase 5 execution contracts', () => {
+  it('the committed SF-219 manifest parses with pass-2 recheck fields and manual-only cases', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { StoryManifest } = await import('./index.js');
+    const raw = JSON.parse(
+      readFileSync(
+        join(import.meta.dirname, '..', '..', '..', 'tests', 'generated', 'SF-219', 'manifest.json'),
+        'utf8',
+      ),
+    ) as unknown;
+    const m = StoryManifest.parse(raw);
+    expect(m.storyKey).toBe('SF-219');
+    expect(m.artifacts.length).toBeGreaterThan(0);
+    expect(m.manualOnly.length).toBeGreaterThan(0);
+  });
+
+  it('older TestResult rows stay valid; runner detail is optional', () => {
+    const base = {
+      testId: 'TC-1',
+      state: 'PASS',
+      evidenceIds: [],
+      environment: 'FIXTURE',
+      snapshotId: 's',
+      runId: 'r',
+    };
+    expect(TestResult.parse(base).attachments).toEqual([]);
+    const r = TestResult.parse({
+      ...base,
+      state: 'UNCERTAIN',
+      flaky: true,
+      attempts: 2,
+      browser: 'chrome',
+      dataCleanup: 'CLEAN',
+    });
+    expect(r.flaky).toBe(true);
+    expect(TestResult.safeParse({ ...base, dataCleanup: 'DIRTY' }).success).toBe(false);
+  });
+
+  it('a JIRA comment draft is bound to a sha256 and an observed message names its page and placement', async () => {
+    const { JiraCommentDraft, ObservedMessage } = await import('./index.js');
+    const at = '2026-11-26T10:00:00.000Z';
+    expect(
+      JiraCommentDraft.safeParse({ storyKey: 'SF-1', runId: 'r', text: 'x', sha256: 'abc', createdAt: at }).success,
+    ).toBe(false);
+    expect(
+      JiraCommentDraft.safeParse({ storyKey: 'SF-1', runId: 'r', text: 'x', sha256: 'a'.repeat(64), createdAt: at })
+        .success,
+    ).toBe(true);
+    const msg = {
+      id: 'om-1',
+      org: '00DdN00000uQ5dKUAS',
+      page: 'contact-new',
+      field: 'Contact.LastName',
+      kind: 'required',
+      placement: 'field',
+      text: 'Complete this field.',
+      persona: 'system-admin',
+      snapshotId: 's',
+      observedAt: at,
+      runId: 'r',
+      environment: 'LIVE',
+    };
+    expect(ObservedMessage.parse(msg).placement).toBe('field');
+    expect(ObservedMessage.safeParse({ ...msg, environment: 'MOCK' }).success).toBe(false);
+  });
+});

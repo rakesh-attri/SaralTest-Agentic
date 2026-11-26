@@ -4,23 +4,17 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Command } from 'commander';
-import { z } from 'zod';
 import { storyManifestFile } from '../agents/test-generator/staleness.js';
 import { projectPaths, requireConfig } from '../config/loader.js';
 import { QAError } from '../core/errors.js';
 import { newRunId, runPaths } from '../core/runFolder.js';
-import { GeneratedArtifact } from '../core/schemas/generation.js';
+import { StoryManifest } from '../core/schemas/execution.js';
 import { SnapshotStore } from '../knowledge/snapshotStore.js';
 import { executionPlan, type GateItem } from '../runner/gate.js';
 import { SnapshotFacts } from '../sf/data/plan.js';
 import { markStaleSpecs } from './discover.js';
 
 type Say = (msg: string) => void;
-
-const Manifest = z.object({
-  artifacts: z.array(GeneratedArtifact),
-  manualOnly: z.array(z.object({ caseId: z.string(), reason: z.string() })).default([]),
-});
 
 /** Refresh STALE marks against the latest snapshot, then decide what may execute. */
 export async function planExecution(root: string, orgAlias: string, storyKey: string): Promise<GateItem[]> {
@@ -38,7 +32,7 @@ export async function planExecution(root: string, orgAlias: string, storyKey: st
   } finally {
     store.close();
   }
-  return executionPlan(Manifest.parse(JSON.parse(readFileSync(file, 'utf8'))));
+  return executionPlan(StoryManifest.parse(JSON.parse(readFileSync(file, 'utf8'))));
 }
 
 export function registerRun(program: Command, rootOf: () => string, say: Say): void {
