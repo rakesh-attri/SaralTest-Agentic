@@ -163,13 +163,14 @@ export function createBuild(
     ...(o.offline
       ? {}
       : {
-          dryRun: async (refs: string[]) => {
+          dryRun: async (refs: string[], personaId?: string) => {
             if (!catalog) throw new QAError('UNKNOWN', 'dry-run before the build inputs were loaded');
+            const persona = personaId ?? o.personaId;
             const ctx = await createSfContext({
               root: o.root,
               runId: o.runId,
               orgAlias: o.orgAlias,
-              ...(o.personaId ? { personaId: o.personaId } : {}),
+              ...(persona ? { personaId: persona } : {}),
             });
             const sf = await ctx.connect();
             o.say(

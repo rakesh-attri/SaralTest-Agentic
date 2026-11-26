@@ -39,7 +39,8 @@ export interface BuildDeps {
   /** tsc + ESLint + playwright --list on the given repo-relative files. Absent → not checked (review notes it). */
   toolchain?: (files: string[]) => Promise<ToolchainResult>;
   /** Locator dry-run for these `<pageId>.<member>` refs. Absent (offline) → not run (review notes it). */
-  dryRun?: (refs: string[]) => Promise<DryRunReport>;
+  /** Locator dry-run; `personaId` overrides the build's persona (pass 2 checks each case as its own persona). */
+  dryRun?: (refs: string[], personaId?: string) => Promise<DryRunReport>;
   /**
    * Partial rebuild (`qa build --cases`): the run is seeded with only some cases. Other generated specs of the story
    * stay untouched and their manifest entries are kept; only the rebuilt cases' entries are replaced.

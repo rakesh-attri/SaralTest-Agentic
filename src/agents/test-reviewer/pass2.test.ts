@@ -121,6 +121,40 @@ describe('Test Reviewer pass 2: checklist + settlement', () => {
     ]);
   });
 
+  it('per-persona dry-runs: a case is checked against its own persona; a dry-run that could not start says why', () => {
+    const s = spec();
+    const rep = { ...CASE, persona: 'sales-rep' };
+    const ctx2 = { ...ctx, personas: ['system-admin', 'sales-rep'] };
+    const ok = { ...dryRun(s), persona: 'sales-rep' };
+    const f1 = pass2Findings({
+      ctx: ctx2,
+      cases: [rep],
+      specs: [s],
+      toolchain: toolchain(s),
+      dryRuns: [dryRun(s), ok],
+    });
+    expect(f1.filter((x) => x.rule === 'locator-unresolved')).toEqual([]);
+    const failed = {
+      ...dryRun(s),
+      persona: 'sales-rep',
+      checks: [],
+      pageErrors: [{ page: '*', error: "sObject type 'Contact' is not supported." }],
+      ok: false,
+    };
+    const f2 = pass2Findings({
+      ctx: ctx2,
+      cases: [rep],
+      specs: [s],
+      toolchain: toolchain(s),
+      dryRuns: [dryRun(s), failed],
+    });
+    const texts = f2.filter((x) => x.rule === 'locator-unresolved').map((x) => x.text);
+    expect(texts.length).toBeGreaterThan(0);
+    expect(texts[0]).toMatch(
+      /did not resolve in the dry-run as sales-rep \(not checked: \*: sObject type 'Contact' is not supported\.\)/,
+    );
+  });
+
   it('typecheck / lint / not listed / unresolved locator → BLOCKED with reasons', async () => {
     const s = spec();
     const r = await reviewPass2Round(

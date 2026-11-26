@@ -44,6 +44,35 @@ const EXPECT_SANDBOX: Partial<Record<OrgEntry['profile'], boolean>> = {
   'prod-test-org': false,
 };
 
+/**
+ * Org facts proven by a full identity check (one that could read Organization) in THIS process. A low-privilege persona
+ * that cannot read Organization (e.g. Limited Access User) reuses them for IsSandbox — never across processes, never
+ * from config (operator decision 2026-11-26).
+ */
+export interface VerifiedOrgFacts {
+  orgId: string;
+  isSandbox: boolean;
+  organizationType: string;
+  verifiedBy: string;
+  verifiedAt: string;
+}
+const ORG_FACTS = new Map<string, VerifiedOrgFacts>();
+const key15 = (id: string): string => id.slice(0, 15);
+export const verifiedOrgFacts = (orgId: string): VerifiedOrgFacts | undefined => ORG_FACTS.get(key15(orgId));
+/** Test seam. */
+export const resetVerifiedOrgFacts = (): void => {
+  ORG_FACTS.clear();
+};
+
+/** The persona's profile cannot query Organization at all (not a transient or permission-on-field error). */
+export function organizationNotQueryable(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  const code = (err as { errorCode?: unknown } | null)?.errorCode;
+  return (
+    /sObject type 'Organization' is not supported/i.test(msg) || (code === 'INVALID_TYPE' && /Organization/i.test(msg))
+  );
+}
+
 export interface VerifyIdentityInput {
   api: SfApi;
   session: SfSession;
@@ -69,8 +98,28 @@ export async function verifyIdentity(i: VerifyIdentityInput): Promise<VerifiedId
   }
   if (listed.alias !== org.alias) mismatch(`session belongs to org "${listed.alias}", not "${org.alias}"`);
 
-  const orgRows = await api.query('SELECT Id, IsSandbox, OrganizationType FROM Organization');
-  const orgRow = OrgRow.parse(orgRows[0] ?? {});
+  const warnings: string[] = [];
+  let orgRow: z.infer<typeof OrgRow>;
+  let fullCheck = true;
+  try {
+    const orgRows = await api.query('SELECT Id, IsSandbox, OrganizationType FROM Organization');
+    orgRow = OrgRow.parse(orgRows[0] ?? {});
+  } catch (err) {
+    if (!organizationNotQueryable(err)) throw err;
+    // Low-privilege persona: the org ID is still checked through its own userinfo below; IsSandbox comes only from a
+    // full identity check of the same org ID in this process.
+    const known = verifiedOrgFacts(org.orgId);
+    if (!known) {
+      mismatch(
+        `persona ${persona.id} cannot read Organization (${err instanceof Error ? err.message : String(err)}) and no full identity check of ${org.orgId} ran in this process — verify the default persona first`,
+      );
+    }
+    orgRow = { Id: org.orgId, IsSandbox: known?.isSandbox, OrganizationType: known?.organizationType };
+    fullCheck = false;
+    warnings.push(
+      `persona ${persona.id} cannot read Organization: org ID verified through userinfo; IsSandbox=${String(known?.isSandbox)} from the identity of ${known?.verifiedBy ?? '?'} verified at ${known?.verifiedAt ?? '?'} (same process)`,
+    );
+  }
   if (!same18(orgRow.Id, org.orgId)) mismatch(`Organization.Id is ${orgRow.Id}, orgs.yaml says ${org.orgId}`);
 
   const info = UserInfo.parse(await api.userinfo());
@@ -92,7 +141,6 @@ export async function verifyIdentity(i: VerifyIdentityInput): Promise<VerifiedId
     mismatch(`profile ${org.profile} expects IsSandbox=${String(expected)}, org reports ${String(isSandbox)}`);
   }
 
-  const warnings: string[] = [];
   let releaseLabel: string | undefined;
   try {
     const versions = await api.apiVersions();
@@ -104,6 +152,16 @@ export async function verifyIdentity(i: VerifyIdentityInput): Promise<VerifiedId
     warnings.push('could not read the release label from /services/data');
   }
 
+  const verifiedAt = (i.now?.() ?? new Date()).toISOString();
+  if (fullCheck) {
+    ORG_FACTS.set(key15(org.orgId), {
+      orgId: org.orgId,
+      isSandbox,
+      organizationType: orgRow.OrganizationType ?? 'unknown',
+      verifiedBy: info.preferred_username,
+      verifiedAt,
+    });
+  }
   return {
     orgAlias: org.alias,
     orgId: org.orgId,
@@ -117,7 +175,7 @@ export async function verifyIdentity(i: VerifyIdentityInput): Promise<VerifiedId
     instanceUrl: session.instanceUrl,
     apiVersion: session.apiVersion,
     ...(releaseLabel ? { releaseLabel } : {}),
-    verifiedAt: (i.now?.() ?? new Date()).toISOString(),
+    verifiedAt,
     warnings,
   };
 }

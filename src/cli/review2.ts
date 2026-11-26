@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import type { GeneratedSpec } from '../agents/test-generator/graph.js';
 import { reviewPass2Round, settlePass2, withoutJudge } from '../agents/test-reviewer/pass2.js';
 import { QAError } from '../core/errors.js';
-import type { GeneratedArtifact } from '../core/schemas/generation.js';
+import type { DryRunReport, GeneratedArtifact } from '../core/schemas/generation.js';
 import { newRunId, runPaths } from '../core/runFolder.js';
 import { manifestPath } from '../graph/buildNodes.js';
 import type { QAGraphStateType } from '../graph/state.js';
@@ -75,9 +75,39 @@ export async function rerunPass2(o: Pass2ReviewOptions): Promise<{ runId: string
     for (const n of notes) o.say(n);
     o.say(`Checking ${specs.map((s) => s.path).join(', ')}: tsc, ESLint, playwright --list (no execution)…`);
     const toolchain = await build.toolchain?.(specs.map((s) => s.path));
-    const refs = [...new Set(specs.flatMap((s) => s.artifact.locatorsUsed))];
-    const dryRun = build.dryRun && refs.length ? await build.dryRun(refs) : undefined;
-    if (dryRun) o.say(`Locator dry-run: ${dryRun.checks.filter((c) => c.ok).length}/${dryRun.checks.length} resolved.`);
+    // One dry-run per case persona: a case is only verified by the locators its own persona sees.
+    const dryRuns: DryRunReport[] = [];
+    for (const persona of [...new Set(cases.map((c) => c.persona))]) {
+      const refs = [
+        ...new Set(
+          specs
+            .filter((s) => cases.find((c) => c.id === s.caseId)?.persona === persona)
+            .flatMap((s) => s.artifact.locatorsUsed),
+        ),
+      ];
+      if (!build.dryRun || !refs.length) continue;
+      try {
+        const d = await build.dryRun(refs, persona);
+        dryRuns.push(d);
+        o.say(`Locator dry-run as ${persona}: ${d.checks.filter((c) => c.ok).length}/${d.checks.length} resolved.`);
+      } catch (err) {
+        // jsforce errors carry the SOQL on the first lines; keep the line that says what is wrong.
+        const lines = err instanceof Error ? err.message.split('\n').map((l) => l.trim()) : [String(err)];
+        const msg =
+          lines.find((l) => /not supported|INVALID|denied|insufficient/i.test(l)) ?? lines.find(Boolean) ?? '';
+        o.say(`Locator dry-run as ${persona} FAILED: ${msg}`);
+        dryRuns.push({
+          orgAlias: o.org ?? v.org,
+          environment: 'LIVE',
+          persona,
+          at: new Date().toISOString(),
+          checks: [],
+          pageErrors: [{ page: '*', error: msg.slice(0, 300) }],
+          ok: false,
+        });
+      }
+    }
+    const dryRun = dryRuns[0];
     const r = await reviewPass2Round(
       {
         ctx,
@@ -85,6 +115,7 @@ export async function rerunPass2(o: Pass2ReviewOptions): Promise<{ runId: string
         specs,
         ...(toolchain ? { toolchain } : {}),
         ...(dryRun ? { dryRun } : {}),
+        ...(dryRuns.length ? { dryRuns } : {}),
         prior: [],
         round: 1,
         mode: rt.deps.router ? 'llm' : 'mechanical',

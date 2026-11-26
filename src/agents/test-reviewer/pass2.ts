@@ -58,6 +58,8 @@ export interface Pass2Input {
   specs: readonly GeneratedSpec[];
   toolchain?: ToolchainResult;
   dryRun?: DryRunReport;
+  /** One dry-run per persona (qa review --pass 2): each case is checked against its own persona's dry-run. */
+  dryRuns?: DryRunReport[];
   prior: readonly ReviewFinding[];
   round: number;
   mode: 'llm' | 'mechanical';
@@ -193,6 +195,10 @@ export function messageMismatches(tc: TestCase, ir: TestIR, ctx: GenerationConte
   }
   return out;
 }
+
+/** The dry-run that verifies a case: its own persona's when one ran, else the single dry-run of the build. */
+const dryFor = (i: Pick<Pass2Input, 'dryRun' | 'dryRuns'>, persona: string): DryRunReport | undefined =>
+  i.dryRuns?.find((d) => d.persona === persona) ?? i.dryRun ?? i.dryRuns?.[0];
 
 /** Pass-2 deterministic checklist; pure function of the current specs + tool results. */
 export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): (FindingDraft & { paths: string[] })[] {
@@ -334,29 +340,32 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
           text: `${ref} is RE_VERIFY in the registry (the org changed since it was verified)`,
         });
       }
-      const check = i.dryRun?.checks.find((c) => c.element === ref);
-      if (i.dryRun && (!check || !check.ok)) {
+      const check = dryFor(i, tc.persona)?.checks.find((c) => c.element === ref);
+      const dry = dryFor(i, tc.persona);
+      if (dry && (!check || !check.ok)) {
+        const pageError = dry.pageErrors.map((e) => `${e.page}: ${e.error}`).join('; ');
         add({
           ...base,
           key: `dry:${tc.id}:${ref}`,
           severity: 'H',
           rule: 'locator-unresolved',
-          text: `${ref} did not resolve in the dry-run${check ? ` (count ${check.count}, visible ${String(check.visible)}, enabled ${String(check.enabled)})` : ' (not checked)'}`,
+          text: `${ref} did not resolve in the dry-run as ${dry.persona}${check ? ` (count ${check.count}, visible ${String(check.visible)}, enabled ${String(check.enabled)})` : ` (not checked${pageError ? `: ${pageError}` : ''})`}`,
         });
       }
     }
     // The dry-run verifies locators for one persona; a case run as another persona has unverified locators (the
     // persona may see a different layout or no button at all).
-    if (i.dryRun && i.dryRun.persona !== tc.persona && spec.artifact.locatorsUsed.length) {
+    const dryCase = dryFor(i, tc.persona);
+    if (dryCase && dryCase.persona !== tc.persona && spec.artifact.locatorsUsed.length) {
       add({
         ...base,
         key: `dry-persona:${tc.id}`,
         severity: 'M',
         rule: 'locator-unresolved',
-        text: `locators were dry-run as ${i.dryRun.persona}, not as the case persona ${tc.persona}: unverified for ${tc.persona}`,
+        text: `locators were dry-run as ${dryCase.persona}, not as the case persona ${tc.persona}: unverified for ${tc.persona}`,
       });
     }
-    if (!i.dryRun) {
+    if (!dryCase) {
       add({
         ...base,
         key: `dry:${tc.id}:none`,
