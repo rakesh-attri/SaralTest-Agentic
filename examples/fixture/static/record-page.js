@@ -55,6 +55,7 @@
   function closeList() {
     listbox.hidden = true;
     combo.setAttribute('aria-expanded', 'false');
+    combo.removeAttribute('aria-activedescendant');
   }
   if (combo && listbox) {
     combo.addEventListener('click', () => {
@@ -62,13 +63,33 @@
       listbox.hidden = !open;
       combo.setAttribute('aria-expanded', String(open));
     });
-    for (const o of listbox.querySelectorAll('[role="option"]')) {
+    const options = [...listbox.querySelectorAll('[role="option"]')];
+    options.forEach((o, i) => {
+      o.id ||= `${listbox.id}-opt-${i}`;
       o.addEventListener('click', () => {
         setPicklist(o.dataset.value);
         closeList();
         combo.focus();
       });
-    }
+    });
+    // Keyboard, as lightning-combobox: ArrowDown opens / moves the active option (aria-activedescendant), Enter picks.
+    combo.addEventListener('keydown', (ev) => {
+      if (ev.key === 'ArrowDown') {
+        ev.preventDefault();
+        if (listbox.hidden) {
+          listbox.hidden = false;
+          combo.setAttribute('aria-expanded', 'true');
+        }
+        const at = options.findIndex((o) => o.id === combo.getAttribute('aria-activedescendant'));
+        const next = options[Math.min(at + 1, options.length - 1)];
+        if (next) combo.setAttribute('aria-activedescendant', next.id);
+      } else if (ev.key === 'Enter' && !listbox.hidden) {
+        ev.preventDefault();
+        const active = options.find((o) => o.id === combo.getAttribute('aria-activedescendant'));
+        if (active) setPicklist(active.dataset.value);
+        closeList();
+      }
+    });
   }
 
   // ---- errors

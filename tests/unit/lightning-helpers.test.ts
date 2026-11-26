@@ -147,6 +147,19 @@ describe('Lightning + a11y helpers on the offline fixture (real Chromium, FIXTUR
     expect(await dialog.getByRole('textbox', { name: 'Mailing City', exact: true }).inputValue()).toBe('Bengaluru');
   });
 
+  it('selectPicklist falls back to the keyboard when the option is covered (docked footer on live Lightning)', async () => {
+    const dialog = await openDialog();
+    const leadSource = dialog.getByRole('combobox', { name: 'Lead Source', exact: true });
+    // Options cannot receive the click, as when Lightning's docked form footer covers them.
+    await dialog.evaluate((el) => {
+      const style = document.createElement('style');
+      style.textContent = '[role="option"] { pointer-events: none; }';
+      el.appendChild(style);
+    });
+    await selectPicklist(page, leadSource, 'Word of mouth');
+    await pwExpect(leadSource).toContainText('Word of mouth');
+  });
+
   it('Contact Edit dialog: pre-filled from the record, Save PATCHes it and the record page shows the change', async () => {
     const dialog = await openDialog();
     const name = `QA-edit-${Date.now().toString(36)}`;

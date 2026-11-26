@@ -107,7 +107,19 @@ export function pageError(scope: Locator): Locator {
 /** Picklist (lightning-combobox): open, then pick the exact option. */
 export async function selectPicklist(page: Page, combobox: Locator, value: string): Promise<void> {
   await combobox.click();
-  await page.getByRole('option', { name: value, exact: true }).click();
+  const option = page.getByRole('option', { name: value, exact: true });
+  try {
+    await option.click({ timeout: 5_000 });
+  } catch {
+    // A picklist near the bottom of a record modal opens under the docked form footer, which intercepts the click
+    // (qa-prod run-p5-live-3): choose the same option by keyboard instead.
+    const id = await option.getAttribute('id');
+    if ((await combobox.getAttribute('aria-expanded')) !== 'true') await combobox.click();
+    for (let i = 0; i < 100 && id && (await combobox.getAttribute('aria-activedescendant')) !== id; i++) {
+      await combobox.press('ArrowDown');
+    }
+    await combobox.press('Enter');
+  }
   await expect(combobox).toContainText(value);
 }
 
