@@ -71,6 +71,11 @@ export interface Pass2Input {
    * node leaves this off so the QA Lead retries the node; `qa review --pass 2` sets it (no retry loop there).
    */
   transientDegrades?: boolean;
+  /**
+   * Waits between retries of one spec's judge call after a TRANSIENT outage (run-p5-build-1/2: one call for all 7
+   * specs timed out at 120 s every time — the judge now reviews one spec per call and retries only that spec).
+   */
+  judgeRetryMs?: readonly number[];
 }
 
 export interface Pass2Deps {
@@ -78,6 +83,8 @@ export interface Pass2Deps {
   skills?: SkillLoader;
   redactor?: Redactor;
   logger?: Logger;
+  /** Progress lines (a judge retry, a spec the judge could not review). */
+  say?: (msg: string) => void;
 }
 
 const classify = (msg: string): ReviewFinding['rule'] => {
@@ -455,6 +462,8 @@ export interface Pass2Result {
   judgeDegraded: boolean;
   /** Why the judge was unavailable (error kind + message), when degraded by an error. */
   judgeError?: { kind: string; message: string };
+  /** Case ids the judge could not review (or verify) in this round — only these lose an APPROVED verdict. */
+  unjudged: string[];
   /** Per case id: open findings the generator should fix by regenerating. */
   feedback: Record<string, string[]>;
 }
@@ -497,39 +506,69 @@ export async function reviewPass2Round(i: Pass2Input, deps: Pass2Deps): Promise<
   const models: string[] = [];
   let judgeDegraded = false;
   let judgeError: Pass2Result['judgeError'];
+  const unjudged: string[] = [];
   const generated = i.specs.filter((s) => s.artifact.origin === 'generated');
-  if (i.mode === 'llm' && deps.router && generated.length) {
-    try {
-      if (i.round === 1) {
-        const r = await runStructured({
-          router: deps.router,
-          role: 'judge',
-          agent: 'test-reviewer:pass2',
-          schema: JudgeOutput,
-          system:
-            'You are the Test Reviewer (pass 2). For each generated Playwright test, compare it with its reviewed test case. ' +
-            'Report only real problems: an expected result not asserted, an assertion weaker than the expectation, an ' +
-            'assertion the case does not expect, a step whose action differs from the case, data that does not match the ' +
-            "case's preconditions. Deterministic checks (lint, types, locators, evidence) are done by code: do not repeat them. " +
-            'Return an empty list when the tests match their cases.\n\nOperator scope rules (accepted decisions — never report them as findings): ' +
-            A11Y_SCOPE_NOTE +
-            ' The keyboard check (every field reachable by Tab, focus stays in the dialog, visual reading order) is the operator-mandated implementation of "reachable by keyboard".' +
-            ' ' +
-            AFTER_SAVE_NOTE,
-          user: generated
-            .map((s) => {
-              const tc = i.cases.find((c) => c.id === s.caseId);
-              return `### ${s.caseId}\nCase: ${JSON.stringify({ title: tc?.title, preconditions: tc?.preconditions, steps: tc?.steps.map((x) => ({ action: x.action, expected: x.expected.text })) })}\nTest:\n${s.text}`;
-            })
-            .join('\n\n'),
-          ...(deps.skills ? { skills: { loader: deps.skills, names: PASS2_SKILLS } } : {}),
-          check: (o) =>
-            o.findings.flatMap((f) =>
-              f.caseIds.filter((id) => !generated.some((s) => s.caseId === id)).map((id) => `unknown caseId ${id}`),
-            ),
-          ...(deps.redactor ? { redactor: deps.redactor } : {}),
-          ...(deps.logger ? { logger: deps.logger } : {}),
-        });
+  const router = deps.router;
+  /** One judge call, retried after a TRANSIENT outage; undefined when the judge stayed unavailable for this spec. */
+  const judged = async <T>(caseId: string, call: () => Promise<T>): Promise<T | undefined> => {
+    const waits = i.judgeRetryMs ?? [];
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await call();
+      } catch (e) {
+        const wait = waits[attempt];
+        if (e instanceof QAError && e.kind === 'TRANSIENT' && wait !== undefined) {
+          deps.say?.(
+            `  judge unavailable for ${caseId} (${e.message.slice(0, 120)}) — retry ${String(attempt + 1)}/${String(waits.length)} in ${String(Math.round(wait / 1000))} s`,
+          );
+          await new Promise((res) => setTimeout(res, wait));
+          continue;
+        }
+        const degradable =
+          e instanceof QAError &&
+          (e.kind === 'INVALID_LLM_OUTPUT' ||
+            e.kind === 'TOOL_UNAVAILABLE' ||
+            (e.kind === 'TRANSIENT' && i.transientDegrades === true));
+        if (!degradable) throw e;
+        deps.logger?.warn({ err: e.message, caseId }, 'pass 2 judge unavailable for this spec: deterministic only');
+        deps.say?.(`  judge unavailable for ${caseId}: deterministic checks only for this spec`);
+        unjudged.push(caseId);
+        judgeError = { kind: e.kind, message: e.message };
+        return undefined;
+      }
+    }
+  };
+  if (i.mode === 'llm' && router && generated.length) {
+    if (i.round === 1) {
+      // One spec per call: one call for all specs (7 specs, ~1,000 lines of test code) timed out at 120 s.
+      for (const s of generated) {
+        const tc = i.cases.find((c) => c.id === s.caseId);
+        const r = await judged(s.caseId, () =>
+          runStructured({
+            router,
+            role: 'judge',
+            agent: 'test-reviewer:pass2',
+            schema: JudgeOutput,
+            system:
+              'You are the Test Reviewer (pass 2). Compare the generated Playwright test with its reviewed test case. ' +
+              'Report only real problems: an expected result not asserted, an assertion weaker than the expectation, an ' +
+              'assertion the case does not expect, a step whose action differs from the case, data that does not match the ' +
+              "case's preconditions. Deterministic checks (lint, types, locators, evidence) are done by code: do not repeat them. " +
+              `Every finding's caseIds is ["${s.caseId}"]. Return an empty list when the test matches its case.\n\n` +
+              'Operator scope rules (accepted decisions — never report them as findings): ' +
+              A11Y_SCOPE_NOTE +
+              ' The keyboard check (every field reachable by Tab, focus stays in the dialog, visual reading order) is the operator-mandated implementation of "reachable by keyboard".' +
+              ' ' +
+              AFTER_SAVE_NOTE,
+            user: `### ${s.caseId}\nCase: ${JSON.stringify({ title: tc?.title, preconditions: tc?.preconditions, steps: tc?.steps.map((x) => ({ action: x.action, expected: x.expected.text })) })}\nTest:\n${s.text}`,
+            ...(deps.skills ? { skills: { loader: deps.skills, names: PASS2_SKILLS } } : {}),
+            check: (o) =>
+              o.findings.flatMap((f) => f.caseIds.filter((id) => id !== s.caseId).map((id) => `unknown caseId ${id}`)),
+            ...(deps.redactor ? { redactor: deps.redactor } : {}),
+            ...(deps.logger ? { logger: deps.logger } : {}),
+          }),
+        );
+        if (!r) continue;
         environment = r.environment;
         models.push(`judge=${r.model}${r.usedFallback ? ' (fallback)' : ''}`);
         for (const f of r.value.findings) {
@@ -547,59 +586,58 @@ export async function reviewPass2Round(i: Pass2Input, deps: Pass2Deps): Promise<
             status: 'OPEN',
             escalated: false,
             pass: 2,
-            paths: i.specs.filter((s) => f.caseIds.includes(s.caseId)).map((s) => s.path),
+            paths: i.specs.filter((x) => f.caseIds.includes(x.caseId)).map((x) => x.path),
           });
         }
-      } else {
-        const open = findings.filter((f) => f.origin === 'judge' && f.status === 'OPEN');
-        if (open.length) {
-          const r = await runStructured({
-            router: deps.router,
+      }
+    } else {
+      const open = findings.filter((f) => f.origin === 'judge' && f.status === 'OPEN');
+      for (const s of generated) {
+        const mine = open.filter((f) => f.caseIds.includes(s.caseId));
+        if (!mine.length) continue;
+        const r = await judged(s.caseId, () =>
+          runStructured({
+            router,
             role: 'judge',
             agent: 'test-reviewer:pass2-verify',
             schema: JudgeVerifyOutput,
-            system: 'Verify whether each of your earlier findings is resolved by the regenerated tests. Be strict.',
-            user:
-              open.map((f) => `${f.id} (${f.caseIds.join(', ')}): ${f.text}`).join('\n') +
-              '\n\nCurrent tests:\n' +
-              generated
-                .filter((s) => open.some((f) => f.caseIds.includes(s.caseId)))
-                .map((s) => s.text)
-                .join('\n\n'),
+            system: 'Verify whether each of your earlier findings is resolved by the regenerated test. Be strict.',
+            user: `${mine.map((f) => `${f.id} (${f.caseIds.join(', ')}): ${f.text}`).join('\n')}\n\nCurrent test:\n${s.text}`,
             check: (o) =>
               o.verdicts
-                .filter((v) => !open.some((f) => f.id === v.findingId))
+                .filter((v) => !mine.some((f) => f.id === v.findingId))
                 .map((v) => `unknown finding ${v.findingId}`),
             ...(deps.redactor ? { redactor: deps.redactor } : {}),
-          });
-          environment = r.environment;
-          models.push(`judge=${r.model}${r.usedFallback ? ' (fallback)' : ''}`);
-          for (const v of r.value.verdicts) {
-            const f = findings.find((x) => x.id === v.findingId);
-            if (f && v.resolved) Object.assign(f, { status: 'RESOLVED', resolvedBy: 'judge', resolution: v.reason });
-          }
+          }),
+        );
+        if (!r) continue;
+        environment = r.environment;
+        models.push(`judge=${r.model}${r.usedFallback ? ' (fallback)' : ''}`);
+        for (const v of r.value.verdicts) {
+          const f = findings.find((x) => x.id === v.findingId);
+          if (f && v.resolved) Object.assign(f, { status: 'RESOLVED', resolvedBy: 'judge', resolution: v.reason });
         }
       }
-    } catch (e) {
-      const degradable =
-        e instanceof QAError &&
-        (e.kind === 'INVALID_LLM_OUTPUT' ||
-          e.kind === 'TOOL_UNAVAILABLE' ||
-          (e.kind === 'TRANSIENT' && i.transientDegrades === true));
-      if (!degradable) throw e;
-      deps.logger?.warn({ err: e.message }, 'pass 2 judge unavailable: deterministic review only');
-      judgeDegraded = true;
-      judgeError = { kind: e.kind, message: e.message };
     }
+    judgeDegraded = unjudged.length > 0;
   } else if (i.mode === 'llm' && !deps.router) {
     judgeDegraded = true;
+    unjudged.push(...generated.map((s) => s.caseId));
   }
 
   const feedback: Record<string, string[]> = {};
   for (const f of findings.filter((x) => x.status === 'OPEN' && REGENERABLE.has(x.rule))) {
     for (const c of f.caseIds) (feedback[c] ??= []).push(f.text);
   }
-  return { findings, environment, models, judgeDegraded, ...(judgeError ? { judgeError } : {}), feedback };
+  return {
+    findings,
+    environment,
+    models: [...new Set(models)],
+    judgeDegraded,
+    ...(judgeError ? { judgeError } : {}),
+    unjudged,
+    feedback,
+  };
 }
 
 export interface SettlePass2Result {
@@ -614,11 +652,15 @@ export interface SettlePass2Result {
  */
 /**
  * Without the judge nothing is APPROVED (the deterministic checks cannot judge "test matches the case"): APPROVED
- * artifacts become REVIEW_REQUIRED with the reason.
+ * artifacts become REVIEW_REQUIRED with the reason. With `unjudged`, only the specs of those cases (the judge
+ * reviewed the others).
  */
-export function withoutJudge(artifacts: readonly GeneratedArtifact[]): GeneratedArtifact[] {
+export function withoutJudge(
+  artifacts: readonly GeneratedArtifact[],
+  unjudged?: readonly string[],
+): GeneratedArtifact[] {
   return artifacts.map((a): GeneratedArtifact =>
-    a.reviewStatus === 'APPROVED'
+    a.reviewStatus === 'APPROVED' && (!unjudged || a.testCaseIds.some((c) => unjudged.includes(c)))
       ? {
           ...a,
           reviewStatus: 'REVIEW_REQUIRED',

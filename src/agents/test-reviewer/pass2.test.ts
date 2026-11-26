@@ -481,3 +481,55 @@ describe('no URL or record-id assertions (operator rule 2026-11-26)', () => {
     expect(astViolations(good).filter((x) => x.rule === 'dynamic-assertion')).toEqual([]);
   });
 });
+
+describe('judge per spec (run-p5-build-1/2: one call for 7 specs timed out at 120 s)', () => {
+  const OTHER = { ...CASE, id: 'TC-SF-219-999' };
+  const s1 = spec();
+  const s2: GeneratedSpec = {
+    ...s1,
+    caseId: OTHER.id,
+    path: s1.path.replace(CASE.id, OTHER.id),
+    artifact: { ...s1.artifact, path: s1.path.replace(CASE.id, OTHER.id), testCaseIds: [OTHER.id] },
+  };
+  const prompts: string[] = [];
+  const router = () =>
+    mockRouter({
+      judge: {
+        responder: (messages) => {
+          const user = messages.map((m) => (typeof m.content === 'string' ? m.content : '')).join('\n');
+          prompts.push(user);
+          if (user.includes(`### ${OTHER.id}`))
+            throw Object.assign(new Error('judge model call timed out after 120000 ms'), { status: 503 });
+          return '{"findings":[]}';
+        },
+      },
+    });
+
+  it('reviews one spec per call; an outage for one spec leaves only that spec unjudged', async () => {
+    prompts.length = 0;
+    const r = await reviewPass2Round(
+      {
+        ctx,
+        cases: [CASE, OTHER],
+        specs: [s1, s2],
+        prior: [],
+        round: 1,
+        mode: 'llm',
+        transientDegrades: true,
+        judgeRetryMs: [0],
+      },
+      { router: await router() },
+    );
+    const withCase = prompts.filter((p) => p.includes(`### ${CASE.id}`));
+    const withOther = prompts.filter((p) => p.includes(`### ${OTHER.id}`));
+    expect(withCase.length).toBeGreaterThan(0);
+    expect(withCase.every((p) => !p.includes(`### ${OTHER.id}`))).toBe(true);
+    // the failing spec was retried (judgeRetryMs) before it was given up
+    expect(withOther.length).toBeGreaterThan(withCase.length);
+    expect(r.unjudged).toEqual([OTHER.id]);
+    expect(r.judgeDegraded).toBe(true);
+    const approved = [s1, s2].map((s) => ({ ...s.artifact, reviewStatus: 'APPROVED' as const }));
+    const out = withoutJudge(approved, r.unjudged);
+    expect(out.map((a) => a.reviewStatus)).toEqual(['APPROVED', 'REVIEW_REQUIRED']);
+  });
+});

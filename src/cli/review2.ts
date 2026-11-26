@@ -120,18 +120,25 @@ export async function rerunPass2(o: Pass2ReviewOptions): Promise<{ runId: string
         round: 1,
         mode: rt.deps.router ? 'llm' : 'mechanical',
         transientDegrades: true,
+        judgeRetryMs: [2000, 8000, 30000],
       },
       {
         ...(rt.deps.router ? { router: rt.deps.router } : {}),
         ...(rt.deps.skills ? { skills: rt.deps.skills } : {}),
         ...(rt.deps.redactor ? { redactor: rt.deps.redactor } : {}),
         logger: rt.deps.logger,
+        say: o.say,
       },
     );
     // Review only: nothing is regenerated, so every open finding is settled now.
     const settled0 = settlePass2(r.findings, specs);
-    const settled = r.judgeDegraded ? { ...settled0, artifacts: withoutJudge(settled0.artifacts) } : settled0;
-    if (r.judgeDegraded) o.say('Judge unavailable: deterministic checks only, nothing can be APPROVED in this review.');
+    const settled = r.judgeDegraded
+      ? { ...settled0, artifacts: withoutJudge(settled0.artifacts, r.unjudged) }
+      : settled0;
+    if (r.judgeDegraded)
+      o.say(
+        `Judge unavailable for ${r.unjudged.join(', ')}: deterministic checks only, those specs cannot be APPROVED in this review.`,
+      );
 
     // Update the verdicts in the story manifest (the specs themselves are unchanged).
     const mf = join(o.root, ...manifestPath(storyKey).split('/'));
@@ -145,7 +152,7 @@ export async function rerunPass2(o: Pass2ReviewOptions): Promise<{ runId: string
       m.artifacts = m.artifacts.map((a) => {
         const s2 = settled.artifacts.find((x) => x.path === a.path);
         if (!s2) return a;
-        const priorJudge = r.judgeDegraded
+        const priorJudge = a.testCaseIds.some((c) => r.unjudged.includes(c))
           ? a.reviewReasons
               .filter((x) => / judge: /.test(x))
               .map(
@@ -174,6 +181,7 @@ export async function rerunPass2(o: Pass2ReviewOptions): Promise<{ runId: string
           models: r.models,
           environment: r.environment,
           judgeDegraded: r.judgeDegraded,
+          unjudged: r.unjudged,
           toolchain,
           dryRun,
           findings: settled.findings,

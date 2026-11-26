@@ -101,6 +101,8 @@ export const QAGraphState = Annotation.Root({
   buildFeedback: last<Record<string, string[]>>(() => ({})),
   pass2Findings: last<ReviewFinding[]>(() => []),
   pass2Round: last<number>(() => 0),
+  /** Case ids the pass-2 judge could not review in any round so far (they cannot be APPROVED). */
+  pass2Unjudged: last<string[]>(() => []),
   /** Phase 5: `qa run` seeds a run that starts at execute (approved specs of `storyKey` from the manifest). */
   executeSeed: last<boolean>(() => false),
   executionGate: last<GateItem[]>(() => []),
