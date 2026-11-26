@@ -1,7 +1,7 @@
 {
   "storyKey": "SF-219",
   "designRun": "run-p4-design-decided-1",
-  "buildRun": "run-p4-build-decided-10",
+  "buildRun": "run-p5-build-2",
   "org": "qa-prod",
   "environment": "LIVE",
   "artifacts": [
@@ -81,12 +81,12 @@
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-007-create-contact-with-valid-10-digit-phone-and-non-w.spec.ts",
-      "hash": "51279247db8bb36d",
+      "hash": "8a9077ed56a1408c",
       "testCaseIds": [
         "TC-SF-219-007"
       ],
       "caseHash": "624d82503c46ba33",
-      "irHash": "9c4f43b7b064de89",
+      "irHash": "ba3c3d8ec02135f3",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -148,9 +148,11 @@
         "account-contact"
       ],
       "origin": "generated",
-      "reviewReasons": [],
-      "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-9"
+      "reviewReasons": [
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p5-build-2"
     },
     {
       "kind": "spec",
@@ -303,12 +305,12 @@
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-010-boundary-value-test-for-phone-field-9-10-and-11-di.spec.ts",
-      "hash": "5c058f20fafd3a99",
+      "hash": "cc91cf142d63b397",
       "testCaseIds": [
         "TC-SF-219-010"
       ],
       "caseHash": "8dd2248aed59c6d0",
-      "irHash": "8887d465c28f22a7",
+      "irHash": "b1a7e778eba93381",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -370,9 +372,11 @@
         "account-contact"
       ],
       "origin": "generated",
-      "reviewReasons": [],
-      "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-9"
+      "reviewReasons": [
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p5-build-2"
     },
     {
       "kind": "spec",
@@ -534,13 +538,13 @@
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-026-create-contact-with-valid-last-name-positive.spec.ts",
-      "hash": "68e4bdee2b54d2ce",
+      "hash": "01b8dfd7fade95e1",
       "testCaseIds": [
         "TC-SF-219-026"
       ],
       "caseHash": "752fd47a3b76454e",
-      "irHash": "ae084500893a1519",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "irHash": "4834d944ec1e63f2",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
@@ -551,13 +555,6 @@
         "contact-new.root",
         "contact-new.saveButton"
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
-      "origin": "generated",
-      "reviewReasons": [],
-      "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-8",
       "dependsOn": [
         {
           "component": "Field:Account.Name",
@@ -599,7 +596,16 @@
           "component": "Locator:contact-new/button:New Contact/Save",
           "hash": "388393889e843b68"
         }
-      ]
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p5-build-2"
     },
     {
       "kind": "spec",
@@ -734,13 +740,13 @@
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-036-create-contact-with-each-approved-title-value.spec.ts",
-      "hash": "67cd568dc8512209",
+      "hash": "4de6b246d0a4a1fd",
       "testCaseIds": [
         "TC-SF-219-036"
       ],
       "caseHash": "cb659d2594451546",
-      "irHash": "7d7d9b035ac02160",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "irHash": "5e8bc0154d0dcc0d",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
@@ -748,15 +754,9 @@
         "contact-new.lastName",
         "contact-new.root",
         "contact-new.saveButton",
-        "contact-new.title"
+        "contact-new.title",
+        "contact-record.titleField"
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
-      "origin": "generated",
-      "reviewReasons": [],
-      "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-8",
       "dependsOn": [
         {
           "component": "Field:Contact.LastName",
@@ -789,8 +789,21 @@
         {
           "component": "Locator:contact-new/textbox:New Contact/Title",
           "hash": "3ebec4aa0e1e860a"
+        },
+        {
+          "component": "Locator:contact-record/button:Details/Edit Title",
+          "hash": "8fc510bf67bd9044"
         }
-      ]
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p5-build-2"
     },
     {
       "kind": "spec",
@@ -956,13 +969,13 @@
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-046-create-contact-with-empty-last-name-negative.spec.ts",
-      "hash": "bbc0bf0173ca6f54",
+      "hash": "0fc6431bfe111b76",
       "testCaseIds": [
         "TC-SF-219-046"
       ],
       "caseHash": "3fa9bcc72b1f1fd8",
-      "irHash": "3588ab19969f4324",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "irHash": "29ac4e8eea0ff199",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
@@ -973,15 +986,6 @@
         "contact-new.root",
         "contact-new.saveButton"
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
-      "origin": "generated",
-      "reviewReasons": [
-        "RF-001 message-unasserted: step 3: the message is now evidenced by UI observation — [field] \"Complete this field.\" (OBSERVED 2026-11-26, run-p5-observe-8); [page] \"We hit a snag. Review the following fields Name\" (OBSERVED 2026-11-26, run-p5-observe-8) — but the spec does not assert it (it checks only that the field is invalid). A human accepts the observed text, then regenerate the spec (qa build --cases TC-SF-219-046) so it asserts it"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-8",
       "dependsOn": [
         {
           "component": "Field:Account.Name",
@@ -1024,7 +1028,15 @@
           "hash": "388393889e843b68"
         }
       ],
-      "reviewedBy": "review2-20261126-151415-cced"
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p5-build-2"
     },
     {
       "kind": "spec",
@@ -1096,49 +1108,26 @@
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-048-sales-rep-enters-syntactically-invalid-email-save.spec.ts",
-      "hash": "82cbc0b738b23b82",
+      "hash": "7274655279f3c427",
       "testCaseIds": [
         "TC-SF-219-048"
       ],
       "caseHash": "1816b6e234b04be4",
-      "irHash": "8304097dfe03df0f",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "irHash": "f81f0e8d20a19d87",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
         "account-record.relatedTab",
         "contact-new.email",
-        "contact-new.firstName",
         "contact-new.lastName",
         "contact-new.root",
         "contact-new.saveButton"
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
-      "origin": "generated",
-      "reviewReasons": [
-        "RF-010 message-unasserted: step 2: the message is now evidenced by UI observation — [field] \"Enter a valid email address, such as <EMAIL_2>.\" (OBSERVED 2026-11-26, run-p5-observe-8); [page] \"We hit a snag. Review the following fields Email\" (OBSERVED 2026-11-26, run-p5-observe-8) — but the spec does not assert it (it checks only that the field is invalid). A human accepts the observed text, then regenerate the spec (qa build --cases TC-SF-219-048) so it asserts it",
-        "RF-011 locator-unresolved: account-record.contactsNewButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
-        "RF-012 locator-unresolved: account-record.contactsRelatedList did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
-        "RF-013 locator-unresolved: account-record.relatedTab did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
-        "RF-014 locator-unresolved: contact-new.email did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
-        "RF-015 locator-unresolved: contact-new.firstName did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
-        "RF-016 locator-unresolved: contact-new.lastName did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
-        "RF-017 locator-unresolved: contact-new.root did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
-        "RF-018 locator-unresolved: contact-new.saveButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)"
-      ],
-      "reviewStatus": "BLOCKED",
-      "buildRun": "run-p4-build-decided-8",
-      "reviewedBy": "review2-20261126-151415-cced",
       "dependsOn": [
         {
           "component": "Field:Contact.Email",
           "hash": "Field:1ff1e49584a3d3298e477de73bc32c71"
-        },
-        {
-          "component": "Field:Contact.FirstName",
-          "hash": "Field:e5825cd31e06d509bdd16bc4b1d0702f"
         },
         {
           "component": "Field:Contact.LastName",
@@ -1157,10 +1146,6 @@
           "hash": "a05d25896cd2610a"
         },
         {
-          "component": "Locator:contact-new/textbox:New Contact/Name required/First Name",
-          "hash": "217765c57a55ade0"
-        },
-        {
           "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
           "hash": "c2740cf09b7467bb"
         },
@@ -1168,18 +1153,27 @@
           "component": "Locator:contact-new/button:New Contact/Save",
           "hash": "388393889e843b68"
         }
-      ]
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "RF-001 locator-unresolved: locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p5-build-2"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-050-duplicate-contact-warning-shown-when-saving-contac.spec.ts",
-      "hash": "2b139d2e72711f44",
+      "hash": "08bf8b0f12910b10",
       "testCaseIds": [
         "TC-SF-219-050"
       ],
       "caseHash": "aa6cf9fc2b7bf878",
-      "irHash": "b264aa751fc1663e",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "irHash": "b3ba4801ba26dddb",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
@@ -1189,21 +1183,8 @@
         "contact-new.firstName",
         "contact-new.lastName",
         "contact-new.root",
-        "contact-new.saveButton",
-        "contact-record.emailField"
+        "contact-new.saveButton"
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
-      "origin": "generated",
-      "reviewReasons": [
-        "RF-019 message-unasserted: step 2: the message is now evidenced by UI observation — [alert] \"Similar Records Exist This record looks like an existing record. Make sure to check any potential duplicate records before saving. View Duplicates\" (OBSERVED 2026-11-26, run-p5-observe-8) — but the spec does not assert it. A human accepts the observed text, then regenerate the spec (qa build --cases TC-SF-219-050) so it asserts it",
-        "RF-012 judge: Missing duplicate warning assertion in step 2: Step 2 expected result 'A possible duplicate warning is displayed indicating a Contact with the same Email already exists on this Account; the Save button remains enabled' requires assertion that the duplicate warning dialog/message appears. Test only checks saveButton is visible, not that the warning is displayed. [carried over from review2-20261126-095851-512d: judge unavailable]",
-        "RF-013 judge: Step 5 assertion does not match expected result: Step 5 expected result 'Test execution result shows PASS for the duplicate warning scenario, confirming RE_VERIFY status is satisfied' is a meta-expectation about test execution status. Test implements it as a SOQL AccountId check, which does not match the stated expected result. [carried over from review2-20261126-095851-512d: judge unavailable]"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-8",
-      "reviewedBy": "review2-20261126-151415-cced",
       "dependsOn": [
         {
           "component": "Field:Account.Name",
@@ -1252,12 +1233,17 @@
         {
           "component": "Locator:contact-new/button:New Contact/Save",
           "hash": "388393889e843b68"
-        },
-        {
-          "component": "Locator:contact-record/button:Details/Edit Email",
-          "hash": "c0bafb6c095839d0"
         }
-      ]
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "judge unavailable: deterministic pass-2 checks only; re-run qa review --pass 2"
+      ],
+      "reviewStatus": "REVIEW_REQUIRED",
+      "buildRun": "run-p5-build-2"
     },
     {
       "kind": "spec",
