@@ -5,6 +5,7 @@ import { mockRouter, TEST_SECRET } from '../../../tests/helpers/mockRouter.js';
 import { REPO_ROOT } from '../../../tests/helpers/tempProject.js';
 import { HardStopError, QAError } from '../../core/errors.js';
 import { messageText } from '../../models/secretGuard.js';
+import { attemptLog, renderFailedAttempts } from '../../models/attemptLog.js';
 import { Redactor } from '../../security/redact.js';
 import { SkillLoader } from '../../skills/skillLoader.js';
 import { escapeControlCharsInStrings, extractJson, runStructured } from './structured.js';
@@ -101,6 +102,30 @@ describe('runStructured', () => {
     });
     const err = await runStructured({ ...base, router: r2 }).catch((e: unknown) => e);
     expect((err as QAError).kind).toBe('TRANSIENT');
+  });
+
+  it('a provider error keeps its exact message + HTTP status; the fallback answer is logged as such (never silent)', async () => {
+    attemptLog.reset();
+    const nim = (): Error =>
+      Object.assign(new Error('400 json_validate_failed: model output did not match the schema (NIM)'), {
+        status: 400,
+      });
+    const router = await mockRouter({
+      reasoning: { failFirst: { times: 9, error: nim } },
+      'reasoning:fallback': { responder: () => '{"items":[{"id":"fb","n":3}]}' },
+    });
+    const r = await runStructured({ ...base, router });
+    const err = r.attempts.find((a) => a.outcome === 'ERROR');
+    expect(err).toMatchObject({ status: 400 });
+    expect(err?.providerMessage).toBe('400 json_validate_failed: model output did not match the schema (NIM)');
+    expect(attemptLog.failed()[0]).toMatchObject({ agent: 'test-agent', outcome: 'ERROR', status: 400 });
+    expect(attemptLog.fallbacks()).toEqual([expect.objectContaining({ agent: 'test-agent', model: r.model })]);
+    const text = renderFailedAttempts();
+    expect(text).toMatch(/Model attempts that failed/);
+    expect(text).toMatch(/\(HTTP 400\) → next mock\/mock-flash/);
+    expect(text).toMatch(/400 json_validate_failed: model output did not match the schema \(NIM\)/);
+    expect(text).toMatch(/ANSWERED BY FALLBACK: test-agent/);
+    attemptLog.reset();
   });
 
   it('a secret in the user content is redacted before the prompt; without redaction the guard hard-stops', async () => {

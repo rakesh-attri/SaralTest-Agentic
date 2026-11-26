@@ -1,3 +1,4 @@
+import { attemptLog } from '../../models/attemptLog.js';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from '@langchain/core/messages';
 import { z } from 'zod';
@@ -46,11 +47,17 @@ export interface RunStructuredOptions<T> {
   logger?: Logger;
 }
 
+const errMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
 export interface AttemptRecord {
   model: string;
   attempt: number;
   outcome: 'OK' | 'INVALID' | 'ERROR';
   problems?: string[];
+  /** ERROR: HTTP status the provider sent (when any). */
+  status?: number;
+  /** ERROR: the provider's exact message (redacted), not a summary. */
+  providerMessage?: string;
 }
 
 export interface StructuredResult<T> {
@@ -229,8 +236,28 @@ export async function runStructured<T>(opts: RunStructuredOptions<T>): Promise<S
       } catch (err) {
         const c = classifyError(err);
         if (c.kind === 'HARD_STOP' || c.kind === 'BUDGET') throw err;
-        attempts.push({ model: m.id, attempt, outcome: 'ERROR', problems: [`${c.kind}: ${c.message}`] });
+        const status = typeof c.detail['status'] === 'number' ? c.detail['status'] : undefined;
+        const providerMessage = (opts.redactor?.redactText(errMessage(err)) ?? errMessage(err)).slice(0, 2000);
+        attempts.push({
+          model: m.id,
+          attempt,
+          outcome: 'ERROR',
+          problems: [`${c.kind}: ${c.message}`],
+          ...(status !== undefined ? { status } : {}),
+          providerMessage,
+        });
         const next = models[mi + 1];
+        attemptLog.fail({
+          agent: opts.agent,
+          role: opts.role,
+          model: m.id,
+          attempt,
+          outcome: 'ERROR',
+          kind: c.kind,
+          ...(status !== undefined ? { status } : {}),
+          message: providerMessage,
+          ...(next ? { next: next.id } : {}),
+        });
         opts.logger?.warn(
           {
             agent: opts.agent,
@@ -240,6 +267,7 @@ export async function runStructured<T>(opts: RunStructuredOptions<T>): Promise<S
             error: c.message,
             detail: c.detail,
             rateLimited: isRateLimited(err),
+            providerMessage,
             next: next?.id,
           },
           next ? `model call failed; failing over to ${next.id}` : 'model call failed; no model left in the chain',
@@ -250,6 +278,7 @@ export async function runStructured<T>(opts: RunStructuredOptions<T>): Promise<S
       const v = validate(text, opts.schema, opts.check, opts.normalize);
       if (v.value !== undefined) {
         attempts.push({ model: m.id, attempt, outcome: 'OK' });
+        if (m.fallback) attemptLog.fallback({ agent: opts.agent, model: m.id });
         return {
           value: v.value,
           model: m.id,
@@ -262,6 +291,15 @@ export async function runStructured<T>(opts: RunStructuredOptions<T>): Promise<S
       lastProblems = v.problems;
       lastError = undefined;
       attempts.push({ model: m.id, attempt, outcome: 'INVALID', problems: v.problems });
+      attemptLog.fail({
+        agent: opts.agent,
+        role: opts.role,
+        model: m.id,
+        attempt,
+        outcome: 'INVALID',
+        kind: 'INVALID_LLM_OUTPUT',
+        message: v.problems.slice(0, 3).join(' | '),
+      });
       opts.logger?.warn(
         { agent: opts.agent, model: m.id, attempt, problems: v.problems.slice(0, 5), problemCount: v.problems.length },
         'invalid output; reflecting',

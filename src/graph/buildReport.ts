@@ -159,7 +159,7 @@ export function renderBuildReport(s: QAGraphStateType, status: string): string {
     );
     for (const a of attempts) {
       L.push(
-        `| ${a.caseId} | ${a.model} | ${a.attempt} | ${a.outcome} | ${md((a.problems ?? []).slice(0, 3).join(' · ').slice(0, 400))} |`,
+        `| ${a.caseId} | ${a.model} | ${a.attempt} | ${a.outcome}${a.status ? ` (HTTP ${String(a.status)})` : ''} | ${md((a.providerMessage ? [a.providerMessage] : (a.problems ?? []).slice(0, 3)).join(' · ').slice(0, 800))} |`,
       );
     }
   }

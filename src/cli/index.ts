@@ -19,6 +19,7 @@ import { registerBuild } from './build.js';
 import { registerData } from './data.js';
 import { registerDecide } from './decide.js';
 import { registerRun } from './run.js';
+import { renderFailedAttempts } from '../models/attemptLog.js';
 import { createDiscoverHook, registerDiscover } from './discover.js';
 import { createDesignHook, designSummary, registerDesign } from './design.js';
 import { registerIngest } from './ingest.js';
@@ -346,3 +347,8 @@ await buildCli()
     );
     process.exitCode = 1;
   });
+// Every command ends with the model attempts that failed (exact messages) — a fallback answer is never silent.
+{
+  const failures = renderFailedAttempts();
+  if (failures) process.stderr.write(`${failures}\n`);
+}
