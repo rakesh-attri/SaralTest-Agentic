@@ -4,7 +4,7 @@ Status of every capability in PLAN.md. **implemented** = working code with tests
 stated limitation · **blocked** = needs an external prerequisite (exact blocker given) · **planned** = later phase.
 Updated at the end of each phase (CLAUDE.md rule 16).
 
-_Last updated: Phase 4 generation & data — 2026-11-21 (branch `claude/phase-4-generation-data`)._
+_Last updated: Phase 5 execution & reporting — 2026-11-26 (branch `claude/phase-5-execution-reporting`)._
 
 ## Phase 0 — Foundation
 
@@ -43,7 +43,7 @@ _Last updated: Phase 4 generation & data — 2026-11-21 (branch `claude/phase-4-
 | Canonical input contracts (`SourceDocument`, `ManualTestCase`, `DefectRecord`, `ChangedComponent`, `ExploratoryObjective`, `AnalysisFinding`) | implemented | `src/core/schemas/inputs.ts`, `requirement.ts` | |
 | Section detection with stable refs (AC n, `XX-nn`, headings, bold labels) + sha256 | implemented | `src/inputs/sections.ts` | Convention-based; free prose becomes `S<n>` context blocks |
 | JIRA adapter via REST (read-only) | implemented | `src/inputs/adapters/jira.ts` | Live on SF-219 (project SF). ADF → text, AC custom field, links, comments; 401/403 → AUTH, 404 → DATA, 429/5xx → TRANSIENT |
-| JIRA adapter via Atlassian Rovo MCP first (`--mcp`) | partial | same | Tested with a mocked hub only. **Blocker:** `.mcp.json` uses the deprecated `/v1` URL and needs OAuth consent: switch to `/v2/mcp`, then `qa doctor --include-oauth` |
+| JIRA adapter via Atlassian Rovo MCP first (`--mcp`) | partial | same | `.mcp.json` on `https://mcp.atlassian.com/v2/mcp`; live connection re-tested 2026-11-26 (26 tools, cached consent). Reading issues through MCP still exercised with a mocked hub only |
 | Azure DevOps work item adapter | blocked | `src/inputs/adapters/other.ts` | Unit-tested against the REST shape. **Blocker:** no ADO org (`ADO_ORG_URL` + `ADO_PAT`) |
 | Chat text, Markdown/TXT, Gherkin, JSON/YAML, PDF, DOCX adapters | implemented | `src/inputs/adapters/` | PDF: text layer only (no OCR; warning when empty). Tested on synthetic files generated at test time |
 | Manual test cases (xlsx/csv) → existing cases | implemented | `src/inputs/adapters/manualTests.ts` | Header aliases; skips "Read Me" tabs; live on the demo XLSX (10 cases) |
@@ -141,8 +141,33 @@ _Last updated: Phase 4 generation & data — 2026-11-21 (branch `claude/phase-4-
 | Independent validators `pnpm validate:build` / `pnpm validate:data` | implemented | `scripts/validate-build.ts` | Re-runs ESLint + `--list` itself; checks hashes, dry-run coverage, settlement, audit pairs; partial rebuilds (`qa build --cases`) checked through the merged story manifest |
 | Model warnings / errors kept with the run (`runs/<id>/logs/run.log`, `model-attempts.json`, report table) | implemented | `src/cli/analyze.ts` (`logFile`), `structured.ts`, `buildReport.ts` | `qa build` / `qa design`; console output stays at warn |
 | Record types in recipes | blocked | `src/sf/data/plan.ts` | Snapshot has no RecordTypeId yet → RECORD_TYPE_UNRESOLVED. Add RecordTypeId to discovery (Phase 5) |
-| Contact edit-mode locators (record page inline/edit form) | partial | locator registry | Not explored yet → TC-002 step 2 cannot be generated faithfully (REVIEW_REQUIRED). Add an edit state to the Explorer |
+| Contact edit-mode locators (record page inline/edit form) | implemented (Phase 5) | `contactEditForm` in `explorer.ts`, `ContactEditForm` page object | Live: 36 locators, dry-run 36/36. Generation on the edit form needs an `openEdit` IR action (follow-up) — TC-012 / TC-045 stay REVIEW_REQUIRED |
 | `data-testid` for custom LWCs (PLAN §12) | partial | `config/execution.yaml` `testIdAttribute` | Wired; SF-219 uses standard components only. Open decision for custom LWCs |
+
+## Phase 5 — Execution & reporting
+
+| Capability | Status | Where | Notes / blocker |
+|---|---|---|---|
+| Contracts: StoryManifest, runner result detail, ExecutionSummary, ReleaseConfidence, RunHistoryEntry, JiraCommentDraft, ObservedMessage | implemented | `src/core/schemas/execution.ts`, `result.ts` | No new IssueKind; one new policy checkpoint (`publish-run-comment`) |
+| Execution gate (APPROVED + current only; stale / untracked BLOCKED; `--cases` → NOT_SELECTED); staleness re-checked only for the org the specs were built for | implemented | `src/runner/gate.ts`, `execute.ts` `planStoryExecution`, `staleness.ts` | A fixture run uses the qa-prod marks as they are and never writes STALE marks into the manifest |
+| Runner: identity → browser → persona sessions → recipe approvals → Playwright Test runner → results → reconciliation | implemented | `src/runner/execute.ts`, `qa run` | Live on qa-prod (run-p5-live-4) and the fixture (run-p5-fixture-4); exit codes 0/1/2/3 |
+| Browser channel switch (chromium / chrome / msedge; `--browser` > `QA_BROWSER` > execution.yaml; fallback recorded in every result) | implemented | `src/runner/browser.ts`, `runConfig.ts`, `auth.setup.ts` | Live: chromium (7 specs) and Chrome (TC-015 PASS, run-p5-live-chrome-2; a first Chrome run timed out on the modal at cold start). msedge resolved by unit test only |
+| Result states PASS / FAIL / BLOCKED / SKIPPED / UNCERTAIN (flaky, interrupted, data not clean); LIVE / FIXTURE / MOCK on every row | implemented | `src/runner/results.ts` | A retry that failed differently keeps the first cause |
+| `execute` node in the main graph (seeded entry, after review2 in a full run, report last) | implemented | `src/graph/mainGraph.ts` | Full analyze → … → execute chain not run live in Phase 5 (operator: run from the approved specs) |
+| Data per test attempt; post-run reconciliation (every sub-run, run-wide tag re-query, untagged records created by the run user reported) | implemented | `src/runner/reconcile.ts`, `tests/fixtures/index.ts`, `qa cleanup --run` | Live: 11 sub-runs CLEAN, re-query 0, 0 untagged |
+| Fixture parity: validation rules (formula subset, unsupported → loud), qa-prod rule copies, Lead Source / Title, Lightning-like combobox + keyboard, Mailing Address, edit dialog, field errors, stay-on-Account Save, cascade delete | implemented | `src/fixture/`, `examples/fixture/` | FIXTURE only; fixture and live give the same 3 PASS / 4 FAIL |
+| Explorer: Contact edit form (observe only, record name never stored) | implemented | `src/agents/app-explorer/explorer.ts` | 36 live locators |
+| Explorer: observed messages (guarded + audited Save attempts; SOQL no-record proof; adopt + verified cleanup; popover read by dialog name) | implemented | `messages.ts`, `observedMessages.ts`, `qa locators observe-messages` | Live run-p5-observe-8: required, invalid-email, duplicate texts; the 81-char Last Name shows no message (input truncates) |
+| Pass 2 `message-unasserted` (text observed, spec does not assert it); observation matched by expected kind | implemented | `pass2.ts` | OBSERVED evidence needs human acceptance before an assertion uses it (PLAN §7f) |
+| Low-privilege persona identity (userinfo + same-process admin facts) | implemented | `src/sf/identity.ts`, `context.ts` | Operator decision 2026-11-26; sales-rep verified live |
+| Per-persona dry-runs in `qa review --pass 2`; re-review keeps the manifest's file facts and carries judge findings over during a judge outage | implemented | `src/cli/review2.ts`, `pass2.ts` | Fixed a pre-existing loss of `dependsOn` on re-review |
+| Exact model errors (status + provider text per attempt; "Model attempts that failed" after every command; fallback answers named) | implemented | `src/models/attemptLog.ts`, `structured.ts`, `guarded.ts` | Probe run-p5-coder-probe-1 (NIM IR contract break; Groq 400 / 429) |
+| Reports: Playwright HTML, reporting-labs (JIRA links, environment card + title label, history across runs, JSON), execution report md/html, release confidence, cleanup / reconciliation, impact & coverage + rtm-results.xlsx, history, model attempts, index | implemented | `src/report/`, `playwright.config.ts`, `qa report --run` | Visual-diff (Phase 6), exploration and defect reports (Phase 7) not produced yet |
+| JIRA run comment: draft, approval bound to sha256 (`publish-run-comment`, all autonomy levels), Rovo MCP v2 `addOrEditJiraIssueComment` add mode → REST fallback, audit, never posted twice | implemented (not yet posted) | `src/report/jiraComment.ts`, `qa report comment` | Draft for run-p5-live-4 awaiting operator approval |
+| Independent run validator | implemented | `scripts/validate-run.ts` (`pnpm validate:run`) | fixture-4, live-4, live-chrome-2 valid |
+| SF-219 live results | partial | `runs/run-p5-live-4` | 3 PASS, 4 FAIL (after a related-list Save qa-prod stays on the Account; the specs expect the Contact page) — not investigated (Phase 7) |
+| sales-rep execution | blocked | `config/personas.yaml` | **Blocker:** the sales-rep user has no Contact access on qa-prod (`sObject type 'Contact' is not supported`); TC-032/044/047/048 BLOCKED |
+| Record types in recipes | blocked | `src/sf/data/plan.ts` | Unchanged from Phase 4 (no RecordTypeId in discovery yet) |
 
 ## External prerequisites (open blockers)
 
@@ -152,7 +177,9 @@ _Last updated: Phase 4 generation & data — 2026-11-21 (branch `claude/phase-4-
 | Full Copy sandbox `fc-admin`: placeholder org ID/URL, expired sf session | later live runs on the sandbox | Rakesh / SF admin | Fill `config/orgs.yaml`, authorize with `pnpm qa auth login --org fc-admin` |
 | Dedicated non-admin test users (sales rep, read only) on qa-prod, pre-approved on the ECA | persona-based UI/permission checks (AC6), BLOCKED-NO-PERSONA otherwise | SF admin | Create users, approve on the ECA, add to `config/personas.yaml`, `pnpm qa auth login --persona <id>` |
 | Digital Experiences not enabled in qa-prod | Explorer on Experience Cloud | SF admin | Enable + create a site, or explore it in the Full Copy sandbox |
-| Atlassian Rovo MCP on deprecated `/v1/mcp` in `.mcp.json` | JIRA via MCP (REST works and carried the demo) | Rakesh | Change to `https://mcp.atlassian.com/v2/mcp`, then `pnpm qa doctor --include-oauth` |
+| sales-rep test user has no Contact access on qa-prod | TC-032 / 044 / 047 / 048 (persona-based AC1 / AC3) | SF admin | Permission set with Contact (and Account) read/create for the sales-rep user, then `pnpm qa locators dry-run --persona sales-rep` and `qa review --pass 2` |
+| Four SF-219 specs assume the Contact page opens after a related-list Save; qa-prod stays on the Account | TC-007 / 010 / 026 / 036 pass | product owner + operator | Decide: requirement (product differs) or assumption (regenerate the specs) |
+| Observed message texts not accepted yet | text assertions in TC-046 / 048 / 050 | operator | Accept the texts in `runs/run-p5-observe-8/observe/observed-messages.md`, then `qa build --cases` |
 | Azure DevOps organisation + PAT | ADO work items as input (optional) | Rakesh | Set `ADO_ORG_URL` and `ADO_PAT` (Credential Manager preferred) |
 | Small reasoning model on the Gemini free tier | stable cross-source conflict detection | Rakesh | Enable billing, move `reasoning` + `judge` to a Pro model, re-run the Phase 1 demo — or use NVIDIA NIM (below) |
 | Gemini Pro judge returns 429 (free-tier quota 0) | a real Pro-class Test Reviewer (Phase 3), later Defect Judge | Rakesh | Enable billing; `judge: gemini-3.1-pro-preview` is already configured with a flash-lite fallback |
@@ -162,7 +189,7 @@ _Last updated: Phase 4 generation & data — 2026-11-21 (branch `claude/phase-4-
 
 | Capability | Status | Phase |
 |---|---|---|
-| Runner, reporting-labs + Playwright HTML, JIRA comment, Account→Contact demo | planned | 5 |
+| Runner, reporting-labs + Playwright HTML, JIRA comment, Account→Contact demo | implemented (Phase 5; JIRA comment awaiting approval) | 5 |
 | Visual QA | planned | 6 |
 | Investigation, healing, exploration, fault injection | planned | 7 |
 | DeepEval judge model over the judge chain (OpenAI-compatible, failover on 429) | partial (pre-Phase-4) | `src/eval/judgeEndpoint.ts`, `eval/qa_eval/judge_model.py` |
