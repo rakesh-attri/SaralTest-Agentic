@@ -57,7 +57,7 @@ describe('QA Lead triage (config/policy.yaml)', () => {
     expect((await triageIssue(issue('AMBIGUOUS_SPEC'), policy, ALL, { applied: {} })).response).toBe('ask');
     const d = await triageIssue(issue('LOCATOR'), policy, NONE, { applied: {} });
     expect(d.response).toBe('report-only');
-    expect(d.reason).toMatch(/investigate skipped \(handled by a later-phase agent\)/);
+    expect(d.reason).toMatch(/investigate skipped \(done by the investigate node after execute\)/);
   });
 
   it('a reorder hook may reorder the allowed list but cannot add responses (PLAN.md §5)', async () => {
