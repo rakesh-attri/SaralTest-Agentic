@@ -315,7 +315,9 @@ describe('visual + layout helpers on the offline fixture (real Chromium, FIXTURE
       const card = document.createElement('div');
       card.className = 'slds-tabs_card';
       card.style.cssText = 'position:absolute;left:900px;top:300px;width:400px;height:80px';
-      card.innerHTML = '<div role="tablist" style="width:120px"><button role="tab">Activity</button></div>';
+      // the tab bar is wider than twice the tab but narrower than the card: the card is still the one masked
+      card.innerHTML =
+        '<div style="width:380px;margin-left:10px"><div role="tablist" style="width:120px"><button role="tab">Activity</button></div></div>';
       el.appendChild(card);
     });
     const anchor = main.getByRole('tab', { name: 'Activity' });
