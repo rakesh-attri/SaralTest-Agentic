@@ -11,6 +11,7 @@ import {
   loadFixtureMetadata,
   queryMetadata,
   type FixtureMetadata,
+  enforcedRules,
 } from './metadata.js';
 import { FixtureError, FixtureStore, loadSeed, type SObject } from './store.js';
 
@@ -68,7 +69,7 @@ function sfError(res: ServerResponse, err: FixtureError | SoqlError): void {
     send(res, 400, [{ errorCode: err.errorCode, message: err.message }]);
     return;
   }
-  send(res, err.status, [{ errorCode: err.errorCode, message: err.message, fields: err.fields }]);
+  send(res, err.status, [{ errorCode: err.errorCode, message: err.message, fields: err.fields }, ...err.more]);
 }
 
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -97,8 +98,20 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
   const seed = loadSeed(join(fixtureDir, 'seed.json'));
   const store = new FixtureStore(seed);
   let metadata = loadFixtureMetadata(opts.metadataFile ?? join(fixtureDir, 'metadata.json'));
+  store.setValidationRules(enforcedRules(metadata));
   const template = await readFile(join(fixtureDir, 'pages', 'account-record.html'), 'utf8');
   const contactTemplate = await readFile(join(fixtureDir, 'pages', 'contact-record.html'), 'utf8');
+  // One Contact form for both dialogs (New Contact on the Account page, Edit on the Contact page), as in Lightning.
+  const contactForm = await readFile(join(fixtureDir, 'partials', 'contact-form.html'), 'utf8');
+  const leadSourceOptions = (
+    store.describe('Contact').fields.find((f) => f.name === 'LeadSource')?.picklistValues ?? []
+  )
+    .map((v) => `<div role="option" data-value="${esc(v)}" aria-selected="false">${esc(v)}</div>`)
+    .join('\n            ');
+  const fill = (tpl: string, values: Record<string, string>): string =>
+    tpl
+      .replace('{{contactFormFields}}', contactForm)
+      .replace(/\{\{([A-Za-z.]+)\}\}/g, (_m, k: string) => values[k] ?? '');
   const staticDir = join(fixtureDir, 'static');
 
   const userFor = (req: IncomingMessage): (typeof seed.users)[number] | undefined => {
@@ -122,8 +135,12 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
       'Account.Id': esc(account.Id),
       'Account.Name': esc(account['Name']),
       'Account.Industry': esc(account['Industry']),
+      'Account.BillingStreet': esc(account['BillingStreet']),
+      'Account.BillingCity': esc(account['BillingCity']),
+      'Account.BillingPostalCode': esc(account['BillingPostalCode']),
       'Account.BillingCountry': esc(account['BillingCountry']),
       'User.Name': esc(user['Name']),
+      leadSourceOptions,
       ContactCount: String(contacts.length),
       ContactRows: rows,
       // Lightning-like generated ids change on every render: locators must never depend on them.
@@ -131,7 +148,7 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
       writeDisabled: canWrite ? '' : 'disabled',
       newContactButton: canWrite ? '<button type="button" name="NewContact">New</button>' : '',
     };
-    return template.replace(/\{\{([A-Za-z.]+)\}\}/g, (_m, k: string) => values[k] ?? '');
+    return fill(template, values);
   };
 
   const renderContact = (contact: SObject, user: (typeof seed.users)[number]): string => {
@@ -141,14 +158,23 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
       'Contact.Name': esc([contact['FirstName'], contact['LastName']].filter(Boolean).join(' ')),
       'Contact.Email': esc(contact['Email']),
       'Contact.Phone': esc(contact['Phone']),
-      'Contact.MailingCountry': esc(contact['MailingCountry']),
+      'Contact.Id': esc(contact.Id),
+      'Contact.Title': esc(contact['Title']),
+      'Contact.LeadSource': esc(contact['LeadSource']),
+      'Contact.MailingAddress': esc(
+        ['MailingStreet', 'MailingCity', 'MailingPostalCode', 'MailingCountry']
+          .map((f) => contact[f])
+          .filter((v) => typeof v === 'string' && v)
+          .join(', '),
+      ),
+      leadSourceOptions,
       'Account.Id': esc(account?.Id),
       'Account.Name': esc(account?.['Name']),
       'User.Name': esc(user['Name']),
       rand: randomBytes(3).toString('hex'),
       writeDisabled: user['canWrite'] === true ? '' : 'disabled',
     };
-    return contactTemplate.replace(/\{\{([A-Za-z.]+)\}\}/g, (_m, k: string) => values[k] ?? '');
+    return fill(contactTemplate, values);
   };
 
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
@@ -349,6 +375,7 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
     },
     setMetadata(meta: FixtureMetadata) {
       metadata = meta;
+      store.setValidationRules(enforcedRules(meta));
     },
     close: () =>
       new Promise<void>((ok) => {

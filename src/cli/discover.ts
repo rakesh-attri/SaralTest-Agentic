@@ -138,7 +138,7 @@ export function registerDiscover(
             registry.close();
           });
           // Generated specs whose rules / fields / locators changed are marked STALE in their manifests.
-          const stale = markStaleSpecs(root, ctx.org.orgId, new SnapshotFacts(outcome.snapshot));
+          const stale = markStaleSpecs(root, ctx.org.orgId, new SnapshotFacts(outcome.snapshot), ctx.org.alias);
           const staleLines = stale.stale.map(
             (x) => `${x.caseId} (${x.stale.components.join(', ')})${x.changed ? '' : ' [already marked]'}`,
           );
@@ -259,10 +259,16 @@ export function createDiscoverHook(o: {
 }
 
 /** Refresh STALE marks of all generated specs against a snapshot and the org's current locator registry. */
-export function markStaleSpecs(root: string, orgId: string, facts: SnapshotFacts): StaleRefresh {
+/** Refresh STALE marks of the specs built for `orgAlias` (specs built for another org are left alone). */
+export function markStaleSpecs(root: string, orgId: string, facts: SnapshotFacts, orgAlias?: string): StaleRefresh {
   const registry = new LocatorRegistry(registryFile(root));
   try {
-    return refreshStaleMarks({ root, facts, locator: registryLookup(registry.list({ org: orgId })) });
+    return refreshStaleMarks({
+      root,
+      facts,
+      locator: registryLookup(registry.list({ org: orgId })),
+      ...(orgAlias ? { orgAlias } : {}),
+    });
   } finally {
     registry.close();
   }

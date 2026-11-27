@@ -44,7 +44,9 @@
           </div>
           <div class="field"><dt>Email</dt><dd>{{Contact.Email}}</dd></div>
           <div class="field"><dt>Phone</dt><dd>{{Contact.Phone}}</dd></div>
-          <div class="field"><dt>Mailing Country</dt><dd>{{Contact.MailingCountry}}</dd></div>
+          <div class="field"><dt>Title</dt><dd>{{Contact.Title}}</dd></div>
+          <div class="field"><dt>Lead Source</dt><dd>{{Contact.LeadSource}}</dd></div>
+          <div class="field"><dt>Mailing Address</dt><dd>{{Contact.MailingAddress}}</dd></div>
         </dl>
       </section>
 
@@ -56,19 +58,10 @@
     </main>
 
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title-{{rand}}" hidden>
-      <form novalidate data-account-id="" data-account-name="" data-billing-country="">
-        <h2 id="modal-title-{{rand}}">Edit Contact</h2>
-        <div class="page-error" role="alert" hidden><p class="page-error-detail"></p></div>
-        <div class="form-element"><label for="input-{{rand}}-1">First Name</label><input id="input-{{rand}}-1" name="firstName" type="text" /></div>
-        <div class="form-element"><label for="input-{{rand}}-2">Last Name</label><input id="input-{{rand}}-2" name="lastName" type="text" /><div class="field-error" hidden></div></div>
-        <div class="form-element"><label for="input-{{rand}}-3">Email</label><input id="input-{{rand}}-3" name="email" type="email" /></div>
-        <div class="form-element"><label for="input-{{rand}}-5">Phone</label><input id="input-{{rand}}-5" name="phone" type="tel" /></div>
-        <div class="form-element"><label for="input-{{rand}}-6">Mailing Country</label><input id="input-{{rand}}-6" name="mailingCountry" type="text" /></div>
-        <div class="form-element"><label for="input-{{rand}}-4">Account Name</label><input id="input-{{rand}}-4" name="account" type="text" readonly /></div>
-        <footer>
-          <button type="button" name="CancelEdit">Cancel</button>
-          <button type="submit" name="SaveEdit" class="brand" disabled>Save</button>
-        </footer>
+      <form novalidate data-mode="edit" data-record-id="{{Contact.Id}}" data-account-id="{{Account.Id}}"
+        data-account-name="{{Account.Name}}">
+        <h2 id="modal-title-{{rand}}">Edit {{Contact.Name}}</h2>
+        {{contactFormFields}}
       </form>
     </section>
 

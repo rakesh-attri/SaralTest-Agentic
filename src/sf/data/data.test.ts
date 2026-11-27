@@ -18,7 +18,8 @@ import { connectSalesforce, IdentityRegistry, type GuardedSalesforce } from '../
 import { runDiscovery } from '../discovery/index.js';
 import { DataEngine, sfErrorCodes } from './engine.js';
 import { buildDataPlan, loadRecipe, recipeHash, SnapshotFacts, syntheticToken, type LoadedRecipe } from './plan.js';
-import { renderDataReport } from './report.js';
+import { renderDataReport, writeDataOutputs } from './report.js';
+import { reconcileRun, subRunDirs } from '../../runner/reconcile.js';
 
 const seed = loadSeed(join(REPO_ROOT, 'examples', 'fixture', 'seed.json'));
 const admin: Persona = {
@@ -154,6 +155,16 @@ describe('test data engine on the offline fixture (FIXTURE)', () => {
     // An invalid plan is never executed.
     const engine = new DataEngine({ sf, plan: p, ledger: new WriteLedger(), org });
     return expect(engine.create()).rejects.toThrow(/plan has errors/);
+  });
+
+  it('a negative variant never reuses the synthetic values of the positive record (active duplicate rules)', () => {
+    const p = plan('run-neg-uniq-1');
+    const contact = p.steps.find((x) => x.stepId === 'Contact');
+    const neg = p.negatives[0];
+    expect(neg?.fields['Email']).toMatch(/^qa\+run-neg-uniq-1-[a-z0-9]+@example\.invalid$/);
+    expect(neg?.fields['Email']).not.toBe(contact?.fields['Email']);
+    expect(neg?.fields['FirstName']).not.toBe(contact?.fields['FirstName']);
+    expect(neg?.fields).not.toHaveProperty('LastName');
   });
 
   it('synthetic values are deterministic per run (stable across resume) and differ between runs', () => {
@@ -322,6 +333,48 @@ describe('test data engine on the offline fixture (FIXTURE)', () => {
     const engine = new DataEngine({ sf: roSf, plan: plan('run-ro-1'), ledger, org });
     await expect(engine.create()).rejects.toThrow();
     expect(ledger.all().some((w) => w.state === 'CONFIRMED')).toBe(false);
+  });
+
+  it('runner reconciliation: a crashed sub-run is cleaned from its ledger; a stray run-tagged record is reported', async () => {
+    const runDir = join(dir, 'run-recon-1');
+    const subDir = join(runDir, 'data', 'aaaaaa');
+    // A test that died before its teardown: plan written up front (as the data fixture does), records created.
+    const p = plan('run-recon-1-aaaaaa');
+    writeDataOutputs(subDir, { plan: p });
+    await new DataEngine({ sf, plan: p, ledger: new WriteLedger(join(subDir, 'writes.jsonl')), org }).create();
+    const clean = await reconcileRun({ runId: 'run-recon-1', runDir, org, sf });
+    expect(clean.subRuns.map((x) => x.status)).toEqual(['CLEAN']);
+    expect(clean.queries.join(' ')).toMatch(/QA_Run_Id__c LIKE 'run-recon-1-%'/);
+    expect(clean.status).toBe('CLEAN');
+
+    // A run-tagged record no sub-run knows: reported (never deleted by the prefix query) → INCOMPLETE.
+    const stray = await sf.create('Account', { Name: 'QA-stray', QA_Run_Id__c: 'run-recon-1-ffffff' });
+    const dirty = await reconcileRun({ runId: 'run-recon-1', runDir, org, sf });
+    expect(dirty.status).toBe('INCOMPLETE');
+    expect(dirty.remaining).toEqual([{ object: 'Account', recordId: stray }]);
+    await sf.destroy('Account', stray, { cleanup: true, untaggedCount: 0 });
+
+    // An untagged record the run user created during the run (a UI Save the test never adopted) is reported.
+    const since = new Date(Date.now() - 1000).toISOString();
+    const loose = await sf.create('Contact', { LastName: 'QA-untagged-ui', AccountId: '001FX0000000001AAA' });
+    const withWindow = await reconcileRun({
+      runId: 'run-recon-1',
+      runDir,
+      org,
+      sf,
+      window: { userId: sf.identity.userId, since },
+    });
+    expect(withWindow.untagged.map((u) => u.recordId)).toEqual([loose]);
+    expect(withWindow.status).toBe('INCOMPLETE');
+    await sf.destroy('Contact', loose); // a plain delete in the test: the cleanup path rightly refuses untagged records
+
+    // A sub-run ledger without a plan is listed, not guessed at.
+    const orphan = join(runDir, 'data', 'bbbbbb');
+    const l = new WriteLedger(join(orphan, 'writes.jsonl'));
+    l.plan({ runId: 'run-recon-1-bbbbbb', object: 'Account', step: 'Account', fields: {} });
+    const noPlan = await reconcileRun({ runId: 'run-recon-1', runDir, org, sf });
+    expect(noPlan.subRuns.find((x) => x.dir === orphan)?.status).toBe('CLEAN'); // only PLANNED: nothing to clean
+    expect(subRunDirs(runDir)).toHaveLength(2);
   });
 
   it('reads Salesforce error codes from jsforce-style errors', () => {

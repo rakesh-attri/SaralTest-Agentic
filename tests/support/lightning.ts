@@ -61,11 +61,58 @@ export function relatedListRecord(list: Locator, name: string): Locator {
 }
 
 /**
+ * Lightning shows a failed save as a popover ("We hit a snag." / "Similar Records Exist") that is its own modal
+ * dialog: while it is open the record form is hidden from the accessibility tree, so field checks and further typing
+ * cannot reach it (qa-prod, Phase 5). Close it — it is a notice, closing it saves nothing and changes no field.
+ */
+export async function closeSavePopover(page: Page, timeout = 10_000): Promise<void> {
+  const popover = page.getByRole('dialog', { name: /^(We hit a snag|Similar Records Exist)/ });
+  // The popover can render a moment after the field turns invalid (qa-prod run-p5-live-2): retry close + check.
+  await expect(async () => {
+    // Topmost first: Lightning can stack two copies of the popover, and the active (last-rendered) one intercepts
+    // clicks on the Close button of the one below (qa-prod run-p5-live-7, TC-050). A blocked click is retried in
+    // the next round, after the popover on top of it is gone.
+    const buttons = await popover.getByRole('button', { name: 'Close error dialog' }).all();
+    for (const b of buttons.reverse()) {
+      if (await b.isVisible().catch(() => false)) await b.click({ timeout: 2_000 }).catch(() => undefined);
+    }
+    await expect(popover).toHaveCount(0, { timeout: 1_000 });
+  }).toPass({ timeout });
+}
+
+/**
+ * Lightning's save popover (e.g. "Similar Records Exist" of an active duplicate rule, alert action) shows the text,
+ * then it is closed so the record form is reachable again (closing it saves nothing).
+ */
+export async function expectSavePopover(page: Page, heading: string, text: string): Promise<void> {
+  // Lightning sometimes renders the same popover twice (qa-prod run-p5-live-6, TC-050: two "Similar Records Exist"
+  // dialogs, strict-mode violation). The check is unchanged — a popover with this heading shows this text — and
+  // every copy is closed afterwards.
+  // Accessible (visible) popovers with this heading that show the text: one or more.
+  const withText = page.getByRole('dialog', { name: heading }).filter({ hasText: text });
+  await expect(withText).not.toHaveCount(0, { timeout: 20_000 });
+  await closeSavePopover(page);
+}
+
+/**
  * Field-level save error: the input is marked invalid (Lightning sets aria-invalid on the inner input). With a
  * message (generated tests take it from the org's validation rule), the field's error text — linked to the input
  * through aria-describedby — must contain it.
  */
 export async function expectFieldError(field: Locator, message?: string): Promise<void> {
+  const page = field.page();
+  // Whichever the failed save shows first: Lightning's error popover (form hidden), or the field marked invalid.
+  const popoverClose = page
+    .getByRole('dialog', { name: /^(We hit a snag|Similar Records Exist)/ })
+    .getByRole('button', { name: 'Close error dialog' });
+  await expect(popoverClose.or(field.and(page.locator('[aria-invalid="true"]'))))
+    .not.toHaveCount(0, { timeout: 15_000 })
+    .catch(() => undefined);
+  // The field can turn invalid a moment before Lightning's popover renders: give it a short window, then close it.
+  await expect(popoverClose)
+    .not.toHaveCount(0, { timeout: 3_000 })
+    .catch(() => undefined);
+  await closeSavePopover(page);
   await expect(field).toHaveAttribute('aria-invalid', 'true');
   if (message !== undefined) await expect(field).toHaveAccessibleDescription(new RegExp(escapeRegExp(message)));
 }
@@ -78,7 +125,19 @@ export function pageError(scope: Locator): Locator {
 /** Picklist (lightning-combobox): open, then pick the exact option. */
 export async function selectPicklist(page: Page, combobox: Locator, value: string): Promise<void> {
   await combobox.click();
-  await page.getByRole('option', { name: value, exact: true }).click();
+  const option = page.getByRole('option', { name: value, exact: true });
+  try {
+    await option.click({ timeout: 5_000 });
+  } catch {
+    // A picklist near the bottom of a record modal opens under the docked form footer, which intercepts the click
+    // (qa-prod run-p5-live-3): choose the same option by keyboard instead.
+    const id = await option.getAttribute('id');
+    if ((await combobox.getAttribute('aria-expanded')) !== 'true') await combobox.click();
+    for (let i = 0; i < 100 && id && (await combobox.getAttribute('aria-activedescendant')) !== id; i++) {
+      await combobox.press('ArrowDown');
+    }
+    await combobox.press('Enter');
+  }
   await expect(combobox).toContainText(value);
 }
 

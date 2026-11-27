@@ -139,8 +139,9 @@ describe('Salesforce Intelligence on the offline fixture (FIXTURE)', () => {
     expect(by(/Read Only cannot create or edit Contact/)).toBe('CONSISTENT');
     expect(by(/Region__c exists/)).toBe('NOT_FOUND');
     expect(by(/persona "Sales Rep"/)).toBe('UNKNOWN');
-    // The fixture Contact has no Title field: no check is invented for it (never fabricate)
-    expect(by(/Title/)).toBeUndefined();
+    // Since Phase 5 the fixture copies qa-prod's Title field + Title_Must_Be_Approved rule: the check is grounded in it.
+    expect(by(/Title/)).toBe('CONSISTENT');
+    expect(cc.checks.find((c) => /Title/.test(c.subject))?.orgFact).toMatch(/Title/);
 
     const exists = cc.checks.find((c) => /Number_of_Contacts__c exists/.test(c.subject));
     expect(exists?.findingIds).toEqual(['F-009']);

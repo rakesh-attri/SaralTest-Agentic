@@ -1,14 +1,12 @@
 // Build outputs (runs/<runId>/build/): manifest, pass-2 findings, toolchain + dry-run results, IR per case, and a
 // Markdown + HTML build report. MOCK / mechanical / FIXTURE are labelled everywhere (CLAUDE.md rule 13).
+import { esc, md } from '../report/format.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { A11Y_SCOPE_NOTE } from '../agents/test-generator/render.js';
 import { isAutomatable } from '../core/schemas/testCase.js';
 import type { QAGraphStateType } from './state.js';
 
-const md = (s: string): string => s.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
-const esc = (s: string): string =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export interface BuildSummary {
   runId: string;
@@ -159,7 +157,7 @@ export function renderBuildReport(s: QAGraphStateType, status: string): string {
     );
     for (const a of attempts) {
       L.push(
-        `| ${a.caseId} | ${a.model} | ${a.attempt} | ${a.outcome} | ${md((a.problems ?? []).slice(0, 3).join(' · ').slice(0, 400))} |`,
+        `| ${a.caseId} | ${a.model} | ${a.attempt} | ${a.outcome}${a.status ? ` (HTTP ${String(a.status)})` : ''} | ${md((a.providerMessage ? [a.providerMessage] : (a.problems ?? []).slice(0, 3)).join(' · ').slice(0, 800))} |`,
       );
     }
   }

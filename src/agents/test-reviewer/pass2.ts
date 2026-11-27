@@ -10,10 +10,23 @@ import { isAutomatable, type ReviewStatus, type TestCase } from '../../core/sche
 import type { ModelRouter } from '../../models/router.js';
 import type { Redactor } from '../../security/redact.js';
 import type { SkillLoader } from '../../skills/skillLoader.js';
-import { fieldErrorRule, irProblems, type GenerationContext } from '../test-generator/context.js';
+import {
+  BUILD_TIME_VALUE,
+  fieldErrorRule,
+  irProblems,
+  isCreateSave,
+  type GenerationContext,
+} from '../test-generator/context.js';
 import type { GeneratedSpec } from '../test-generator/graph.js';
-import { findMember } from '../test-generator/pageObjects.js';
-import { A11Y_SCOPE_NOTE } from '../test-generator/render.js';
+import {
+  FIELD_IN_DETAILS,
+  findMember,
+  LIST_IN_RELATED,
+  recordTabs,
+  type PageCatalog,
+} from '../test-generator/pageObjects.js';
+import type { ObservedMessage } from '../../core/schemas/execution.js';
+import { A11Y_SCOPE_NOTE, AFTER_SAVE_NOTE } from '../test-generator/render.js';
 import type { ToolchainResult } from '../test-generator/toolchain.js';
 import { runStructured } from '../shared/structured.js';
 import type { FindingDraft } from './rules.js';
@@ -32,6 +45,11 @@ const BLOCKING = new Set([
   'persona-unavailable',
   'data-binding',
   'ast-violation',
+  'dynamic-assertion',
+  'field-length',
+  'tab-unaware-read',
+  'build-time-value',
+  'shared-unique',
 ]);
 /** Only high-severity findings of blocking rules block (e.g. "no dry-run yet" is M: review, not block). */
 const isBlocking = (f: Pick<ReviewFinding, 'rule' | 'severity'>): boolean => BLOCKING.has(f.rule) && f.severity === 'H';
@@ -46,6 +64,11 @@ const REGENERABLE = new Set([
   'meta-incomplete',
   'raw-locator',
   'ast-violation',
+  'dynamic-assertion',
+  'field-length',
+  'tab-unaware-read',
+  'build-time-value',
+  'shared-unique',
   'typecheck',
   'lint',
   'not-listed',
@@ -58,6 +81,8 @@ export interface Pass2Input {
   specs: readonly GeneratedSpec[];
   toolchain?: ToolchainResult;
   dryRun?: DryRunReport;
+  /** One dry-run per persona (qa review --pass 2): each case is checked against its own persona's dry-run. */
+  dryRuns?: DryRunReport[];
   prior: readonly ReviewFinding[];
   round: number;
   mode: 'llm' | 'mechanical';
@@ -66,6 +91,11 @@ export interface Pass2Input {
    * node leaves this off so the QA Lead retries the node; `qa review --pass 2` sets it (no retry loop there).
    */
   transientDegrades?: boolean;
+  /**
+   * Waits between retries of one spec's judge call after a TRANSIENT outage (run-p5-build-1/2: one call for all 7
+   * specs timed out at 120 s every time — the judge now reviews one spec per call and retries only that spec).
+   */
+  judgeRetryMs?: readonly number[];
 }
 
 export interface Pass2Deps {
@@ -73,6 +103,8 @@ export interface Pass2Deps {
   skills?: SkillLoader;
   redactor?: Redactor;
   logger?: Logger;
+  /** Progress lines (a judge retry, a spec the judge could not review). */
+  say?: (msg: string) => void;
 }
 
 const classify = (msg: string): ReviewFinding['rule'] => {
@@ -104,6 +136,43 @@ export function astViolations(text: string): { rule: ReviewFinding['rule']; text
       if (/^test\.(only|skip)$|^test\.describe\.(only|skip)$/.test(callee)) {
         out.push({ rule: 'ast-violation', text: `${at(n)}: ${callee} must not be generated` });
       }
+      // Operator rule 2026-11-26: never assert on URLs or record ids (dynamic).
+      if (/\.toHaveURL$/.test(callee) || /(^|\.)url$/.test(callee)) {
+        out.push({
+          rule: 'dynamic-assertion',
+          text: `${at(n)}: URL check (${callee}) — URLs are dynamic; assert toast, related list, header and SOQL by run tag`,
+        });
+      }
+      if (/(^|\.)(recordIdFromView|adoptCreated)$/.test(callee)) {
+        out.push({
+          rule: 'dynamic-assertion',
+          text: `${at(n)}: ${callee} reads the record id from the URL — find the saved record by its run-unique name and the run tag`,
+        });
+      }
+      if (/^expect\b.*\.(toBe|toEqual|toStrictEqual|toHaveValue|toContainText)$/.test(callee)) {
+        const arg = n.arguments.map((x) => x.getText(sf)).join(', ');
+        if (/\bdata\.id\(|\bviewed\[|\brecordId\b/.test(arg))
+          out.push({
+            rule: 'dynamic-assertion',
+            text: `${at(n)}: compares a record id (${arg}) — compare names / values instead`,
+          });
+      }
+    }
+    if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isRegularExpressionLiteral(n)) {
+      const t = n.getText(sf);
+      if (/\/lightning\/r\/|lightning\\\/r\\\//.test(t))
+        out.push({ rule: 'dynamic-assertion', text: `${at(n)}: record URL in a test (${t.slice(0, 60)})` });
+      const v = ts.isRegularExpressionLiteral(n) ? '' : n.text;
+      if (BUILD_TIME_VALUE.test(v))
+        out.push({
+          rule: 'build-time-value',
+          text: `${at(n)}: run-specific value '${v.slice(0, 40)}' fixed in the test — make it at run time (data.unique / data.value)`,
+        });
+      if (/^(0[0-9A-Za-z]{2}|a0[0-9A-Za-z])[0-9A-Za-z]{12}([0-9A-Za-z]{3})?$/.test(v) && /\d{3}/.test(v))
+        out.push({ rule: 'dynamic-assertion', text: `${at(n)}: hard-coded record id '${v}'` });
+    }
+    if (ts.isCallExpression(n)) {
+      const callee = n.expression.getText(sf);
       if (/^page\.(getBy\w+|locator|\$\$?)$/.test(callee)) {
         out.push({ rule: 'raw-locator', text: `${at(n)}: raw locator ${callee}(…) in a test — use a page object` });
       }
@@ -135,12 +204,53 @@ export function unevidencedMessageSteps(tc: TestCase, ir: TestIR): number[] {
     const errs = ir.steps
       .filter((x) => x.caseStep === n)
       .flatMap((x) => x.assertions)
-      .filter((a) => a.check === 'fieldError');
-    // Only a field error whose text comes from an org validation rule evidences the message (warnings and standard
-    // Salesforce messages have no captured evidence yet: Phase 5 Explorer capture).
-    if (!errs.some((a) => a.message)) out.push(n);
+      .filter((a) => a.check === 'fieldError' || a.check === 'saveWarning');
+    // A message is evidenced by a field error whose text comes from an org validation rule or an accepted observed
+    // message, or by a save warning (accepted observed alert text).
+    if (!errs.some((a) => a.check === 'saveWarning' || a.message)) out.push(n);
   });
   return out;
+}
+
+/**
+ * Observed messages (Explorer, OBSERVED) that evidence the message a case step expects: messages on the fields the
+ * step's field-error assertions check; for a duplicate warning, the duplicate alert of the step's object.
+ */
+export function observedForStep(
+  tc: TestCase,
+  ir: TestIR,
+  n: number,
+  ctx: GenerationContext,
+): NonNullable<GenerationContext['observedMessages']> {
+  const all = ctx.observedMessages ?? [];
+  if (!all.length) return [];
+  const asserts = ir.steps.filter((x) => x.caseStep === n).flatMap((x) => x.assertions);
+  const fields = new Set(
+    asserts
+      .filter((a) => a.check === 'fieldError')
+      .map((a) => findMember(ctx.catalog, a.element)?.member.fieldApiName)
+      .filter((f): f is string => typeof f === 'string'),
+  );
+  const text = tc.steps[n]?.expected.text ?? '';
+  // What the step expects decides which observation can evidence it. A maximum-length message was looked for and
+  // not found (qa-prod truncates the input at the field length), so it is never evidenced by another message.
+  const kind: ObservedMessage['kind'] | 'length' | undefined = /duplicate/i.test(text)
+    ? 'duplicate'
+    : /\b(?:length|maximum|characters?|too long|exceed)/i.test(text)
+      ? 'length'
+      : /\b(?:required|empty|blank|missing)\b/i.test(text)
+        ? 'required'
+        : /\b(?:invalid|format|valid)\b/i.test(text)
+          ? 'validation'
+          : undefined;
+  if (kind === 'length') return [];
+  return all.filter(
+    (m) =>
+      (m.persona === tc.persona || m.persona === 'system-admin') &&
+      (kind === 'duplicate'
+        ? m.kind === 'duplicate'
+        : m.field !== undefined && fields.has(m.field) && m.kind !== 'duplicate' && (!kind || m.kind === kind)),
+  );
 }
 
 /**
@@ -154,7 +264,7 @@ export function messageMismatches(tc: TestCase, ir: TestIR, ctx: GenerationConte
     const quotes = [...exp.matchAll(/'([^']+)'|"([^"]+)"/g)].map((m) => m[1] ?? m[2] ?? '');
     if (!quotes.length) continue;
     for (const a of st.assertions) {
-      if (a.check !== 'fieldError' || !a.message) continue;
+      if (a.check !== 'fieldError' || !a.message || !('rule' in a.message)) continue;
       const r = fieldErrorRule(ctx, a.element, a.message.rule);
       if ('message' in r && !quotes.includes(r.message))
         out.push({
@@ -165,6 +275,10 @@ export function messageMismatches(tc: TestCase, ir: TestIR, ctx: GenerationConte
   }
   return out;
 }
+
+/** The dry-run that verifies a case: its own persona's when one ran, else the single dry-run of the build. */
+const dryFor = (i: Pick<Pass2Input, 'dryRun' | 'dryRuns'>, persona: string): DryRunReport | undefined =>
+  i.dryRuns?.find((d) => d.persona === persona) ?? i.dryRun ?? i.dryRuns?.[0];
 
 /** Pass-2 deterministic checklist; pure function of the current specs + tool results. */
 export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): (FindingDraft & { paths: string[] })[] {
@@ -227,13 +341,24 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
         });
       }
       for (const n of unevidencedMessageSteps(tc, spec.ir)) {
-        add({
-          ...base,
-          key: `msg:${tc.id}:${String(n)}`,
-          severity: 'M',
-          rule: 'message-unevidenced',
-          text: `step ${String(n + 1)} expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid`,
-        });
+        const seen = observedForStep(tc, spec.ir, n, i.ctx);
+        if (seen.length) {
+          add({
+            ...base,
+            key: `msg-obs:${tc.id}:${String(n)}`,
+            severity: 'M',
+            rule: 'message-unasserted',
+            text: `step ${String(n + 1)}: the message is now evidenced by UI observation — ${seen.map((m) => `[${m.placement}] "${m.text}" (OBSERVED ${m.observedAt.slice(0, 10)}, ${m.runId})`).join('; ')} — but the spec does not assert it${seen.some((m) => m.kind === 'duplicate') ? '' : ' (it checks only that the field is invalid)'}. A human accepts the observed text, then regenerate the spec (qa build --cases ${tc.id}) so it asserts it`,
+          });
+        } else {
+          add({
+            ...base,
+            key: `msg:${tc.id}:${String(n)}`,
+            severity: 'M',
+            rule: 'message-unevidenced',
+            text: `step ${String(n + 1)} expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid`,
+          });
+        }
       }
       for (const b of spec.artifact.dataBindings) {
         const r = i.ctx.recipes.find((x) => x.name === b);
@@ -273,6 +398,8 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
     });
     for (const v of astViolations(spec.text))
       add({ ...base, key: `ast:${tc.id}:${v.text}`, severity: 'H', rule: v.rule, text: v.text });
+    for (const v of [...valueRuleViolations(spec.ir, spec.text, i.ctx), ...tabReadViolations(spec.text, i.ctx.catalog)])
+      add({ ...base, key: `rule:${tc.id}:${v.text}`, severity: 'H', rule: v.rule, text: v.text });
     // Locators: catalog members only; RE_VERIFY members need a human; dry-run must resolve each.
     for (const ref of spec.artifact.locatorsUsed) {
       const m = findMember(i.ctx.catalog, ref);
@@ -295,29 +422,32 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
           text: `${ref} is RE_VERIFY in the registry (the org changed since it was verified)`,
         });
       }
-      const check = i.dryRun?.checks.find((c) => c.element === ref);
-      if (i.dryRun && (!check || !check.ok)) {
+      const check = dryFor(i, tc.persona)?.checks.find((c) => c.element === ref);
+      const dry = dryFor(i, tc.persona);
+      if (dry && (!check || !check.ok)) {
+        const pageError = dry.pageErrors.map((e) => `${e.page}: ${e.error}`).join('; ');
         add({
           ...base,
           key: `dry:${tc.id}:${ref}`,
           severity: 'H',
           rule: 'locator-unresolved',
-          text: `${ref} did not resolve in the dry-run${check ? ` (count ${check.count}, visible ${String(check.visible)}, enabled ${String(check.enabled)})` : ' (not checked)'}`,
+          text: `${ref} did not resolve in the dry-run as ${dry.persona}${check ? ` (count ${check.count}, visible ${String(check.visible)}, enabled ${String(check.enabled)})` : ` (not checked${pageError ? `: ${pageError}` : ''})`}`,
         });
       }
     }
     // The dry-run verifies locators for one persona; a case run as another persona has unverified locators (the
     // persona may see a different layout or no button at all).
-    if (i.dryRun && i.dryRun.persona !== tc.persona && spec.artifact.locatorsUsed.length) {
+    const dryCase = dryFor(i, tc.persona);
+    if (dryCase && dryCase.persona !== tc.persona && spec.artifact.locatorsUsed.length) {
       add({
         ...base,
         key: `dry-persona:${tc.id}`,
         severity: 'M',
         rule: 'locator-unresolved',
-        text: `locators were dry-run as ${i.dryRun.persona}, not as the case persona ${tc.persona}: unverified for ${tc.persona}`,
+        text: `locators were dry-run as ${dryCase.persona}, not as the case persona ${tc.persona}: unverified for ${tc.persona}`,
       });
     }
-    if (!i.dryRun) {
+    if (!dryCase) {
       add({
         ...base,
         key: `dry:${tc.id}:none`,
@@ -347,6 +477,117 @@ export function pass2Findings(i: Omit<Pass2Input, 'prior' | 'round' | 'mode'>): 
   return out;
 }
 
+/**
+ * What each page-object member a spec uses is, as the judge must read it (review2-20261126-213002-5ff7, TC-036: the
+ * judge took `newContactDialog.title` — the Contact Title textbox — for the dialog heading). From the page catalog.
+ */
+export function memberLegend(cat: PageCatalog, refs: readonly string[]): string {
+  const lines: string[] = [];
+  const pages = new Set<string>();
+  for (const ref of [...new Set(refs)].sort()) {
+    const m = findMember(cat, ref);
+    if (!m) continue;
+    const v = m.page.className.charAt(0).toLowerCase() + m.page.className.slice(1);
+    if (!pages.has(v)) {
+      pages.add(v);
+      lines.push(`${v}.root = the ${m.page.kind === 'record' ? 'record page' : m.page.kind} "${m.page.title}"`);
+    }
+    const what = m.member.role ?? m.member.kind;
+    lines.push(
+      `${v}.${m.member.name} = ${what} "${m.member.accessibleName ?? ''}"` +
+        (m.member.fieldApiName ? ` (field ${m.member.fieldApiName})` : '') +
+        (m.member.scopeName ? ` in "${m.member.scopeName}"` : ''),
+    );
+  }
+  return lines.join('\n') || '(none)';
+}
+
+type RuleViolation = { rule: ReviewFinding['rule']; text: string };
+const reEsc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Operator rules 2026-11-26 (1) and (3), from the IR + spec text: a value typed into a field fits the field's length
+ * (literals; run-unique values pass the length to data.unique), and no two records the test creates share a unique
+ * value (kept only where the step expects a duplicate warning — the reuse is the test).
+ */
+export function valueRuleViolations(ir: TestIR | undefined, text: string, ctx: GenerationContext): RuleViolation[] {
+  if (!ir) return [];
+  const out: RuleViolation[] = [];
+  const used = new Set<string>();
+  let dialog = new Set<string>();
+  for (const st of ir.steps) {
+    const warns = st.assertions.some((a) => a.check === 'saveWarning');
+    let saves = false;
+    for (const a of st.actions) {
+      if (a.do === 'click' && isCreateSave(ctx, a.element)) saves = true;
+      if (a.do !== 'fill' && a.do !== 'select') continue;
+      const m = findMember(ctx.catalog, a.element);
+      const [o, f] = m?.member.fieldApiName?.split('.') ?? [];
+      const len = o && f ? ctx.facts.field(o, f)?.length : undefined;
+      if (a.value.kind === 'unique' && m?.page.kind === 'dialog') dialog.add(a.value.label);
+      if (!len) continue;
+      if (a.value.kind === 'literal' && a.value.value.length > len)
+        out.push({
+          rule: 'field-length',
+          text: `step ${String(st.caseStep + 1)}: '${a.value.value.slice(0, 30)}…' (${String(a.value.value.length)} chars) does not fit ${o ?? ''}.${f ?? ''} (${String(len)})`,
+        });
+      if (a.value.kind === 'unique' && a.value.format !== 'phone') {
+        const call = new RegExp(`data\\.unique\\('${reEsc(a.value.label)}'(?:, '\\w+')?(?:, (\\d+))?\\)`).exec(text);
+        const max = call?.[1] ? Number(call[1]) : undefined;
+        if (!call || max === undefined || max > len)
+          out.push({
+            rule: 'field-length',
+            text: `step ${String(st.caseStep + 1)}: run-unique '${a.value.label}' typed into ${o ?? ''}.${f ?? ''} (${String(len)}) is not limited to the field length (data.unique(…, ${String(len)}))`,
+          });
+      }
+    }
+    if (saves && st.assertions.some((a) => a.check === 'recordView')) {
+      const shared = [...dialog].filter((l) => used.has(l));
+      if (shared.length && !warns)
+        out.push({
+          rule: 'shared-unique',
+          text: `step ${String(st.caseStep + 1)}: unique value(s) ${shared.join(', ')} already used by a record this test created — one per record`,
+        });
+      for (const l of dialog) used.add(l);
+      dialog = new Set();
+    }
+  }
+  return out;
+}
+
+/**
+ * Operator rule 2026-11-26 (2), from the spec text: a record field is read through `<page>.fieldInDetails(…)` and a
+ * related list is opened (listInRelated / showRelatedList) before a record in it is read.
+ */
+export function tabReadViolations(text: string, cat: PageCatalog): RuleViolation[] {
+  const out: RuleViolation[] = [];
+  for (const p of cat.pages.filter((x) => x.kind === 'record')) {
+    const v = p.className.charAt(0).toLowerCase() + p.className.slice(1);
+    if (!text.includes(`${v}.`)) continue;
+    const tabs = recordTabs(p);
+    if (tabs.details)
+      for (const m of p.members.filter((x) => x.fieldApiName && x.role === 'listitem')) {
+        if (new RegExp(`expect\\(\\s*${reEsc(v)}\\.${reEsc(m.name)}\\s*\\)`).test(text))
+          out.push({
+            rule: 'tab-unaware-read',
+            text: `${v}.${m.name} is read without ${v}.${FIELD_IN_DETAILS}(…) — the record page may show another tab`,
+          });
+      }
+    for (const hit of text.matchAll(new RegExp(`relatedListRecord\\(\\s*${reEsc(v)}\\.(\\w+)`, 'g'))) {
+      const list = hit[1] ?? '';
+      const before = text.slice(0, hit.index);
+      const opened =
+        before.includes(`${v}.${LIST_IN_RELATED}(${v}.${list})`) || before.includes(`showRelatedList(${v}.${list}`);
+      if (!opened)
+        out.push({
+          rule: 'tab-unaware-read',
+          text: `${v}.${list} is read before it is opened (${v}.${LIST_IN_RELATED}(…))`,
+        });
+    }
+  }
+  return [...new Map(out.map((x) => [x.text, x])).values()];
+}
+
 const nextId = (fs: readonly ReviewFinding[]): string => {
   const n = fs.reduce((m, f) => Math.max(m, Number(f.id.slice(3)) || 0), 0) + 1;
   return `RF-${String(n).padStart(3, '0')}`;
@@ -359,6 +600,8 @@ export interface Pass2Result {
   judgeDegraded: boolean;
   /** Why the judge was unavailable (error kind + message), when degraded by an error. */
   judgeError?: { kind: string; message: string };
+  /** Case ids the judge could not review (or verify) in this round — only these lose an APPROVED verdict. */
+  unjudged: string[];
   /** Per case id: open findings the generator should fix by regenerating. */
   feedback: Record<string, string[]>;
 }
@@ -401,37 +644,71 @@ export async function reviewPass2Round(i: Pass2Input, deps: Pass2Deps): Promise<
   const models: string[] = [];
   let judgeDegraded = false;
   let judgeError: Pass2Result['judgeError'];
+  const unjudged: string[] = [];
   const generated = i.specs.filter((s) => s.artifact.origin === 'generated');
-  if (i.mode === 'llm' && deps.router && generated.length) {
-    try {
-      if (i.round === 1) {
-        const r = await runStructured({
-          router: deps.router,
-          role: 'judge',
-          agent: 'test-reviewer:pass2',
-          schema: JudgeOutput,
-          system:
-            'You are the Test Reviewer (pass 2). For each generated Playwright test, compare it with its reviewed test case. ' +
-            'Report only real problems: an expected result not asserted, an assertion weaker than the expectation, an ' +
-            'assertion the case does not expect, a step whose action differs from the case, data that does not match the ' +
-            "case's preconditions. Deterministic checks (lint, types, locators, evidence) are done by code: do not repeat them. " +
-            'Return an empty list when the tests match their cases.\n\nOperator scope rules (accepted decisions — never report them as findings): ' +
-            A11Y_SCOPE_NOTE +
-            ' The keyboard check (every field reachable by Tab, focus stays in the dialog, visual reading order) is the operator-mandated implementation of "reachable by keyboard".',
-          user: generated
-            .map((s) => {
-              const tc = i.cases.find((c) => c.id === s.caseId);
-              return `### ${s.caseId}\nCase: ${JSON.stringify({ title: tc?.title, preconditions: tc?.preconditions, steps: tc?.steps.map((x) => ({ action: x.action, expected: x.expected.text })) })}\nTest:\n${s.text}`;
-            })
-            .join('\n\n'),
-          ...(deps.skills ? { skills: { loader: deps.skills, names: PASS2_SKILLS } } : {}),
-          check: (o) =>
-            o.findings.flatMap((f) =>
-              f.caseIds.filter((id) => !generated.some((s) => s.caseId === id)).map((id) => `unknown caseId ${id}`),
-            ),
-          ...(deps.redactor ? { redactor: deps.redactor } : {}),
-          ...(deps.logger ? { logger: deps.logger } : {}),
-        });
+  const router = deps.router;
+  /** One judge call, retried after a TRANSIENT outage; undefined when the judge stayed unavailable for this spec. */
+  const judged = async <T>(caseId: string, call: () => Promise<T>): Promise<T | undefined> => {
+    const waits = i.judgeRetryMs ?? [];
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await call();
+      } catch (e) {
+        const wait = waits[attempt];
+        if (e instanceof QAError && e.kind === 'TRANSIENT' && wait !== undefined) {
+          deps.say?.(
+            `  judge unavailable for ${caseId} (${e.message.slice(0, 120)}) — retry ${String(attempt + 1)}/${String(waits.length)} in ${String(Math.round(wait / 1000))} s`,
+          );
+          await new Promise((res) => setTimeout(res, wait));
+          continue;
+        }
+        const degradable =
+          e instanceof QAError &&
+          (e.kind === 'INVALID_LLM_OUTPUT' ||
+            e.kind === 'TOOL_UNAVAILABLE' ||
+            (e.kind === 'TRANSIENT' && i.transientDegrades === true));
+        if (!degradable) throw e;
+        deps.logger?.warn({ err: e.message, caseId }, 'pass 2 judge unavailable for this spec: deterministic only');
+        deps.say?.(`  judge unavailable for ${caseId}: deterministic checks only for this spec`);
+        unjudged.push(caseId);
+        judgeError = { kind: e.kind, message: e.message };
+        return undefined;
+      }
+    }
+  };
+  if (i.mode === 'llm' && router && generated.length) {
+    if (i.round === 1) {
+      // One spec per call: one call for all specs (7 specs, ~1,000 lines of test code) timed out at 120 s.
+      for (const s of generated) {
+        const tc = i.cases.find((c) => c.id === s.caseId);
+        const r = await judged(s.caseId, () =>
+          runStructured({
+            router,
+            role: 'judge',
+            agent: 'test-reviewer:pass2',
+            schema: JudgeOutput,
+            system:
+              'You are the Test Reviewer (pass 2). Compare the generated Playwright test with its reviewed test case. ' +
+              'Report only real problems: an expected result not asserted, an assertion weaker than the expectation, an ' +
+              'assertion the case does not expect, a step whose action differs from the case, data that does not match the ' +
+              "case's preconditions. Deterministic checks (lint, types, locators, evidence) are done by code: do not repeat them. " +
+              `Every finding's caseIds is ["${s.caseId}"]. Return an empty list when the test matches its case. ` +
+              'What each page-object member is (role, label, Salesforce field) is listed under "Page objects": trust that ' +
+              'list, not the member name (e.g. `title` of a dialog can be the Title field).\n\n' +
+              'Operator scope rules (accepted decisions — never report them as findings): ' +
+              A11Y_SCOPE_NOTE +
+              ' The keyboard check (every field reachable by Tab, focus stays in the dialog, visual reading order) is the operator-mandated implementation of "reachable by keyboard".' +
+              ' ' +
+              AFTER_SAVE_NOTE,
+            user: `### ${s.caseId}\nCase: ${JSON.stringify({ title: tc?.title, preconditions: tc?.preconditions, steps: tc?.steps.map((x) => ({ action: x.action, expected: x.expected.text })) })}\nPage objects:\n${memberLegend(i.ctx.catalog, s.artifact.locatorsUsed)}\nTest:\n${s.text}`,
+            ...(deps.skills ? { skills: { loader: deps.skills, names: PASS2_SKILLS } } : {}),
+            check: (o) =>
+              o.findings.flatMap((f) => f.caseIds.filter((id) => id !== s.caseId).map((id) => `unknown caseId ${id}`)),
+            ...(deps.redactor ? { redactor: deps.redactor } : {}),
+            ...(deps.logger ? { logger: deps.logger } : {}),
+          }),
+        );
+        if (!r) continue;
         environment = r.environment;
         models.push(`judge=${r.model}${r.usedFallback ? ' (fallback)' : ''}`);
         for (const f of r.value.findings) {
@@ -449,59 +726,58 @@ export async function reviewPass2Round(i: Pass2Input, deps: Pass2Deps): Promise<
             status: 'OPEN',
             escalated: false,
             pass: 2,
-            paths: i.specs.filter((s) => f.caseIds.includes(s.caseId)).map((s) => s.path),
+            paths: i.specs.filter((x) => f.caseIds.includes(x.caseId)).map((x) => x.path),
           });
         }
-      } else {
-        const open = findings.filter((f) => f.origin === 'judge' && f.status === 'OPEN');
-        if (open.length) {
-          const r = await runStructured({
-            router: deps.router,
+      }
+    } else {
+      const open = findings.filter((f) => f.origin === 'judge' && f.status === 'OPEN');
+      for (const s of generated) {
+        const mine = open.filter((f) => f.caseIds.includes(s.caseId));
+        if (!mine.length) continue;
+        const r = await judged(s.caseId, () =>
+          runStructured({
+            router,
             role: 'judge',
             agent: 'test-reviewer:pass2-verify',
             schema: JudgeVerifyOutput,
-            system: 'Verify whether each of your earlier findings is resolved by the regenerated tests. Be strict.',
-            user:
-              open.map((f) => `${f.id} (${f.caseIds.join(', ')}): ${f.text}`).join('\n') +
-              '\n\nCurrent tests:\n' +
-              generated
-                .filter((s) => open.some((f) => f.caseIds.includes(s.caseId)))
-                .map((s) => s.text)
-                .join('\n\n'),
+            system: 'Verify whether each of your earlier findings is resolved by the regenerated test. Be strict.',
+            user: `${mine.map((f) => `${f.id} (${f.caseIds.join(', ')}): ${f.text}`).join('\n')}\n\nCurrent test:\n${s.text}`,
             check: (o) =>
               o.verdicts
-                .filter((v) => !open.some((f) => f.id === v.findingId))
+                .filter((v) => !mine.some((f) => f.id === v.findingId))
                 .map((v) => `unknown finding ${v.findingId}`),
             ...(deps.redactor ? { redactor: deps.redactor } : {}),
-          });
-          environment = r.environment;
-          models.push(`judge=${r.model}${r.usedFallback ? ' (fallback)' : ''}`);
-          for (const v of r.value.verdicts) {
-            const f = findings.find((x) => x.id === v.findingId);
-            if (f && v.resolved) Object.assign(f, { status: 'RESOLVED', resolvedBy: 'judge', resolution: v.reason });
-          }
+          }),
+        );
+        if (!r) continue;
+        environment = r.environment;
+        models.push(`judge=${r.model}${r.usedFallback ? ' (fallback)' : ''}`);
+        for (const v of r.value.verdicts) {
+          const f = findings.find((x) => x.id === v.findingId);
+          if (f && v.resolved) Object.assign(f, { status: 'RESOLVED', resolvedBy: 'judge', resolution: v.reason });
         }
       }
-    } catch (e) {
-      const degradable =
-        e instanceof QAError &&
-        (e.kind === 'INVALID_LLM_OUTPUT' ||
-          e.kind === 'TOOL_UNAVAILABLE' ||
-          (e.kind === 'TRANSIENT' && i.transientDegrades === true));
-      if (!degradable) throw e;
-      deps.logger?.warn({ err: e.message }, 'pass 2 judge unavailable: deterministic review only');
-      judgeDegraded = true;
-      judgeError = { kind: e.kind, message: e.message };
     }
+    judgeDegraded = unjudged.length > 0;
   } else if (i.mode === 'llm' && !deps.router) {
     judgeDegraded = true;
+    unjudged.push(...generated.map((s) => s.caseId));
   }
 
   const feedback: Record<string, string[]> = {};
   for (const f of findings.filter((x) => x.status === 'OPEN' && REGENERABLE.has(x.rule))) {
     for (const c of f.caseIds) (feedback[c] ??= []).push(f.text);
   }
-  return { findings, environment, models, judgeDegraded, ...(judgeError ? { judgeError } : {}), feedback };
+  return {
+    findings,
+    environment,
+    models: [...new Set(models)],
+    judgeDegraded,
+    ...(judgeError ? { judgeError } : {}),
+    unjudged,
+    feedback,
+  };
 }
 
 export interface SettlePass2Result {
@@ -516,11 +792,15 @@ export interface SettlePass2Result {
  */
 /**
  * Without the judge nothing is APPROVED (the deterministic checks cannot judge "test matches the case"): APPROVED
- * artifacts become REVIEW_REQUIRED with the reason.
+ * artifacts become REVIEW_REQUIRED with the reason. With `unjudged`, only the specs of those cases (the judge
+ * reviewed the others).
  */
-export function withoutJudge(artifacts: readonly GeneratedArtifact[]): GeneratedArtifact[] {
+export function withoutJudge(
+  artifacts: readonly GeneratedArtifact[],
+  unjudged?: readonly string[],
+): GeneratedArtifact[] {
   return artifacts.map((a): GeneratedArtifact =>
-    a.reviewStatus === 'APPROVED'
+    a.reviewStatus === 'APPROVED' && (!unjudged || a.testCaseIds.some((c) => unjudged.includes(c)))
       ? {
           ...a,
           reviewStatus: 'REVIEW_REQUIRED',

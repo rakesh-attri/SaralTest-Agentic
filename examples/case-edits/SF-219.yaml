@@ -32,3 +32,27 @@ edits:
     from: "set Lead Source to 'Phone Inquiry'"
     to: "set Lead Source to any non-Web value (e.g. 'Word of mouth')"
     reason: Phone Inquiry is not a qa-prod Lead Source; any non-Web value is valid
+  # TC-050 (operator 2026-11-26, pass-2 judge findings of review2-20261126-221229-0ad9). The duplicate warning observed
+  # on qa-prod (om-run-p5-observe-8-5, accepted) has no Save button of its own — only "View Duplicates"; step 2 of the
+  # case already expects the dialog's Save button to stay enabled. Saving again is done in the New Contact dialog.
+  - caseId: TC-SF-219-050
+    step: 3
+    from: Click Save on the duplicate warning dialog to confirm saving the duplicate Contact
+    to: Click Save in the New Contact dialog again to save the duplicate Contact (the duplicate warning has no Save button of its own)
+    reason: the observed qa-prod warning (om-run-p5-observe-8-5) only offers View Duplicates; the dialog's Save stays enabled (step 2)
+  - caseId: TC-SF-219-050
+    step: 3
+    field: expected
+    from: and the Contact detail page opens showing the entered
+    to: and its record, opened from the Account's Contacts related list, shows the entered
+    reason: operator rule 2026-11-26 — the Contact page opening after Save is not a requirement (Save stays on the Account)
+  - caseId: TC-SF-219-050
+    step: 4
+    from: Verify via SOQL that the duplicate Contact was saved on the Account with Email 'duplicate@test.com'
+    to: Verify via SOQL that the duplicate Contact was saved on the Account with Email 'duplicate@test.com', and that the pre-existing Contact is still on that Account
+    reason: the expected result checks both Contacts by SOQL ("alongside the pre-existing Contact"); the action now says so
+# Steps that review another (manual) test's execution record: not automatable inside an automated case.
+dropSteps:
+  - caseId: TC-SF-219-050
+    step: 5
+    reason: confirms manual test MTC-009 passed (its RE_VERIFY status) — a human check of an execution record, like TC-051/052

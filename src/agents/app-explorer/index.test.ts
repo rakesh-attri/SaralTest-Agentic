@@ -199,4 +199,47 @@ describe('Application Explorer on the offline fixture (real Chromium, FIXTURE)',
     expect(JSON.stringify(out.entries)).not.toContain(accountName);
     expect(out.pages[1]?.path).toContain('related list');
   }, 120_000);
+
+  it('explores the Contact edit form ("Edit <name>" modal) without keeping the record name, observe only', async () => {
+    const org: OrgEntry = {
+      orgId: seed.organization.Id,
+      alias: 'fixture',
+      profile: 'offline-fixture',
+      instanceUrl: server.url,
+      release: 'fixture',
+      runTagField: null,
+      environment: 'FIXTURE',
+    };
+    const dir = mkdtempSync(join(tmpdir(), 'explorer edit '));
+    const state = await ensureStorageState({
+      provider: new FixtureSessionProvider(seed),
+      request: { persona, org },
+      authDir: join(dir, '.auth'),
+      ttlMinutes: 60,
+      browser: 'chromium',
+    });
+    const before = JSON.stringify(server.store.get('Contact', '003FX0000000001AAA'));
+    const out = await explorePages({
+      browser,
+      storageStatePath: state.path,
+      env: { baseUrl: server.url, accountId: '001FX0000000001AAA', contactId: '003FX0000000001AAA' },
+      pages: [PAGES['contact-edit']].filter((p) => p !== undefined),
+      org: org.orgId,
+      persona: persona.id,
+      environment: 'FIXTURE',
+      fields: [],
+      recordValues: ['Seed', 'Contact', 'Seed Contact'],
+      evidenceDir: join(dir, 'explorer'),
+      redactor: new Redactor(),
+    });
+    expect(out.pages[0]?.error).toBeUndefined();
+    const street = out.entries.find((e) => e.element === 'textbox:Edit Contact/Mailing Address/Mailing Street');
+    expect(street?.expression).toBe(
+      "getByRole('dialog', { name: /^Edit / }).getByRole('textbox', { name: 'Mailing Street', exact: true })",
+    );
+    expect(out.entries.find((e) => e.element === 'button:Edit Contact/Save')).toBeDefined();
+    expect(JSON.stringify(out.entries)).not.toContain('Seed Contact');
+    // Cancelled, never saved: the record is unchanged.
+    expect(JSON.stringify(server.store.get('Contact', '003FX0000000001AAA'))).toBe(before);
+  }, 120_000);
 });

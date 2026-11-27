@@ -13,7 +13,7 @@ import type { SfApi } from './api.js';
 import { FixtureSessionProvider } from './auth/fixture.js';
 import type { SfSession } from './auth/types.js';
 import { connectSalesforce, IdentityRegistry } from './client.js';
-import { verifyIdentity } from './identity.js';
+import { resetVerifiedOrgFacts, verifiedOrgFacts, verifyIdentity } from './identity.js';
 
 const seed = loadSeed(join(REPO_ROOT, 'examples', 'fixture', 'seed.json'));
 const admin: Persona = {
@@ -182,6 +182,42 @@ describe('verifyIdentity edge cases (fake API)', () => {
         persona,
       }),
     ).rejects.toBeInstanceOf(HardStopError);
+  });
+  it('a persona that cannot read Organization: hard stop without a full check in this process; else IsSandbox from it', async () => {
+    resetVerifiedOrgFacts();
+    const rep: Persona = { ...persona, id: 'sales-rep', username: 'rep@acme.example' };
+    const repSession = { ...session, personaId: 'sales-rep', username: rep.username };
+    const noOrg = (o: { orgId?: string } = {}) =>
+      ({
+        ...api({ user: rep.username, ...(o.orgId ? { orgId: o.orgId } : {}) }),
+        query: () =>
+          Promise.reject(
+            Object.assign(new Error("sObject type 'Organization' is not supported."), { errorCode: 'INVALID_TYPE' }),
+          ),
+      }) as unknown as SfApi;
+    const first = await verifyIdentity({ api: noOrg(), session: repSession, org: live, orgs, persona: rep }).catch(
+      (e: unknown) => e,
+    );
+    expect((first as HardStopError).reason).toBe('IDENTITY_MISMATCH');
+    expect(String(first)).toMatch(/verify the default persona first/);
+
+    await verifyIdentity({ api: api(), session, org: live, orgs, persona }); // full check (admin) in this process
+    expect(verifiedOrgFacts(live.orgId)).toMatchObject({ isSandbox: false, verifiedBy: persona.username });
+    const rep2 = await verifyIdentity({ api: noOrg(), session: repSession, org: live, orgs, persona: rep });
+    expect(rep2).toMatchObject({ username: rep.username, isSandbox: false });
+    expect(rep2.warnings[0]).toMatch(
+      /cannot read Organization: org ID verified through userinfo; IsSandbox=false from the identity of admin@acme\.example/,
+    );
+    // the org ID must still match through the persona's own userinfo
+    const wrong = await verifyIdentity({
+      api: noOrg({ orgId: '00DdN00000ZZZZZAAA' }),
+      session: repSession,
+      org: live,
+      orgs,
+      persona: rep,
+    }).catch((e: unknown) => e);
+    expect(wrong).toBeInstanceOf(HardStopError);
+    resetVerifiedOrgFacts();
   });
   it('a non-identity failure (e.g. network) is not swallowed', async () => {
     const broken = {

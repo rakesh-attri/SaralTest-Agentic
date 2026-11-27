@@ -8,6 +8,9 @@ import type { Issue } from '../core/schemas/index.js';
 import type { QARunState } from '../core/state.js';
 import type { CoverageRow } from '../agents/spec-analyst/schema.js';
 import type { TriageDecision } from '../agents/qa-lead/triage.js';
+import type { ExecutionSummary } from '../core/schemas/execution.js';
+import type { GateItem } from '../runner/gate.js';
+import type { ReconcileReport } from '../runner/reconcile.js';
 
 /**
  * LangGraph channels for QARunState (PLAN.md §4) plus graph-control fields. Reducers:
@@ -98,6 +101,15 @@ export const QAGraphState = Annotation.Root({
   buildFeedback: last<Record<string, string[]>>(() => ({})),
   pass2Findings: last<ReviewFinding[]>(() => []),
   pass2Round: last<number>(() => 0),
+  /** Case ids the pass-2 judge could not review in any round so far (they cannot be APPROVED). */
+  pass2Unjudged: last<string[]>(() => []),
+  /** Phase 5: `qa run` seeds a run that starts at execute (approved specs of `storyKey` from the manifest). */
+  executeSeed: last<boolean>(() => false),
+  executionGate: last<GateItem[]>(() => []),
+  execution: last<ExecutionSummary | undefined>(() => undefined),
+  executionStatus: last<'COMPLETE' | 'PARTIAL' | 'BLOCKED' | 'NONE'>(() => 'NONE'),
+  executionBlockedReason: last<string | undefined>(() => undefined),
+  reconcile: last<ReconcileReport | undefined>(() => undefined),
   /** Nodes that run in degraded mode after triage chose `degrade`. */
   degradedNodes: last<string[]>(() => []),
   /** `${node}:${kind}` → how often each policy response was applied. */

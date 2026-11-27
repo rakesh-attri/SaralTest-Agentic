@@ -25,6 +25,8 @@ export interface RunSettings {
   execution: ExecutionConfig;
   personas: PersonasConfig;
   orgs: OrgsConfig;
+  /** Browser the tests run in (QA_BROWSER set by the Runner after resolution, else execution.yaml). */
+  browser: 'chromium' | 'chrome' | 'msedge';
   /** Playwright `channel` for chrome / msedge; undefined = bundled Chromium. */
   channel: string | undefined;
   baseURL: string | undefined;
@@ -40,7 +42,8 @@ export function runSettings(env: NodeJS.ProcessEnv = process.env): RunSettings {
   const orgs = OrgsConfig.parse(readYaml('orgs'));
   const orgAlias = env['QA_ORG'] ?? orgs.orgs.find((o) => o.alias === 'qa-prod')?.alias ?? 'fixture';
   const runId = env['QA_RUN_ID'] ?? 'local';
-  const browser = env['QA_BROWSER'] ?? execution.browser;
+  const raw = env['QA_BROWSER'] ?? execution.browser;
+  const browser = raw === 'chrome' || raw === 'msedge' ? raw : 'chromium';
   return {
     root: REPO_ROOT,
     orgAlias,
@@ -50,6 +53,7 @@ export function runSettings(env: NodeJS.ProcessEnv = process.env): RunSettings {
     execution,
     personas,
     orgs,
+    browser,
     channel: browser === 'chromium' ? undefined : browser,
     baseURL: env['SF_BASE_URL'],
   };

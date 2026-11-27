@@ -39,7 +39,8 @@ export interface BuildDeps {
   /** tsc + ESLint + playwright --list on the given repo-relative files. Absent → not checked (review notes it). */
   toolchain?: (files: string[]) => Promise<ToolchainResult>;
   /** Locator dry-run for these `<pageId>.<member>` refs. Absent (offline) → not run (review notes it). */
-  dryRun?: (refs: string[]) => Promise<DryRunReport>;
+  /** Locator dry-run; `personaId` overrides the build's persona (pass 2 checks each case as its own persona). */
+  dryRun?: (refs: string[], personaId?: string) => Promise<DryRunReport>;
   /**
    * Partial rebuild (`qa build --cases`): the run is seeded with only some cases. Other generated specs of the story
    * stay untouched and their manifest entries are kept; only the rebuilt cases' entries are replaced.
@@ -181,57 +182,62 @@ export function createBuildNode(d: BuildDeps): {
     const mechanical = s.degradedNodes.includes('review2') || !d.router;
     const backoff = d.judgeBackoffMs ?? [2000, 8000, 30000];
     const issues: Issue[] = [];
-    let r: Awaited<ReturnType<typeof reviewPass2Round>> | undefined;
-    for (let attempt = 0; ; attempt++) {
-      r = await reviewPass2Round(
-        {
-          ctx,
-          cases: s.testCases,
-          specs,
-          ...(s.buildChecks.toolchain ? { toolchain: s.buildChecks.toolchain } : {}),
-          ...(s.buildChecks.dryRun ? { dryRun: s.buildChecks.dryRun } : {}),
-          prior: s.pass2Findings,
-          round,
-          mode: mechanical ? 'mechanical' : 'llm',
-          transientDegrades: true,
-        },
-        {
-          ...(d.router ? { router: d.router } : {}),
-          ...(d.skills ? { skills: d.skills } : {}),
-          ...(d.redactor ? { redactor: d.redactor } : {}),
-          logger: d.logger,
-        },
-      );
-      const wait = backoff[attempt];
-      if (r.judgeError?.kind !== 'TRANSIENT' || wait === undefined) break;
-      d.say(
-        `  judge unavailable (${r.judgeError.message.slice(0, 120)}) — retry ${attempt + 1}/${backoff.length} in ${Math.round(wait / 1000)} s`,
-      );
-      await new Promise((res) => setTimeout(res, wait));
-    }
+    // The judge reviews one spec per call and retries only that spec after an outage (run-p5-build-1/2).
+    const r = await reviewPass2Round(
+      {
+        ctx,
+        cases: s.testCases,
+        specs,
+        ...(s.buildChecks.toolchain ? { toolchain: s.buildChecks.toolchain } : {}),
+        ...(s.buildChecks.dryRun ? { dryRun: s.buildChecks.dryRun } : {}),
+        prior: s.pass2Findings,
+        round,
+        mode: mechanical ? 'mechanical' : 'llm',
+        transientDegrades: true,
+        judgeRetryMs: backoff,
+      },
+      {
+        ...(d.router ? { router: d.router } : {}),
+        ...(d.skills ? { skills: d.skills } : {}),
+        ...(d.redactor ? { redactor: d.redactor } : {}),
+        logger: d.logger,
+        say: d.say,
+      },
+    );
+    const unjudged = [...new Set([...s.pass2Unjudged, ...r.unjudged])];
     if (r.judgeError) {
       issues.push(
         createIssue({
           kind: r.judgeError.kind === 'TRANSIENT' ? 'TRANSIENT' : 'INVALID_LLM_OUTPUT',
           node: 'review2',
-          message: `pass 2 judge unavailable after retries and provider fallback: ${r.judgeError.message.slice(0, 300)}`,
+          message: `pass 2 judge unavailable for ${String(r.unjudged.length)} spec(s) (${r.unjudged.join(', ')}) after retries and provider fallback: ${r.judgeError.message.slice(0, 300)}`,
           resolution: 'DEGRADED',
         }),
       );
     }
     const open = r.findings.filter((f) => f.status === 'OPEN');
     d.say(
-      `Test Reviewer pass 2, round ${round}: ${r.findings.length} finding(s), ${open.length} open${r.judgeDegraded ? ' (judge unavailable: deterministic only)' : ''}.`,
+      `Test Reviewer pass 2, round ${round}: ${r.findings.length} finding(s), ${open.length} open${r.unjudged.length ? ` (judge unavailable for ${r.unjudged.join(', ')}: deterministic only)` : ''}.`,
     );
     const regenerable = Object.keys(r.feedback).length > 0;
     const models = [...new Set([...s.buildModels, ...r.models])];
     if (round < MAX_PASS2_ROUNDS && regenerable && !mechanical) {
-      return { pass2Findings: r.findings, pass2Round: round, buildFeedback: r.feedback, buildModels: models, issues };
+      return {
+        pass2Findings: r.findings,
+        pass2Round: round,
+        pass2Unjudged: unjudged,
+        buildFeedback: r.feedback,
+        buildModels: models,
+        issues,
+      };
     }
     const settled0 = settlePass2(r.findings, specs);
-    // Without the judge nothing is APPROVED; the manifest is still written (every path ends with an honest status).
+    // A spec the judge could not review is never APPROVED; the manifest is still written (every path ends with an
+    // honest status).
     const settled =
-      r.judgeDegraded && !mechanical ? { ...settled0, artifacts: withoutJudge(settled0.artifacts) } : settled0;
+      unjudged.length && !mechanical
+        ? { ...settled0, artifacts: withoutJudge(settled0.artifacts, unjudged) }
+        : settled0;
     const counts = (st: string): number => settled.artifacts.filter((a) => a.reviewStatus === st).length;
     d.say(
       `Pass 2 settled: ${counts('APPROVED')} APPROVED, ${counts('REVIEW_REQUIRED')} REVIEW_REQUIRED, ${counts('BLOCKED')} BLOCKED.`,
@@ -271,6 +277,7 @@ export function createBuildNode(d: BuildDeps): {
     return {
       pass2Findings: settled.findings,
       pass2Round: round,
+      pass2Unjudged: unjudged,
       buildFeedback: {},
       buildModels: models,
       generated: [...s.generated.filter((g) => g.kind !== 'spec'), ...settled.artifacts],

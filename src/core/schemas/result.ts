@@ -4,6 +4,10 @@ import { Environment, IsoDate } from './common.js';
 export const ResultState = z.enum(['PASS', 'FAIL', 'BLOCKED', 'SKIPPED', 'UNCERTAIN']);
 export type ResultState = z.infer<typeof ResultState>;
 
+/** Data cleanup outcome of the test's own data sub-run (NONE = the test created no data). */
+export const ResultCleanup = z.enum(['CLEAN', 'KEPT', 'INCOMPLETE', 'NONE']);
+export type ResultCleanup = z.infer<typeof ResultCleanup>;
+
 export const TestResult = z.object({
   testId: z.string(),
   state: ResultState,
@@ -13,6 +17,24 @@ export const TestResult = z.object({
   environment: Environment,
   snapshotId: z.string(),
   runId: z.string(),
+  // ---- Phase 5 runner detail (optional: older results.json files stay valid)
+  /** Test case id (TC-…); testId is the Playwright test id when the test ran, else the case id. */
+  caseId: z.string().optional(),
+  /** Repo-relative spec path (forward slashes). */
+  specPath: z.string().optional(),
+  persona: z.string().optional(),
+  /** Browser the test actually ran in: chromium | chrome | msedge. */
+  browser: z.string().optional(),
+  durationMs: z.number().nonnegative().optional(),
+  /** Number of attempts Playwright made (1 = no retry). */
+  attempts: z.number().int().nonnegative().optional(),
+  /** Passed only on a retry: reported as UNCERTAIN, never as a clean pass. */
+  flaky: z.boolean().optional(),
+  /** First error line(s), redacted. */
+  errorSummary: z.string().optional(),
+  /** Trace / screenshot / video / data-cleanup paths, relative to the run folder. */
+  attachments: z.array(z.object({ name: z.string(), path: z.string() })).default([]),
+  dataCleanup: ResultCleanup.optional(),
 });
 export type TestResult = z.infer<typeof TestResult>;
 

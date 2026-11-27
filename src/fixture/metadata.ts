@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { matches, type SoqlQuery } from './soql.js';
-import type { FixtureStore, ObjectDef } from './store.js';
+import type { FixtureRule, FixtureStore, ObjectDef } from './store.js';
 
 /**
  * Offline metadata for discovery tests (FIXTURE only). `entities` holds Tooling/REST setup rows keyed by entity name
@@ -158,4 +158,27 @@ export function describeGlobalSf(store: FixtureStore, meta: FixtureMetadata): Re
       ...meta.globalExtras,
     ],
   };
+}
+
+/** Active validation rules of the fixture metadata, as the store enforces them (FIXTURE copies of declared config). */
+export function enforcedRules(meta: FixtureMetadata): FixtureRule[] {
+  const rows = Object.entries(meta.entities).find(([k]) => k.toLowerCase() === 'validationrule')?.[1] ?? [];
+  const out: FixtureRule[] = [];
+  for (const row of rows) {
+    const active = pick(row, 'Metadata.active') ?? pick(row, 'Active');
+    const formula = pick(row, 'Metadata.errorConditionFormula');
+    const object = pick(row, 'EntityDefinition.QualifiedApiName');
+    const message = pick(row, 'Metadata.errorMessage') ?? pick(row, 'ErrorMessage');
+    const field = pick(row, 'Metadata.errorDisplayField') ?? pick(row, 'ErrorDisplayField');
+    const name = pick(row, 'ValidationName');
+    if (active !== true || typeof formula !== 'string' || typeof object !== 'string') continue;
+    out.push({
+      object,
+      name: typeof name === 'string' ? name : '?',
+      formula,
+      message: typeof message === 'string' ? message : 'validation error',
+      ...(typeof field === 'string' && field ? { field } : {}),
+    });
+  }
+  return out;
 }

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import type { GeneratedSpec } from '../agents/test-generator/graph.js';
 import { reviewPass2Round, settlePass2, withoutJudge } from '../agents/test-reviewer/pass2.js';
 import { QAError } from '../core/errors.js';
-import type { GeneratedArtifact } from '../core/schemas/generation.js';
+import type { DryRunReport, GeneratedArtifact } from '../core/schemas/generation.js';
 import { newRunId, runPaths } from '../core/runFolder.js';
 import { manifestPath } from '../graph/buildNodes.js';
 import type { QAGraphStateType } from '../graph/state.js';
@@ -75,9 +75,39 @@ export async function rerunPass2(o: Pass2ReviewOptions): Promise<{ runId: string
     for (const n of notes) o.say(n);
     o.say(`Checking ${specs.map((s) => s.path).join(', ')}: tsc, ESLint, playwright --list (no execution)…`);
     const toolchain = await build.toolchain?.(specs.map((s) => s.path));
-    const refs = [...new Set(specs.flatMap((s) => s.artifact.locatorsUsed))];
-    const dryRun = build.dryRun && refs.length ? await build.dryRun(refs) : undefined;
-    if (dryRun) o.say(`Locator dry-run: ${dryRun.checks.filter((c) => c.ok).length}/${dryRun.checks.length} resolved.`);
+    // One dry-run per case persona: a case is only verified by the locators its own persona sees.
+    const dryRuns: DryRunReport[] = [];
+    for (const persona of [...new Set(cases.map((c) => c.persona))]) {
+      const refs = [
+        ...new Set(
+          specs
+            .filter((s) => cases.find((c) => c.id === s.caseId)?.persona === persona)
+            .flatMap((s) => s.artifact.locatorsUsed),
+        ),
+      ];
+      if (!build.dryRun || !refs.length) continue;
+      try {
+        const d = await build.dryRun(refs, persona);
+        dryRuns.push(d);
+        o.say(`Locator dry-run as ${persona}: ${d.checks.filter((c) => c.ok).length}/${d.checks.length} resolved.`);
+      } catch (err) {
+        // jsforce errors carry the SOQL on the first lines; keep the line that says what is wrong.
+        const lines = err instanceof Error ? err.message.split('\n').map((l) => l.trim()) : [String(err)];
+        const msg =
+          lines.find((l) => /not supported|INVALID|denied|insufficient/i.test(l)) ?? lines.find(Boolean) ?? '';
+        o.say(`Locator dry-run as ${persona} FAILED: ${msg}`);
+        dryRuns.push({
+          orgAlias: o.org ?? v.org,
+          environment: 'LIVE',
+          persona,
+          at: new Date().toISOString(),
+          checks: [],
+          pageErrors: [{ page: '*', error: msg.slice(0, 300) }],
+          ok: false,
+        });
+      }
+    }
+    const dryRun = dryRuns[0];
     const r = await reviewPass2Round(
       {
         ctx,
@@ -85,38 +115,58 @@ export async function rerunPass2(o: Pass2ReviewOptions): Promise<{ runId: string
         specs,
         ...(toolchain ? { toolchain } : {}),
         ...(dryRun ? { dryRun } : {}),
+        ...(dryRuns.length ? { dryRuns } : {}),
         prior: [],
         round: 1,
         mode: rt.deps.router ? 'llm' : 'mechanical',
         transientDegrades: true,
+        judgeRetryMs: [2000, 8000, 30000],
       },
       {
         ...(rt.deps.router ? { router: rt.deps.router } : {}),
         ...(rt.deps.skills ? { skills: rt.deps.skills } : {}),
         ...(rt.deps.redactor ? { redactor: rt.deps.redactor } : {}),
         logger: rt.deps.logger,
+        say: o.say,
       },
     );
     // Review only: nothing is regenerated, so every open finding is settled now.
     const settled0 = settlePass2(r.findings, specs);
-    const settled = r.judgeDegraded ? { ...settled0, artifacts: withoutJudge(settled0.artifacts) } : settled0;
-    if (r.judgeDegraded) o.say('Judge unavailable: deterministic checks only, nothing can be APPROVED in this review.');
+    const settled = r.judgeDegraded
+      ? { ...settled0, artifacts: withoutJudge(settled0.artifacts, r.unjudged) }
+      : settled0;
+    if (r.judgeDegraded)
+      o.say(
+        `Judge unavailable for ${r.unjudged.join(', ')}: deterministic checks only, those specs cannot be APPROVED in this review.`,
+      );
 
     // Update the verdicts in the story manifest (the specs themselves are unchanged).
     const mf = join(o.root, ...manifestPath(storyKey).split('/'));
     if (existsSync(mf)) {
-      const m = JSON.parse(readFileSync(mf, 'utf8')) as { artifacts: (GeneratedArtifact & { reviewedBy?: string })[] };
-      // Entries of the reviewed build replace whatever the manifest had for those cases (e.g. after a build whose
-      // pass 2 never finished, the manifest still described the previous build).
-      const reviewed = new Set(settled.artifacts.flatMap((a) => a.testCaseIds));
-      const others = m.artifacts.filter(
-        (a) => !a.testCaseIds.some((id) => reviewed.has(id)) && !settled.artifacts.some((x) => x.path === a.path),
-      );
-      m.artifacts = [
-        ...others,
-        ...settled.artifacts.map((a) => ({ ...a, buildRun: o.buildRun, reviewedBy: runId })),
-      ].sort((a, b) => a.path.localeCompare(b.path));
-      (m as { buildRun?: string }).buildRun = o.buildRun;
+      const m = JSON.parse(readFileSync(mf, 'utf8')) as {
+        artifacts: (GeneratedArtifact & { reviewedBy?: string; buildRun?: string })[];
+      };
+      // A re-review changes only the verdict: reviewStatus / reviewReasons / reviewedBy. Everything else the manifest
+      // records about the file (dependsOn, stale, snapshotId, buildRun …) stays as it is — the spec did not change.
+      // When the judge was unavailable, the previous judge findings are carried over (they still apply).
+      m.artifacts = m.artifacts.map((a) => {
+        const s2 = settled.artifacts.find((x) => x.path === a.path);
+        if (!s2) return a;
+        const priorJudge = a.testCaseIds.some((c) => r.unjudged.includes(c))
+          ? a.reviewReasons
+              .filter((x) => / judge: /.test(x))
+              .map(
+                (x) =>
+                  `${x} [carried over from ${a.reviewedBy ?? a.buildRun ?? 'the previous review'}: judge unavailable]`,
+              )
+          : [];
+        return {
+          ...a,
+          reviewStatus: s2.reviewStatus,
+          reviewReasons: [...s2.reviewReasons, ...priorJudge],
+          reviewedBy: runId,
+        };
+      });
       writeFileSync(mf, `${JSON.stringify(m, null, 2)}\n`, 'utf8');
     }
     const dir = join(runPaths(o.root, runId).dir, 'build');
@@ -131,6 +181,7 @@ export async function rerunPass2(o: Pass2ReviewOptions): Promise<{ runId: string
           models: r.models,
           environment: r.environment,
           judgeDegraded: r.judgeDegraded,
+          unjudged: r.unjudged,
           toolchain,
           dryRun,
           findings: settled.findings,

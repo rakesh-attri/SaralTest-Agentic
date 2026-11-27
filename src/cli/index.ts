@@ -19,6 +19,9 @@ import { registerBuild } from './build.js';
 import { registerData } from './data.js';
 import { registerDecide } from './decide.js';
 import { registerRun } from './run.js';
+import { registerReport } from './report.js';
+import { registerJiraComment } from './jiraComment.js';
+import { renderFailedAttempts } from '../models/attemptLog.js';
 import { createDiscoverHook, registerDiscover } from './discover.js';
 import { createDesignHook, designSummary, registerDesign } from './design.js';
 import { registerIngest } from './ingest.js';
@@ -42,6 +45,8 @@ const say = (msg: string): void => {
 
 export function buildCli(): Command {
   const program = new Command();
+  // Options after a subcommand belong to it (`qa report comment draft --run x`: report itself also has --run).
+  program.enablePositionalOptions();
   program
     .name('qa')
     .description('sf-qa-agent — autonomous Salesforce QA engineer (Phase 4: generation & data)')
@@ -88,6 +93,7 @@ export function buildCli(): Command {
   registerData(program, rootOf, say);
   registerDecide(program, rootOf, say);
   registerRun(program, rootOf, say);
+  registerJiraComment(registerReport(program, rootOf, say), rootOf, say);
 
   const mcp = program.command('mcp').description('MCP server utilities');
   mcp
@@ -306,7 +312,6 @@ export function buildCli(): Command {
   // Commands from CLAUDE.md that later phases implement. They say so instead of failing obscurely.
   const later: [string, string, number][] = [
     ['explore', 'Goal-directed exploration', 7],
-    ['report', 'Rebuild reports', 5],
     ['history', 'Past runs and trends', 9],
     ['learnings', 'Inspect learnings', 8],
     ['visual', 'Visual baselines', 6],
@@ -346,3 +351,8 @@ await buildCli()
     );
     process.exitCode = 1;
   });
+// Every command ends with the model attempts that failed (exact messages) — a fallback answer is never silent.
+{
+  const failures = renderFailedAttempts();
+  if (failures) process.stderr.write(`${failures}\n`);
+}

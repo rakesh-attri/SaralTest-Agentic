@@ -128,6 +128,15 @@ export class GuardedSalesforce {
   destroy(object: string, id: string, intent: Partial<WriteRequest> = {}): Promise<void> {
     return this.mutate('delete', { operation: 'delete', object, ...intent }, id, () => this.api.destroy(object, id));
   }
+
+  /**
+   * A Save the agent clicks in the browser (e.g. the Explorer provoking a validation message). It may create a record,
+   * so it is a mutation: same org-profile guard and write-ahead audit (`salesforce-ui.<tool>`) as an API create.
+   * `fn` runs the UI steps and returns what it observed.
+   */
+  uiAttempt<T>(tool: string, object: string, fn: () => Promise<T>): Promise<T> {
+    return this.mutate(`ui-${tool}`, { operation: 'create', object }, undefined, fn);
+  }
 }
 
 export interface ConnectOptions {

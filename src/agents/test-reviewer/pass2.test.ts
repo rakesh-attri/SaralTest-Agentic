@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DryRunReport } from '../../core/schemas/generation.js';
+import type { ObservedMessage } from '../../core/schemas/execution.js';
 import { mockRouter } from '../../../tests/helpers/mockRouter.js';
 import { CASE, GOOD_IR, generationContext } from '../../../tests/helpers/generationFixtures.js';
 import { bindRecipe } from '../test-generator/context.js';
@@ -14,7 +15,9 @@ import {
   reviewPass2Round,
   settlePass2,
   unevidencedMessageSteps,
+  observedForStep,
   withoutJudge,
+  memberLegend,
 } from './pass2.js';
 
 const ctx = generationContext();
@@ -117,6 +120,40 @@ describe('Test Reviewer pass 2: checklist + settlement', () => {
       'M',
       'locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep',
     ]);
+  });
+
+  it('per-persona dry-runs: a case is checked against its own persona; a dry-run that could not start says why', () => {
+    const s = spec();
+    const rep = { ...CASE, persona: 'sales-rep' };
+    const ctx2 = { ...ctx, personas: ['system-admin', 'sales-rep'] };
+    const ok = { ...dryRun(s), persona: 'sales-rep' };
+    const f1 = pass2Findings({
+      ctx: ctx2,
+      cases: [rep],
+      specs: [s],
+      toolchain: toolchain(s),
+      dryRuns: [dryRun(s), ok],
+    });
+    expect(f1.filter((x) => x.rule === 'locator-unresolved')).toEqual([]);
+    const failed = {
+      ...dryRun(s),
+      persona: 'sales-rep',
+      checks: [],
+      pageErrors: [{ page: '*', error: "sObject type 'Contact' is not supported." }],
+      ok: false,
+    };
+    const f2 = pass2Findings({
+      ctx: ctx2,
+      cases: [rep],
+      specs: [s],
+      toolchain: toolchain(s),
+      dryRuns: [dryRun(s), failed],
+    });
+    const texts = f2.filter((x) => x.rule === 'locator-unresolved').map((x) => x.text);
+    expect(texts.length).toBeGreaterThan(0);
+    expect(texts[0]).toMatch(
+      /did not resolve in the dry-run as sales-rep \(not checked: \*: sObject type 'Contact' is not supported\.\)/,
+    );
   });
 
   it('typecheck / lint / not listed / unresolved locator → BLOCKED with reasons', async () => {
@@ -332,6 +369,54 @@ describe('expected error text needs org evidence (operator 2026-11-26)', () => {
     // no message expected → presence-only is fine
     expect(unevidencedMessageSteps(tc('The Last Name field is marked invalid'), ir())).toEqual([]);
   });
+
+  it('UI-observed texts evidence the message (OBSERVED), but an unasserted text keeps the spec in review', () => {
+    const obs = (o: Partial<ObservedMessage>): ObservedMessage => ({
+      id: 'om-1',
+      org: 'o',
+      page: 'contact-new',
+      field: 'Contact.Phone',
+      kind: 'validation',
+      placement: 'field',
+      text: 'Enter a valid phone.',
+      persona: 'system-admin',
+      snapshotId: 's',
+      observedAt: '2026-11-26T10:00:00.000Z',
+      runId: 'observe-1',
+      environment: 'LIVE',
+      ...o,
+    });
+    const c2 = {
+      ...ctx,
+      observedMessages: [
+        obs({}),
+        obs({ id: 'om-2', field: 'Contact.Email', text: 'other field' }),
+        obs({ id: 'om-3', kind: 'duplicate', placement: 'alert', field: 'Contact.Email', text: 'Duplicate!' }),
+      ],
+    };
+    const t = tc('an inline error message is displayed on the Phone field');
+    expect(observedForStep(t, ir(), 0, c2).map((m) => m.text)).toEqual(['Enter a valid phone.']);
+    expect(observedForStep(tc('A possible duplicate warning is displayed'), ir(), 0, c2).map((m) => m.text)).toEqual([
+      'Duplicate!',
+    ]);
+    expect(observedForStep(t, ir(), 0, ctx)).toEqual([]);
+    // a maximum-length expectation is never evidenced by another message (qa-prod truncates instead)
+    expect(
+      observedForStep(
+        tc('error message is displayed on the Phone field indicating maximum length is exceeded'),
+        ir(),
+        0,
+        c2,
+      ),
+    ).toEqual([]);
+    const s = spec(ir());
+    const f = pass2Findings({ ctx: c2, cases: [t], specs: [s], toolchain: toolchain(s), dryRun: dryRun(s) });
+    expect(f.map((x) => x.rule)).toContain('message-unasserted');
+    expect(f.map((x) => x.rule)).not.toContain('message-unevidenced');
+    expect(f.find((x) => x.rule === 'message-unasserted')?.text).toMatch(
+      /"Enter a valid phone\." \(OBSERVED 2026-11-26, observe-1\)/,
+    );
+  });
 });
 
 describe('case quote vs org rule message (operator 2026-11-26)', () => {
@@ -363,5 +448,123 @@ describe('case quote vs org rule message (operator 2026-11-26)', () => {
       /quotes "Phone must be exactly 10 digits\." but Contact\.Phone_Must_Be_10_Digits says "Enter a 10-digit phone number\."/,
     );
     expect(messageMismatches(tc("error 'Enter a 10-digit phone number.' is shown"), ir, ctx)).toEqual([]);
+  });
+});
+
+describe('no URL or record-id assertions (operator rule 2026-11-26)', () => {
+  it('rejects URL checks, ids read from the URL, id comparisons and hard-coded ids; the after-Save pattern passes', () => {
+    const bad = [
+      "test('x', async ({ page, data, sf }) => {",
+      "  viewed['c'] = await recordIdFromView(page, 'Contact');",
+      "  await data.adoptCreated('c', 'Contact', viewed['c']);",
+      String.raw`  await expect(page).toHaveURL(/\/lightning\/r\/Contact\/[a-zA-Z0-9]{15,18}\/view/);`,
+      "  await expect.poll(() => soqlValue(sf, 'Contact', viewed['c'] ?? '', 'AccountId')).toBe(data.id('Account'));",
+      "  expect(page.url()).toContain('003dN00000AbCd1');",
+      '});',
+    ].join('\n');
+    const v = astViolations(bad).filter((x) => x.rule === 'dynamic-assertion');
+    expect(v.map((x) => x.text).join('\n')).toMatch(/recordIdFromView reads the record id/);
+    expect(v.map((x) => x.text).join('\n')).toMatch(/adoptCreated/);
+    expect(v.map((x) => x.text).join('\n')).toMatch(/URL check \(expect\(page\)\.toHaveURL\)/);
+    expect(v.map((x) => x.text).join('\n')).toMatch(/compares a record id \(data\.id\('Account'\)\)/);
+    expect(v.map((x) => x.text).join('\n')).toMatch(/hard-coded record id '003dN00000AbCd1'/);
+    const good = [
+      "test('x', async ({ page, data }) => {",
+      '  await expectToast(page, name);',
+      '  await expect(relatedListRecord(list, name)).toBeVisible();',
+      "  await data.adopt('c', 'Contact', 'LastName', name);",
+      '  await relatedListRecord(list, name).click();',
+      '  await expectRecordTitle(page, name);',
+      "  const saved = await data.tagged('Contact', { LastName: name }, ['LastName', 'Account.Name']);",
+      "  expect(saved[0]).toMatchObject({ LastName: name, 'Account.Name': data.value('Account', 'Name') });",
+      '});',
+    ].join('\n');
+    expect(astViolations(good).filter((x) => x.rule === 'dynamic-assertion')).toEqual([]);
+  });
+});
+
+describe('judge per spec (run-p5-build-1/2: one call for 7 specs timed out at 120 s)', () => {
+  const OTHER = { ...CASE, id: 'TC-SF-219-999' };
+  const s1 = spec();
+  const s2: GeneratedSpec = {
+    ...s1,
+    caseId: OTHER.id,
+    path: s1.path.replace(CASE.id, OTHER.id),
+    artifact: { ...s1.artifact, path: s1.path.replace(CASE.id, OTHER.id), testCaseIds: [OTHER.id] },
+  };
+  const prompts: string[] = [];
+  const router = () =>
+    mockRouter({
+      judge: {
+        responder: (messages) => {
+          const user = messages.map((m) => (typeof m.content === 'string' ? m.content : '')).join('\n');
+          prompts.push(user);
+          if (user.includes(`### ${OTHER.id}`))
+            throw Object.assign(new Error('judge model call timed out after 120000 ms'), { status: 503 });
+          return '{"findings":[]}';
+        },
+      },
+    });
+
+  it('reviews one spec per call; an outage for one spec leaves only that spec unjudged', async () => {
+    prompts.length = 0;
+    const r = await reviewPass2Round(
+      {
+        ctx,
+        cases: [CASE, OTHER],
+        specs: [s1, s2],
+        prior: [],
+        round: 1,
+        mode: 'llm',
+        transientDegrades: true,
+        judgeRetryMs: [0],
+      },
+      { router: await router() },
+    );
+    const withCase = prompts.filter((p) => p.includes(`### ${CASE.id}`));
+    const withOther = prompts.filter((p) => p.includes(`### ${OTHER.id}`));
+    expect(withCase.length).toBeGreaterThan(0);
+    expect(withCase.every((p) => !p.includes(`### ${OTHER.id}`))).toBe(true);
+    // the failing spec was retried (judgeRetryMs) before it was given up
+    expect(withOther.length).toBeGreaterThan(withCase.length);
+    expect(r.unjudged).toEqual([OTHER.id]);
+    expect(r.judgeDegraded).toBe(true);
+    const approved = [s1, s2].map((s) => ({ ...s.artifact, reviewStatus: 'APPROVED' as const }));
+    const out = withoutJudge(approved, r.unjudged);
+    expect(out.map((a) => a.reviewStatus)).toEqual(['APPROVED', 'REVIEW_REQUIRED']);
+  });
+});
+
+describe('judge page-object legend (review2-20261126-213002-5ff7: `title` read as the dialog heading)', () => {
+  it('says what each member is: role, label, Salesforce field, scope; the page root once', () => {
+    const legend = memberLegend(ctx.catalog, [
+      'contact-new.lastName',
+      'contact-new.lastName',
+      'account-record.contactsNewButton',
+      'nope.x',
+    ]);
+    expect(legend).toMatch(/^accountRecordPage\.root = the record page "/m);
+    expect(legend).toMatch(/^newContactDialog\.root = the dialog "/m);
+    expect(legend).toMatch(/^newContactDialog\.lastName = textbox "Last Name" \(field Contact\.LastName\)$/m);
+    expect(legend).toMatch(/^accountRecordPage\.contactsNewButton = button "New" in "Contacts"$/m);
+    expect(legend.split('\n').filter((l) => l.startsWith('newContactDialog.lastName'))).toHaveLength(1);
+    expect(memberLegend(ctx.catalog, [])).toBe('(none)');
+  });
+
+  it('is part of every judge prompt', async () => {
+    const seen: string[] = [];
+    const router = await mockRouter({
+      judge: {
+        responder: (messages) => {
+          seen.push(messages.map((m) => (typeof m.content === 'string' ? m.content : '')).join('\n'));
+          return '{"findings":[]}';
+        },
+      },
+    });
+    const s = spec();
+    await reviewPass2Round({ ctx, cases: [CASE], specs: [s], prior: [], round: 1, mode: 'llm' }, { router });
+    expect(seen.some((p) => p.includes('Page objects:\n') && p.includes('newContactDialog.lastName = textbox'))).toBe(
+      true,
+    );
   });
 });

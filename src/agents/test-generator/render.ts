@@ -3,22 +3,40 @@
 import type { IrAction, IrAssertion, TestIR, ValueRef } from '../../core/schemas/generation.js';
 import type { TestCase } from '../../core/schemas/testCase.js';
 import {
+  acceptedMessage,
   canonicalList,
   dialogForList,
   featureOf,
   fieldErrorRule,
   listRegion,
+  nameFieldOf,
   picklistFact,
   recordPageOf,
   type GenerationContext,
   type RecipeView,
 } from './context.js';
-import { camel, findMember, relatedListNewButton, type CatalogPage, type PageCatalog } from './pageObjects.js';
+import {
+  camel,
+  FIELD_IN_DETAILS,
+  findMember,
+  LIST_IN_RELATED,
+  recordTabs,
+  relatedListNewButton,
+  type CatalogPage,
+  type PageCatalog,
+} from './pageObjects.js';
 
 export const A11Y_SCOPE_NOTE =
   'a11y scope rule (operator, 2026-11-21): the axe scan is limited to the dialog; violations in Salesforce-owned ' +
   'markup are recorded as known baseline findings (annotation + attachment), only violations in our own custom ' +
   'namespaces and the keyboard tab-order check fail the test.';
+
+export const AFTER_SAVE_NOTE =
+  'after-Save rule (operator, 2026-11-26): tests never assert on URLs or record ids (dynamic). "The record is saved / ' +
+  'the record page opens" is verified as: the success toast names the record, the record is in the related list with ' +
+  'that exact name, opened from the related list its header shows the name, and SOQL by the run tag returns exactly ' +
+  'that record with the values typed. Record names typed in a create form are run-unique (a case literal becomes a ' +
+  'unique value with that label) so the record can be found by the run tag; a parent is checked by name, not id.';
 
 export interface RenderInput {
   tc: TestCase;
@@ -97,6 +115,22 @@ export function renderSpec(i: RenderInput): string {
   const viewed = new Set<string>();
   const usesTestInfo = ir.steps.some((s) => s.assertions.some((a) => a.check === 'a11yScan'));
   const fixtures = new Set<string>();
+  // The shortest text field each unique label is typed into: the value must fit it (run-p5-live-5, TC-026).
+  const uniqueMax = new Map<string, number>();
+  for (const st of ir.steps)
+    for (const a of st.actions) {
+      if ((a.do !== 'fill' && a.do !== 'select') || a.value.kind !== 'unique') continue;
+      const [o, f] = findMember(cat, a.element)?.member.fieldApiName?.split('.') ?? [];
+      const len = o && f ? ctx.facts.field(o, f)?.length : undefined;
+      if (len) uniqueMax.set(a.value.label, Math.min(len, uniqueMax.get(a.value.label) ?? len));
+    }
+
+  /** Opens a related list through the page object's tab helper (operator rule 2026-11-26 (2)). */
+  const showList = (p: CatalogPage, list: string, tabs: { related?: string }): string[] => {
+    if (tabs.related) return [`await ${varOf(p)}.${LIST_IN_RELATED}(${varOf(p)}.${list});`];
+    imp.lightning.add('showRelatedList');
+    return [`await showRelatedList(${varOf(p)}.${list});`];
+  };
 
   const page = (ref: string): { v: string; member: string } => {
     const m = findMember(cat, ref);
@@ -124,7 +158,11 @@ export function renderSpec(i: RenderInput): string {
       }
       case 'unique': {
         const name = camel(`${v.label} ${v.format === 'text' ? '' : v.format}`);
-        consts.set(name, `data.unique(${q(v.label)}${v.format === 'text' ? '' : `, ${q(v.format)}`})`);
+        const max = v.format === 'phone' ? undefined : uniqueMax.get(v.label);
+        consts.set(
+          name,
+          `data.unique(${q(v.label)}${v.format === 'text' && max === undefined ? '' : `, ${q(v.format)}`}${max === undefined ? '' : `, ${String(max)}`})`,
+        );
         return name;
       }
     }
@@ -133,6 +171,10 @@ export function renderSpec(i: RenderInput): string {
 
   // Ref opened by the immediately preceding openRecord (an openNewFromRelatedList right after it skips the re-open).
   let lastOpened: string | undefined;
+  /** The create dialog opened from a related list, and what the test typed / selected into it (field → expression). */
+  let dialog:
+    | { object: string; parentRef: string; parentPage: CatalogPage; list: string; typed: Map<string, string> }
+    | undefined;
   const action = (a: IrAction): string[] => {
     const justOpened = lastOpened;
     lastOpened = undefined;
@@ -152,18 +194,20 @@ export function renderSpec(i: RenderInput): string {
         if (!p || !dlg || !list || !btn) throw new Error(`cannot open New from ${a.relatedList}`);
         imp.pages.set(p.className, p);
         imp.pages.set(dlg.className, dlg);
-        imp.lightning.add('showRelatedList');
-        const tab = p.members.find((m) => m.role === 'tab' && m.accessibleName === 'Related');
+        const tabs = recordTabs(p);
+        dialog = { object: dlg.object, parentRef: a.parentRef, parentPage: p, list, typed: new Map() };
         return [
           ...(justOpened === a.parentRef ? [] : [`await ${varOf(p)}.open(${recordIdExpr(a.parentRef)});`]),
-          `await showRelatedList(${varOf(p)}.${list}${tab ? `, ${varOf(p)}.${tab.name}` : ''});`,
+          ...showList(p, list, tabs),
           `await ${varOf(p)}.${btn.name}.click();`,
           `await expect(${varOf(dlg)}.root).toBeVisible();`,
         ];
       }
       case 'fill':
+        typedInto(a.element, a.value);
         return [`await ${el(a.element)}.fill(${val(a.value)});`];
       case 'select':
+        typedInto(a.element, a.value);
         imp.lightning.add('selectPicklist');
         return [`await selectPicklist(page, ${el(a.element)}, ${val(a.value)});`];
       case 'clear':
@@ -190,6 +234,51 @@ export function renderSpec(i: RenderInput): string {
     }
   };
 
+  /** Remember a value typed into the open create dialog (for the after-Save SOQL check of stored values). */
+  function typedInto(element: string, v: ValueRef): void {
+    const m = findMember(cat, element);
+    const f = m?.member.fieldApiName;
+    if (!dialog || m?.page.kind !== 'dialog' || !f) return;
+    dialog.typed.set(f.split('.')[1] ?? f, val(v));
+  }
+
+  /**
+   * Operator rule 2026-11-26 — after a create-dialog Save, never a URL or a record id. In this order:
+   * 1. the success toast contains the name we entered; 2. the record is in the related list with that exact name;
+   * 3. opened from the related list, its header shows that name; 4. SOQL by the run tag returns exactly that record
+   * with the values we entered. The record is tagged for cleanup by its run-unique name (code-owned).
+   */
+  function savedRecord(object: string, as: string): string[] {
+    const d = dialog;
+    const nameField = nameFieldOf(object).split('.')[1] ?? 'Name';
+    const name = d?.typed.get(nameField);
+    if (!d || d.object !== object || !name) {
+      throw new Error(`saved ${object}: no create dialog with a typed ${nameField} to identify the record`);
+    }
+    imp.lightning.add('expectToast').add('relatedListRecord').add('expectRecordTitle');
+    const listExpr = `${varOf(d.parentPage)}.${d.list}`;
+    const parentName = i.recipe?.plan.steps.find((s) => s.stepId === d.parentRef)?.fields['Name'];
+    const values = [...d.typed.entries()].map(([f, v]) => `${q(f)}: ${v}`);
+    const rel = d.parentPage.object;
+    if (typeof parentName === 'string') values.push(`${q(`${rel}.Name`)}: data.value(${q(d.parentRef)}, 'Name')`);
+    const select = [...d.typed.keys(), ...(typeof parentName === 'string' ? [`${rel}.Name`] : [])];
+    dialog = undefined;
+    return [
+      `await expectToast(page, ${name}); // 1. the success toast names the record`,
+      ...showList(d.parentPage, d.list, recordTabs(d.parentPage)),
+      `await expect(relatedListRecord(${listExpr}, ${name})).toBeVisible(); // 2. in the related list with that name`,
+      `await data.adopt(${q(as)}, ${q(object)}, ${q(nameField)}, ${name}); // code-owned cleanup: tagged by its run-unique name`,
+      `await relatedListRecord(${listExpr}, ${name}).click(); // 3. opened from the related list`,
+      `await expectRecordTitle(page, ${name});`,
+      '{',
+      `  // 4. SOQL by the run tag: exactly this record, with the values entered`,
+      `  const saved = await data.tagged(${q(object)}, { ${q(nameField)}: ${name} }, [${select.map(q).join(', ')}]);`,
+      `  expect(saved).toHaveLength(1);`,
+      `  expect(saved[0]).toMatchObject({ ${values.join(', ')} });`,
+      '}',
+    ];
+  }
+
   let pendingCreate: string | undefined;
   let autoNamed = 0;
   const assertion = (a: IrAssertion): string[] => {
@@ -206,31 +295,57 @@ export function renderSpec(i: RenderInput): string {
       case 'fieldError': {
         imp.lightning.add('expectFieldError');
         if (!a.message) return [`await expectFieldError(${el(a.element)});`];
+        if ('observed' in a.message) {
+          const field = findMember(cat, a.element)?.member.fieldApiName;
+          const o = acceptedMessage(ctx, a.message.observed, { placement: 'field', ...(field ? { field } : {}) });
+          if ('problem' in o) throw new Error(o.problem);
+          return [
+            `await expectFieldError(${el(a.element)}, ${q(o.text)}); // observed on ${ctx.orgAlias} (${a.message.observed}), accepted by ${o.by}`,
+          ];
+        }
         const r = fieldErrorRule(ctx, a.element, a.message.rule);
         if ('problem' in r) throw new Error(r.problem);
         return [
           `await expectFieldError(${el(a.element)}, ${q(r.message)}); // message of rule ${r.rule} (org snapshot)`,
         ];
       }
+      case 'saveWarning': {
+        const o = acceptedMessage(ctx, a.observed, { placement: 'alert' });
+        if ('problem' in o) throw new Error(o.problem);
+        imp.lightning.add('expectSavePopover');
+        const heading = /^Similar Records Exist/.test(o.text) ? 'Similar Records Exist' : 'We hit a snag';
+        const body = o.text
+          .replace(/^(Similar Records Exist|We hit a snag\.?)\s*/, '')
+          .replace(/\s*View Duplicates$/, '');
+        return [
+          `await expectSavePopover(page, ${q(heading)}, ${q(body)}); // observed on ${ctx.orgAlias} (${a.observed}), accepted by ${o.by}; closed afterwards`,
+        ];
+      }
       case 'toast':
         imp.lightning.add('expectToast');
         return [`await expectToast(page, ${a.contains ? val(a.contains) : '/\\S/'});`];
       case 'recordView': {
-        imp.lightning.add('recordIdFromView');
-        // Code-owned cleanup: the record a create-dialog Save produced is registered (ownership-checked, tagged,
-        // cleaned up in teardown) right after its id is known. The model never writes this.
+        // Never a URL / record-id check (operator rule 2026-11-26).
         const created = pendingCreate === a.object;
-        if (created) pendingCreate = undefined;
-        const as = a.as ?? (created ? `created${a.object}${String(++autoNamed)}` : undefined);
-        if (!as) return [`await recordIdFromView(page, ${q(a.object)});`];
-        viewed.add(as);
-        return [
-          `viewed[${q(as)}] = await recordIdFromView(page, ${q(a.object)});`,
-          ...(created ? [`await data.adoptCreated(${q(as)}, ${q(a.object)}, viewed[${q(as)}]);`] : []),
-        ];
+        if (created) {
+          pendingCreate = undefined;
+          return savedRecord(a.object, a.as ?? `created${a.object}${String(++autoNamed)}`);
+        }
+        const p = recordPageOf(cat, a.object);
+        if (!p) throw new Error(`no record page for ${a.object}`);
+        imp.pages.set(p.className, p);
+        return [`await expect(${varOf(p)}.root).toBeVisible();`];
       }
-      case 'recordField':
-        return [`await expect(${el(a.element)}).toContainText(${val(a.contains)});`];
+      case 'recordField': {
+        // Operator rule 2026-11-26 (2): a field is read through the page object's tab helper — a record page opens on
+        // Related (run-p5-live-5, TC-036 / TC-050). Navigation only; the assertion is unchanged.
+        const m = findMember(cat, a.element);
+        const target =
+          m && recordTabs(m.page).details
+            ? `await ${varOf(m.page)}.${FIELD_IN_DETAILS}(${el(a.element)})`
+            : el(a.element);
+        return [`await expect(${target}).toContainText(${val(a.contains)});`];
+      }
       case 'recordTitle':
         imp.lightning.add('expectRecordTitle');
         return [`await expectRecordTitle(page, ${val(a.contains)});`];
@@ -240,7 +355,10 @@ export function renderSpec(i: RenderInput): string {
         if (!p || !list) throw new Error(`no related list ${a.relatedList}`);
         imp.pages.set(p.className, p);
         imp.lightning.add('relatedListRecord');
-        return [`await expect(relatedListRecord(${varOf(p)}.${list}, ${val(a.name)})).toBeVisible();`];
+        return [
+          ...showList(p, list, recordTabs(p)),
+          `await expect(relatedListRecord(${varOf(p)}.${list}, ${val(a.name)})).toBeVisible();`,
+        ];
       }
       case 'soqlField':
         fixtures.add('sf');
@@ -324,6 +442,7 @@ export function renderSpec(i: RenderInput): string {
   const notes = [
     ...ir.notes,
     ...(ir.steps.some((s) => s.assertions.some((a) => a.check === 'a11yScan')) ? [A11Y_SCOPE_NOTE] : []),
+    ...(ir.steps.some((s) => s.assertions.some((a) => a.check === 'recordView')) ? [AFTER_SAVE_NOTE] : []),
   ];
   const code = [...body, ...consts.values()].join(' '); // imports and fixtures only for what the test uses
   const L: string[] = [];

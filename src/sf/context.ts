@@ -13,6 +13,7 @@ import { run as defaultRunner, type Runner } from '../util/exec.js';
 import { createSessionProvider, resolvePersona } from './auth/index.js';
 import type { SessionProvider } from './auth/types.js';
 import { connectSalesforce, IdentityRegistry, type GuardedSalesforce } from './client.js';
+import { verifiedOrgFacts } from './identity.js';
 
 export interface SfContextOptions {
   root: string;
@@ -112,6 +113,14 @@ export async function createSfContext(o: SfContextOptions): Promise<SfContext> {
     registry,
     provider,
     authDir: join(o.root, '.auth'),
-    connect: () => connectSalesforce({ provider, org, orgs, persona, runId: o.runId, registry, audit }),
+    connect: async () => {
+      // A persona that cannot read Organization needs the org facts of a full check in this process: verify the
+      // default persona first when none exists yet (operator decision 2026-11-26).
+      if (persona.id !== personas.defaultPersona && !verifiedOrgFacts(org.orgId) && org.environment === 'LIVE') {
+        const admin = resolvePersona(personas, personas.defaultPersona);
+        await connectSalesforce({ provider, org, orgs, persona: admin, runId: o.runId, registry, audit });
+      }
+      return connectSalesforce({ provider, org, orgs, persona, runId: o.runId, registry, audit });
+    },
   };
 }

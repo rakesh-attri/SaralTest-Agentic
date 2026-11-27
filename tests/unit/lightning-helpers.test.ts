@@ -3,16 +3,20 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { expect as pwExpect } from '@playwright/test';
 import { startFixtureServer, type FixtureServer } from '../../src/fixture/server.js';
+import { parseSoql } from '../../src/fixture/soql.js';
 import { REPO_ROOT } from '../helpers/tempProject.js';
 import {
   expectFieldError,
+  expectSavePopover,
   expectToast,
   openRecord,
   pageError,
   recordIdFromView,
   relatedList,
   relatedListRecord,
+  selectPicklist,
   selectTab,
   waitForSpinners,
 } from '../support/lightning.js';
@@ -111,10 +115,96 @@ describe('Lightning + a11y helpers on the offline fixture (real Chromium, FIXTUR
     await lastName.fill(name);
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await waitForSpinners(page);
+    // As on live Lightning (qa-prod run-p5-live-1): Save from the related list stays on the Account page.
     await expectToast(page, /was created/);
+    expect(await recordIdFromView(page, 'Account')).toBe(ACCOUNT);
     const list = relatedList(page.getByRole('main'), 'Contacts');
     await relatedListRecord(list, name).waitFor();
     expect(await relatedListRecord(list, name).count()).toBe(1);
+  });
+
+  it('validation rules (FIXTURE copies of qa-prod rules): picklist select, field error with the rule message, no record', async () => {
+    const dialog = await openDialog();
+    const name = `QA-web-${Date.now().toString(36)}`;
+    await dialog.getByRole('textbox', { name: 'Last Name', exact: true }).fill(name);
+    const leadSource = dialog.getByRole('combobox', { name: 'Lead Source', exact: true });
+    await selectPicklist(page, leadSource, 'Web');
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await waitForSpinners(page);
+    const phone = dialog.getByRole('textbox', { name: 'Phone', exact: true });
+    await expectFieldError(phone, 'Phone is required when Lead Source is Web.');
+    // an invalid phone and an unapproved title fail together (every failing rule is reported)
+    await phone.fill('12345');
+    await dialog.getByRole('textbox', { name: 'Title', exact: true }).fill('Intern');
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await waitForSpinners(page);
+    await expectFieldError(phone, 'Phone must be exactly 10 digits.');
+    await expectFieldError(
+      dialog.getByRole('textbox', { name: 'Title', exact: true }),
+      'Title must be an approved title.',
+    );
+    expect(server.store.query(parseSoql(`SELECT Id FROM Contact WHERE LastName = '${name}'`)).totalSize).toBe(0);
+    // Billing → Mailing defaults (BR-05 as implemented by the fixture)
+    expect(await dialog.getByRole('textbox', { name: 'Mailing City', exact: true }).inputValue()).toBe('Bengaluru');
+  });
+
+  it('expectSavePopover: Lightning rendering the popover twice is one warning; every copy is closed, topmost first (qa-prod run-p5-live-6/7)', async () => {
+    await page.setContent(
+      [1, 2]
+        .map(
+          (n) =>
+            `<div role="dialog" aria-label="Similar Records Exist" id="p${String(n)}" style="position:fixed;top:0;left:0;width:320px;height:120px;background:#fff"><button aria-label="Close error dialog" onclick="document.getElementById('p${String(n)}').remove()">x</button><h2>Similar Records Exist</h2><p>This record looks like an existing record.</p></div>`,
+        )
+        .join(''),
+    );
+    await expectSavePopover(page, 'Similar Records Exist', 'This record looks like an existing record.');
+    await pwExpect(page.getByRole('dialog', { name: 'Similar Records Exist' })).toHaveCount(0);
+    // the text is still checked: a popover with other text is not this warning
+    await page.setContent(
+      '<div role="dialog" aria-label="Similar Records Exist"><h2>Similar Records Exist</h2><p>Other text</p></div>',
+    );
+    await expect(
+      Promise.race([
+        expectSavePopover(page, 'Similar Records Exist', 'This record looks like an existing record.'),
+        new Promise((_, rej) => {
+          setTimeout(() => {
+            rej(new Error('not shown'));
+          }, 3_000);
+        }),
+      ]),
+    ).rejects.toThrow();
+  });
+
+  it('selectPicklist falls back to the keyboard when the option is covered (docked footer on live Lightning)', async () => {
+    const dialog = await openDialog();
+    const leadSource = dialog.getByRole('combobox', { name: 'Lead Source', exact: true });
+    // Options cannot receive the click, as when Lightning's docked form footer covers them.
+    await dialog.evaluate((el) => {
+      const style = document.createElement('style');
+      style.textContent = '[role="option"] { pointer-events: none; }';
+      el.appendChild(style);
+    });
+    await selectPicklist(page, leadSource, 'Word of mouth');
+    await pwExpect(leadSource).toContainText('Word of mouth');
+  });
+
+  it('Contact Edit dialog: pre-filled from the record, Save PATCHes it and the record page shows the change', async () => {
+    const dialog = await openDialog();
+    const name = `QA-edit-${Date.now().toString(36)}`;
+    await dialog.getByRole('textbox', { name: 'Last Name', exact: true }).fill(name);
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await expectToast(page, /was created/);
+    const row = server.store.query(parseSoql(`SELECT Id FROM Contact WHERE LastName = '${name}'`)).records[0];
+    const id = typeof row?.['Id'] === 'string' ? row['Id'] : '';
+    await openRecord(page, 'Contact', id);
+    await page.getByRole('main').getByRole('button', { name: 'Edit', exact: true }).click();
+    const edit = page.getByRole('dialog', { name: /^Edit / });
+    await pwExpect(edit.getByRole('textbox', { name: 'Last Name', exact: true })).toHaveValue(name);
+    await pwExpect(edit.getByRole('textbox', { name: 'Mailing City', exact: true })).toHaveValue('Bengaluru');
+    await edit.getByRole('textbox', { name: 'Mailing Street', exact: true }).fill('7 Changed Road');
+    await edit.getByRole('button', { name: 'Save', exact: true }).click();
+    await pwExpect(page.getByRole('main')).toContainText('7 Changed Road');
+    expect(server.store.get('Contact', id)['MailingStreet']).toBe('7 Changed Road');
   });
 
   it('recordIdFromView extracts the id from a record URL', async () => {

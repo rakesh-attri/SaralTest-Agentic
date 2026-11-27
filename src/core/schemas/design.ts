@@ -159,6 +159,24 @@ export const ReviewRule = z.enum([
   'message-unevidenced',
   /** The case quotes an error message that differs from the org rule's message the spec asserts. */
   'message-mismatch',
+  /**
+   * The message text is now evidenced by a UI observation (Explorer, OBSERVED) but the spec does not assert it — a
+   * human accepts the observed text and the spec is regenerated to assert it (Phase 5).
+   */
+  'message-unasserted',
+  /**
+   * A generated test asserts on a URL or a record id (dynamic values). Operator rule 2026-11-26: after Save assert
+   * toast → related list → header → SOQL by run tag instead. Blocking.
+   */
+  'dynamic-assertion',
+  /** Operator rule 2026-11-26 (1): a value typed into a field must fit the field's length (org snapshot). */
+  'field-length',
+  /** Operator rule 2026-11-26 (2): record fields / related lists are read through the page object's tab helper. */
+  'tab-unaware-read',
+  /** Operator rule 2026-11-26 (3): a run-specific value (QA-run-…) written into a test instead of made at run time. */
+  'build-time-value',
+  /** Operator rule 2026-11-26 (3): two records the test creates share a unique value (one per record). */
+  'shared-unique',
 ]);
 export type ReviewRule = z.infer<typeof ReviewRule>;
 

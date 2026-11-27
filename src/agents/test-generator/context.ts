@@ -1,7 +1,8 @@
 // Generation context + deterministic IR checks (the Test Generator reflects these back to the model; Test Reviewer
 // pass 2 re-runs them on the stored IR). Code decides what is allowed; the model only maps case steps to the IR.
+import type { ObservedMessage } from '../../core/schemas/execution.js';
 import type { DataPlan, DataPlanStep } from '../../core/schemas/data.js';
-import type { IrAction, IrAssertion, TestIR, ValueRef } from '../../core/schemas/generation.js';
+import { toLabel, type IrAction, type IrAssertion, type TestIR, type ValueRef } from '../../core/schemas/generation.js';
 import { isAssertable, type TestCase } from '../../core/schemas/testCase.js';
 import type { FieldFact, SnapshotFacts } from '../../sf/data/plan.js';
 import { findMember, relatedListNewButton, type CatalogPage, type PageCatalog } from './pageObjects.js';
@@ -23,9 +24,13 @@ export interface GenerationContext {
   facts: SnapshotFacts;
   /** Personas with a configured test user. */
   personas: string[];
+  /** Message texts the Explorer observed in the UI for this org (OBSERVED evidence; Phase 5). */
+  observedMessages?: ObservedMessage[];
 }
 
 const norm = (t: string): string => t.toLowerCase().replace(/\s+/g, ' ').trim();
+/** A value made for one run (data factory names `QA-<run>-…`, emails `qa+<run>-…`): never fixed in a test. */
+export const BUILD_TIME_VALUE = /(^|[^A-Za-z])(QA-run-|qa\+run-)/i;
 
 /** Objects a case talks about (catalog page objects named in its text). */
 export function caseObjects(tc: TestCase, ctx: Pick<GenerationContext, 'catalog'>): string[] {
@@ -132,6 +137,43 @@ export function fieldErrorRule(
   return { rule: name, message: msg };
 }
 
+/**
+ * An accepted UI-observed message (Explorer, Phase 5) usable as assertion text: it must exist for this org, be accepted
+ * by a human, and match the expected placement / kind. The text is the human-confirmed one when the stored copy is
+ * masked.
+ */
+export function acceptedMessage(
+  ctx: GenerationContext,
+  id: string,
+  want: { placement: 'field' | 'alert'; field?: string },
+): { text: string; by: string } | { problem: string } {
+  const m = (ctx.observedMessages ?? []).find((x) => x.id === id);
+  if (!m) return { problem: `observed message ${id} is not known for ${ctx.orgAlias}` };
+  if (!m.accepted) return { problem: `observed message ${id} is not accepted by a human yet (omit message)` };
+  if (m.placement !== want.placement)
+    return { problem: `observed message ${id} is a ${m.placement} message, not ${want.placement}` };
+  if (want.field && m.field !== want.field)
+    return { problem: `observed message ${id} belongs to ${m.field ?? '?'}, not ${want.field}` };
+  return { text: m.accepted.text ?? m.text, by: m.accepted.by };
+}
+
+/** The name field a create dialog of `object` is identified by (LastName for Contact / Lead, else Name). */
+export const nameFieldOf = (object: string): string =>
+  object === 'Contact' || object === 'Lead' ? `${object}.LastName` : `${object}.Name`;
+
+/** Relationship name of a lookup field (`AccountId` → `Account`, `Parent__c` → `Parent__r`). */
+export const relationshipOf = (field: string): string | undefined =>
+  field.endsWith('__c') ? field.replace(/__c$/, '__r') : field.endsWith('Id') ? field.slice(0, -2) : undefined;
+
+/** A field of `object`, or a parent field through a lookup (`Account.Name`) — both must be in the snapshot. */
+export function soqlFieldKnown(ctx: GenerationContext, object: string, field: string): boolean {
+  const [rel, parentField] = field.split('.');
+  if (!parentField) return ctx.facts.field(object, field) !== undefined;
+  const lookup = ctx.facts.fields(object).find((f) => relationshipOf(f.apiName.split('.').pop() ?? '') === rel);
+  const target = lookup?.referenceTo[0];
+  return target !== undefined && ctx.facts.field(target, parentField) !== undefined;
+}
+
 /** The snapshot field behind a picklist combobox member, if it is one. */
 export function picklistFact(ctx: GenerationContext, ref: string): FieldFact | undefined {
   const m = findMember(ctx.catalog, ref);
@@ -160,6 +202,8 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
   // Page context of the flow: which page objects are on screen at this point (CLAUDE.md: tests must be runnable,
   // not only resolvable — the dry-run checks each locator in its own page state, this checks the order of use).
   let onScreen: string[] = [];
+  /** The current create dialog's name field was filled with a run-unique value. */
+  let dialogNamedUnique = false;
   const member = (ref: string, roles?: Set<string>, interact = false): CatalogPage | undefined => {
     const m = findMember(ctx.catalog, ref);
     if (!m) {
@@ -220,6 +264,11 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         recordRef(v.ref, where);
         break;
       case 'literal':
+        // Operator rule 2026-11-26 (3): run-specific values are made at run time, never written into a test.
+        if (BUILD_TIME_VALUE.test(v.value) || (recipe?.plan.runId && v.value.includes(recipe.plan.runId)))
+          p.push(
+            `${where}: literal "${v.value}" is a run-specific value — use {"kind":"unique","label":"<label>"} (made at run time) or a "data" ref`,
+          );
         if (!v.evidenceIds.length) p.push(`${where}: literal "${v.value}" cites no evidence`);
         if (!corpus.includes(norm(v.value))) {
           p.push(`${where}: literal "${v.value}" is not in the case text, recipe or UI labels (never invent values)`);
@@ -255,6 +304,11 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
     // Save). The model's part is the assertion: a Save the case expects to succeed must be followed by recordView —
     // without it the new record cannot be registered and would stay in the org.
     const createSave = st.actions.some((x) => x.do === 'click' && isCreateSave(ctx, x.element));
+    if (createSave && st.assertions.some((x) => x.check === 'recordView') && !dialogNamedUnique) {
+      p.push(
+        `${where}: the record saved from the create dialog must be named with a run-unique value — fill its name field with {"kind":"unique","label":"<label>"} (it is found by the run tag, never by URL or id)`,
+      );
+    }
     const rejected = st.assertions.some(
       (x) =>
         x.check === 'fieldError' ||
@@ -301,6 +355,7 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         break;
       }
       case 'openNewFromRelatedList': {
+        dialogNamedUnique = false;
         recordRef(a.parentRef, where);
         const parent = steps.find((s) => s.stepId === a.parentRef)?.object;
         const page = parent ? recordPageOf(ctx.catalog, parent) : undefined;
@@ -317,12 +372,17 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         onScreen = [...(dialog ? [dialog.id] : []), ...(page ? [page.id] : [])];
         break;
       }
-      case 'fill':
+      case 'fill': {
         member(a.element, FILLABLE, true);
         value(a.value, where, caseStep);
+        const fm = findMember(ctx.catalog, a.element);
+        if (fm?.page.kind === 'dialog' && fm.member.fieldApiName === nameFieldOf(fm.page.object))
+          // unique, or a long boundary value (data.ofLength embeds the run id from 60 characters on)
+          dialogNamedUnique = a.value.kind === 'unique' || (a.value.kind === 'length' && a.value.length >= 60);
         if (a.value.kind === 'unique') typedUniques.add(a.value.label);
         if (a.value.kind === 'length') typedLengths.add(a.value.length);
         break;
+      }
       case 'select': {
         member(a.element, new Set(['combobox']), true);
         const fact = picklistFact(ctx, a.element);
@@ -386,11 +446,21 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
         break;
       case 'fieldError':
         member(a.element);
-        if (a.message) {
+        if (a.message && 'rule' in a.message) {
           const r = fieldErrorRule(ctx, a.element, a.message.rule);
           if ('problem' in r) p.push(`${where}: ${r.problem}`);
         }
+        if (a.message && 'observed' in a.message) {
+          const field = findMember(ctx.catalog, a.element)?.member.fieldApiName;
+          const r = acceptedMessage(ctx, a.message.observed, { placement: 'field', ...(field ? { field } : {}) });
+          if ('problem' in r) p.push(`${where}: ${r.problem}`);
+        }
         break;
+      case 'saveWarning': {
+        const r = acceptedMessage(ctx, a.observed, { placement: 'alert' });
+        if ('problem' in r) p.push(`${where}: ${r.problem}`);
+        break;
+      }
       case 'inputValue':
         // comboboxes too: a pre-filled lookup (Account Name) or a picklist's current value
         member(a.element, VALUED);
@@ -433,8 +503,22 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
       }
       case 'soqlField':
         recordRef(a.ref, where);
-        if (!ctx.facts.field(a.object, a.field)) p.push(`${where}: ${a.object}.${a.field} is not in the snapshot`);
+        if (!soqlFieldKnown(ctx, a.object, a.field)) p.push(`${where}: ${a.object}.${a.field} is not in the snapshot`);
+        {
+          const st = steps.find((x) => x.stepId === a.ref);
+          if (st && st.object !== a.object)
+            p.push(
+              `${where}: ${a.ref} is a ${st.object} record, not a ${a.object} — use a ${a.object} record: ${[...steps.filter((x) => x.object === a.object).map((x) => `recipe step "${x.stepId}"`), `a recordView "as" name`].join(' or ')}`,
+            );
+        }
         value(a.equals, where, cs);
+        // Operator rule 2026-11-26: never assert on record ids (dynamic) — compare a parent by its name.
+        if (a.equals.kind === 'recordId') {
+          const rel = relationshipOf(a.field);
+          p.push(
+            `${where}: never compare record ids — check the parent by name: {"check":"soqlField","field":"${rel ?? '<Relationship>'}.Name","equals":{"kind":"data","ref":"${a.equals.ref}","field":"Name"}}`,
+          );
+        }
         // A value the test typed (unique / length) lives on the record the test created in the UI, not on a recipe
         // record the data factory created (run-p4-coder-nim-4, TC-004: the check read the recipe Contact).
         if (
@@ -531,6 +615,8 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
     return steps.find((s) => s.object.toLowerCase() === v.toLowerCase())?.object;
   };
   const ref = (v: string): string => {
+    const renamedAs = asRenamed.get(v);
+    if (renamedAs) return renamedAs;
     if (named.has(v) || steps.some((s) => s.stepId === v)) return v;
     const obj = objectOf(v);
     const matches = obj ? steps.filter((s) => s.object === obj) : [];
@@ -551,9 +637,34 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
     }
     return undefined;
   };
+  // Operator rule 2026-11-26: a record created in a dialog is found by the run tag, never by URL / id — its name must be
+  // run-unique. A case literal typed as that name (e.g. 'TestContact') becomes a unique value with that label; every
+  // later use of the same literal (toast, related list, header) follows it.
+  const renamed = new Map<string, ValueRef>();
+  // Each record the test creates needs its own name: the SOQL check expects exactly one record with it, and a later
+  // "not saved" check of the same name would find the earlier record (run-p5-build-1: TC-036 typed one name into 4
+  // create dialogs, TC-010 reused it after a successful Save). A reused unique label gets a suffix from then on.
+  // Operator rule 2026-11-26 (3): unique values are made at run time per test and never shared between records —
+  // names and every other unique field (emails …). A reuse is kept only where the step expects a duplicate warning.
+  const usedNames = new Set<string>(); // unique labels typed into records already created
+  const relabel = new Map<string, string>();
+  const dialogLabels = new Set<string>(); // unique labels typed into create dialogs since the last created record
+  let stepWarns = false; // the step being normalised expects a save warning (a reuse may be the test's intent)
+  // recordView "as" names: identifiers, one per created record (run-p5-live-5, TC-036: a build-time value was used as
+  // the name of 4 records). A renamed one is followed by every later reference.
+  const asRenamed = new Map<string, string>();
+  const createdNames = new Set<string>();
   const val = (x: ValueRef): ValueRef => {
+    const v = val0(x);
+    if (v.kind !== 'unique') return v;
+    const l = relabel.get(v.label);
+    return l ? { ...v, label: l } : v;
+  };
+  const val0 = (x: ValueRef): ValueRef => {
     if (x.kind === 'data' || x.kind === 'recordId') return { ...x, ref: ref(x.ref) };
     if (x.kind === 'literal') {
+      const u = renamed.get(x.value);
+      if (u) return u;
       const d = recipeField(x.value);
       if (d) return d;
     }
@@ -569,11 +680,38 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
         return { ...a, ref: ref(a.ref), object: objectOf(a.object) ?? a.object };
       case 'openNewFromRelatedList':
         return { ...a, parentRef: ref(a.parentRef), relatedList: canonicalList(ctx.catalog, a.relatedList) };
-      case 'fill':
+      case 'fill': {
         // `fill` on a picklist combobox means choosing that option (same intent; the renderer needs `select`)
-        return picklistFact(ctx, a.element)
-          ? { do: 'select', element: a.element, value: val(a.value) }
-          : { ...a, value: val(a.value) };
+        if (picklistFact(ctx, a.element)) return { do: 'select', element: a.element, value: val(a.value) };
+        const m = findMember(ctx.catalog, a.element);
+        const nameFill = m?.page.kind === 'dialog' && m.member.fieldApiName === nameFieldOf(m.page.object);
+        let v = a.value;
+        if (nameFill && v.kind === 'literal') {
+          const known = renamed.get(v.value);
+          if (known) v = known;
+          else {
+            const u: ValueRef = { kind: 'unique', label: toLabel(v.value), format: 'text' };
+            renamed.set(v.value, u);
+            notes.push(
+              `data: the ${m.member.fieldApiName ?? ''} typed in the create dialog is run-unique (label '${v.value}') so the saved record is found by the run tag (by code)`,
+            );
+            v = u;
+          }
+        }
+        if (v.kind === 'unique' && m?.page.kind === 'dialog' && (nameFill || !stepWarns)) {
+          const base = v.label;
+          if (usedNames.has(base)) {
+            let n = 2;
+            while (usedNames.has(`${base}-${String(n)}`)) n++;
+            relabel.set(base, `${base}-${String(n)}`);
+            notes.push(
+              `data: '${base}' was already typed into a record this test created — this dialog types '${base}-${String(n)}' so no two records share a unique value (by code)`,
+            );
+          } else relabel.delete(base);
+          dialogLabels.add(relabel.get(base) ?? base);
+        }
+        return { ...a, value: val(v) };
+      }
       case 'select':
         return { ...a, value: val(a.value) };
       case 'apiUpdate':
@@ -588,6 +726,27 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
     const ev = tc?.steps[a0.expect.caseStep]?.expected.evidenceIds ?? [];
     const a = a0.expect.evidenceIds.length ? a0 : { ...a0, expect: { ...a0.expect, evidenceIds: ev } };
     switch (a.check) {
+      case 'fieldError': {
+        // No message given, no validation rule on the field, and exactly one human-accepted message observed on it:
+        // that is the text Salesforce shows (run-p5-build-1, TC-046: "Complete this field." was accepted but unused).
+        if (a.message) return a;
+        const field = findMember(ctx.catalog, a.element)?.member.fieldApiName;
+        const [o, f] = field?.split('.') ?? [];
+        if (!field || !o || !f) return a;
+        const ruled = ctx.facts.activeValidationRules(o).some((vr) => {
+          const formula = vr.body?.['errorConditionFormula'];
+          return typeof formula === 'string' && new RegExp(`\\b${f}\\b`).test(formula);
+        });
+        const seen = (ctx.observedMessages ?? []).filter(
+          (m) => m.accepted && m.placement === 'field' && m.field === field,
+        );
+        const only = seen.length === 1 ? seen[0] : undefined;
+        if (ruled || !only) return a;
+        notes.push(
+          `fieldError ${field}: the only human-accepted message observed on this field (${only.id}) is asserted (by code)`,
+        );
+        return { ...a, message: { observed: only.id } };
+      }
       case 'inputValue':
         return { ...a, equals: val(a.equals) };
       case 'toast':
@@ -601,8 +760,24 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
           relatedList: canonicalList(ctx.catalog, a.relatedList),
           name: val(a.name),
         };
-      case 'soqlField':
-        return { ...a, ref: ref(a.ref), equals: val(a.equals) };
+      case 'soqlField': {
+        // Operator rule 2026-11-26: never compare record ids — a lookup to a recipe record is checked by its name.
+        const rel = relationshipOf(a.field);
+        const eq = a.equals;
+        const parent = eq.kind === 'recordId' ? steps.find((s) => s.stepId === ref(eq.ref)) : undefined;
+        const s =
+          rel && parent && typeof parent.fields['Name'] === 'string'
+            ? {
+                ...a,
+                ref: ref(a.ref),
+                field: `${rel}.Name`,
+                equals: { kind: 'data' as const, ref: parent.stepId, field: 'Name' },
+              }
+            : { ...a, ref: ref(a.ref), equals: val(a.equals) };
+        // A recipe record of another object is NOT re-pointed by code (run-p5-build-3, TC-050: the model meant the
+        // pre-existing recipe Contact, a guess pointed it at the created one): irProblems refuses it and names the steps.
+        return s;
+      }
       case 'soqlNoRecord':
         return { ...a, value: val(a.value) };
       case 'apiRejects':
@@ -622,15 +797,56 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
   let unnamed = 0;
   const out = ir.steps.map((st) => {
     caseStep = st.caseStep;
+    stepWarns = st.assertions.some((a) => a.check === 'saveWarning');
     const actions = navigationShorthand(st.actions.map(action), ctx, nav, notes);
     const dropped = actions.filter((a) => a.do === 'adopt');
     if (dropped.length) notes.push(`cleanup: ${dropped.length} model-written adopt(s) removed — cleanup is code-owned`);
     const saves = actions.some((a) => a.do === 'click' && isCreateSave(ctx, a.element));
-    const assertions = st.assertions
+    // The created record's name: an identifier, not a recipe step (TC-036: "Contact"), not a value (run-p5-live-5:
+    // a build-time 'QA-run-…' value), not the name of an earlier created record. Decided before the step's
+    // assertions are normalised so their references follow it.
+    const rawView = saves ? st.assertions.find((a) => a.check === 'recordView') : undefined;
+    let viewName: string | undefined;
+    if (rawView?.check === 'recordView') {
+      const raw = rawView.as;
+      const isStep = raw !== undefined && steps.some((s) => s.stepId === raw);
+      const ok = raw !== undefined && !isStep && /^[A-Za-z][A-Za-z0-9_]*$/.test(raw) && !createdNames.has(raw);
+      viewName = ok ? raw : `created${rawView.object}${String(++unnamed)}`;
+      if (raw && !ok) {
+        if (!isStep) asRenamed.set(raw, viewName); // a recipe step id keeps meaning the recipe record elsewhere
+        notes.push(
+          `recordView: the model's record name ${BUILD_TIME_VALUE.test(raw) ? '(a run-specific value)' : `'${raw}'`} is not usable here (a value, a recipe step or an earlier record) — the record is '${viewName}' (by code)`,
+        );
+      } else asRenamed.delete(viewName);
+      createdNames.add(viewName);
+    }
+    let assertions = st.assertions
       .map(assertion)
-      .map((a) =>
-        a.check === 'recordView' && !a.as && saves ? { ...a, as: `created${a.object}${String(++unnamed)}` } : a,
-      );
+      .map((a) => (a.check === 'recordView' && viewName ? { ...a, as: viewName } : a));
+    const createdView = saves
+      ? assertions.find((a): a is Extract<IrAssertion, { check: 'recordView' }> => a.check === 'recordView')
+      : undefined;
+    if (createdView?.as) {
+      const as = createdView.as;
+      // The code renders toast → related list → header → SOQL with the name typed in the dialog; the model's own
+      // toast / title / related-list checks of this step are dropped (run-p5-build-1, TC-036 / TC-050: they named the
+      // recipe Contact instead of the record just created).
+      const own = new Set(['toast', 'recordTitle', 'relatedListHasRecord']);
+      const kept = assertions.filter((a) => !own.has(a.check));
+      if (kept.length < assertions.length)
+        notes.push(
+          `after Save: ${String(assertions.length - kept.length)} toast / title / related-list check(s) replaced by the code-owned checks of the name typed`,
+        );
+      // A field check of this step on the object just created is about that record, not a recipe record.
+      assertions = kept.map((a) => {
+        if (a.check !== 'soqlField' || a.object !== createdView.object) return a;
+        if (!steps.some((s) => s.stepId === a.ref && s.object === a.object)) return a;
+        notes.push(`soqlField ${a.object}.${a.field}: checked on ${as}, the record this step created (by code)`);
+        return { ...a, ref: as };
+      });
+      for (const l of dialogLabels) usedNames.add(l);
+      dialogLabels.clear();
+    }
     const n = { ...st, actions: actions.filter((a) => a.do !== 'adopt'), assertions };
     for (const a of n.assertions) if (a.check === 'recordView' && a.as) nav.record = { ref: a.as, object: a.object };
     return n;

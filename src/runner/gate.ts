@@ -3,7 +3,8 @@
 import type { GeneratedArtifact } from '../core/schemas/generation.js';
 import { staleReason } from '../agents/test-generator/staleness.js';
 
-export type GateDecision = 'EXECUTE' | 'BLOCKED' | 'NOT_APPROVED' | 'MANUAL';
+/** NOT_SELECTED = APPROVED and current, but left out of this run by `--cases`. */
+export type GateDecision = 'EXECUTE' | 'BLOCKED' | 'NOT_APPROVED' | 'MANUAL' | 'NOT_SELECTED';
 
 export interface GateItem {
   caseId: string;

@@ -2,6 +2,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Command } from 'commander';
+import { reconcileRun, subRunDirs } from '../runner/reconcile.js';
 import { QAError } from '../core/errors.js';
 import { DataPlan, type CleanupReport } from '../core/schemas/data.js';
 import { newRunId } from '../core/runFolder.js';
@@ -200,6 +201,17 @@ export function registerData(program: Command, rootOf: () => string, say: Say): 
       const root = rootOf();
       const ctx = await createSfContext({ root, runId: o.run, ...(o.org ? { orgAlias: o.org } : {}) });
       const planFile = join(dataDir(ctx.run.dir), 'data-plan.json');
+      if (subRunDirs(ctx.run.dir).length) {
+        // A `qa run`: one data sub-run per test (data/<hash>/). Reconcile + clean each, then re-query the run tag.
+        const sf = await ctx.connect();
+        say(`Identity verified: ${sf.identity.orgId} as ${sf.identity.username}.`);
+        const r = await reconcileRun({ runId: o.run, runDir: ctx.run.dir, org: ctx.org, sf, log: say });
+        for (const x of r.subRuns) say(`  ${x.tag ?? x.dir}: ${x.status}${x.note ? ` — ${x.note}` : ''}`);
+        for (const q of r.queries) say(`  re-query: ${q}`);
+        say(`Data of run ${o.run}: ${r.status} (${r.remaining.length} record(s) remaining)`);
+        process.exitCode = r.status === 'CLEAN' ? 0 : 1;
+        return;
+      }
       if (!existsSync(planFile) || !existsSync(ledgerFile(ctx.run.dir))) {
         say(`No data plan / ledger in ${dataDir(ctx.run.dir)}: nothing this run created is known.`);
         process.exitCode = 2;

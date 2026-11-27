@@ -1,7 +1,7 @@
 {
   "storyKey": "SF-219",
   "designRun": "run-p4-design-decided-1",
-  "buildRun": "run-p4-build-decided-10",
+  "buildRun": "run-p5-build-5",
   "org": "qa-prod",
   "environment": "LIVE",
   "artifacts": [
@@ -30,7 +30,7 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-003 message-unevidenced: step 9 expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid"
+        "RF-002 message-unevidenced: step 9 expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid"
       ],
       "reviewStatus": "REVIEW_REQUIRED",
       "buildRun": "run-p4-build-decided-8",
@@ -75,17 +75,18 @@
           "component": "Locator:contact-new/button:New Contact/Save",
           "hash": "388393889e843b68"
         }
-      ]
+      ],
+      "reviewedBy": "review2-20261126-151415-cced"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-007-create-contact-with-valid-10-digit-phone-and-non-w.spec.ts",
-      "hash": "51279247db8bb36d",
+      "hash": "8a9077ed56a1408c",
       "testCaseIds": [
         "TC-SF-219-007"
       ],
       "caseHash": "624d82503c46ba33",
-      "irHash": "9c4f43b7b064de89",
+      "irHash": "ba3c3d8ec02135f3",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -149,7 +150,8 @@
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-9"
+      "buildRun": "run-p5-build-2",
+      "reviewedBy": "review2-20261126-213002-5ff7"
     },
     {
       "kind": "spec",
@@ -302,12 +304,12 @@
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-010-boundary-value-test-for-phone-field-9-10-and-11-di.spec.ts",
-      "hash": "5c058f20fafd3a99",
+      "hash": "cc91cf142d63b397",
       "testCaseIds": [
         "TC-SF-219-010"
       ],
       "caseHash": "8dd2248aed59c6d0",
-      "irHash": "8887d465c28f22a7",
+      "irHash": "b1a7e778eba93381",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
@@ -371,7 +373,8 @@
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-9"
+      "buildRun": "run-p5-build-2",
+      "reviewedBy": "review2-20261126-213002-5ff7"
     },
     {
       "kind": "spec",
@@ -533,13 +536,13 @@
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-026-create-contact-with-valid-last-name-positive.spec.ts",
-      "hash": "68e4bdee2b54d2ce",
+      "hash": "60ffc3fbe9d68a41",
       "testCaseIds": [
         "TC-SF-219-026"
       ],
       "caseHash": "752fd47a3b76454e",
-      "irHash": "ae084500893a1519",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "irHash": "7956579afb96f698",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
@@ -550,13 +553,6 @@
         "contact-new.root",
         "contact-new.saveButton"
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
-      "origin": "generated",
-      "reviewReasons": [],
-      "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-8",
       "dependsOn": [
         {
           "component": "Field:Account.Name",
@@ -598,7 +594,14 @@
           "component": "Locator:contact-new/button:New Contact/Save",
           "hash": "388393889e843b68"
         }
-      ]
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p5-build-5"
     },
     {
       "kind": "spec",
@@ -711,22 +714,35 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-001 locator-unresolved: locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep",
-        "RF-004 judge: Missing assertion for read-only Account Name field in step 2: Case step 2 expects 'New Contact modal opens with Account Name field pre-populated with \"Acme Test\" and read-only'. The test only verifies the value (`toHaveValue`) but does not assert the field is read-only/disabled."
+        "RF-001 locator-unresolved: account-record.contactsNewButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-002 locator-unresolved: account-record.contactsRelatedList did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-003 locator-unresolved: account-record.relatedTab did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-004 locator-unresolved: contact-new.accountId did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-005 locator-unresolved: contact-new.email did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-006 locator-unresolved: contact-new.firstName did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-007 locator-unresolved: contact-new.lastName did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-008 locator-unresolved: contact-new.phone did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-009 locator-unresolved: contact-new.root did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-010 locator-unresolved: contact-new.saveButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-011 locator-unresolved: contact-new.title did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-012 locator-unresolved: contact-record.accountNameField did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-013 judge: Missing read-only assertion on Account Name field: Step 2 expects the Account Name field to be pre-populated with 'Acme Test' and read-only. The test asserts the value but does not verify the field is read-only (e.g., disabled, readonly attribute, or non-editable).",
+        "RF-014 judge: Weaker assertions for field input acceptance: Step 3 expects all fields to accept entered values without validation errors. The test only asserts each field is visible after filling, but does not verify the values were actually accepted (e.g., toHaveValue for each field) or that no validation error appeared."
       ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-9"
+      "reviewStatus": "BLOCKED",
+      "buildRun": "run-p4-build-decided-9",
+      "reviewedBy": "review2-20261126-151936-6cfd"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-036-create-contact-with-each-approved-title-value.spec.ts",
-      "hash": "67cd568dc8512209",
+      "hash": "7779cdaa46fbded5",
       "testCaseIds": [
         "TC-SF-219-036"
       ],
       "caseHash": "cb659d2594451546",
-      "irHash": "7d7d9b035ac02160",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "irHash": "ebd6cdcfb743a676",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
@@ -734,15 +750,9 @@
         "contact-new.lastName",
         "contact-new.root",
         "contact-new.saveButton",
-        "contact-new.title"
+        "contact-new.title",
+        "contact-record.titleField"
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
-      "origin": "generated",
-      "reviewReasons": [],
-      "reviewStatus": "APPROVED",
-      "buildRun": "run-p4-build-decided-8",
       "dependsOn": [
         {
           "component": "Field:Contact.LastName",
@@ -775,8 +785,19 @@
         {
           "component": "Locator:contact-new/textbox:New Contact/Title",
           "hash": "3ebec4aa0e1e860a"
+        },
+        {
+          "component": "Locator:contact-record/button:Details/Edit Title",
+          "hash": "8fc510bf67bd9044"
         }
-      ]
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p5-build-5"
     },
     {
       "kind": "spec",
@@ -899,11 +920,25 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-001 locator-unresolved: locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep",
-        "RF-003 judge: Missing field verifications on Contact detail page in step 5: Step 5 expects 'Contact detail page shows the correct Account Name and all entered field values are displayed' but only asserts Account Name and Title. First Name, Last Name, Email, and Phone are not verified on the detail page."
+        "RF-001 locator-unresolved: account-record.contactsNewButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-002 locator-unresolved: account-record.contactsRelatedList did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-003 locator-unresolved: account-record.relatedTab did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-004 locator-unresolved: contact-new.accountId did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-005 locator-unresolved: contact-new.email did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-006 locator-unresolved: contact-new.firstName did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-007 locator-unresolved: contact-new.lastName did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-008 locator-unresolved: contact-new.phone did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-009 locator-unresolved: contact-new.root did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-010 locator-unresolved: contact-new.saveButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-011 locator-unresolved: contact-new.title did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-012 locator-unresolved: contact-record.accountNameField did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-013 locator-unresolved: contact-record.emailField did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-014 locator-unresolved: contact-record.titleField did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-015 judge: Missing assertion for First Name and Last Name on Contact detail page: Step 5 expected result states 'Contact detail page shows the correct Account Name and all entered field values are displayed'. The test verifies Account Name, Email, Phone (via SOQL), and Title, but does not assert that First Name 'Jane' and Last Name 'Smith' are displayed on the Contact detail page. Two of the five entered field values are not verified."
       ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-10"
+      "reviewStatus": "BLOCKED",
+      "buildRun": "run-p4-build-decided-10",
+      "reviewedBy": "review2-20261126-152144-a583"
     },
     {
       "kind": "spec",
@@ -928,13 +963,13 @@
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-046-create-contact-with-empty-last-name-negative.spec.ts",
-      "hash": "bbc0bf0173ca6f54",
+      "hash": "0fc6431bfe111b76",
       "testCaseIds": [
         "TC-SF-219-046"
       ],
       "caseHash": "3fa9bcc72b1f1fd8",
-      "irHash": "3588ab19969f4324",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "irHash": "29ac4e8eea0ff199",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
@@ -945,15 +980,6 @@
         "contact-new.root",
         "contact-new.saveButton"
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
-      "origin": "generated",
-      "reviewReasons": [
-        "RF-002 message-unevidenced: step 3 expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-8",
       "dependsOn": [
         {
           "component": "Field:Account.Name",
@@ -995,7 +1021,15 @@
           "component": "Locator:contact-new/button:New Contact/Save",
           "hash": "388393889e843b68"
         }
-      ]
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p5-build-2",
+      "reviewedBy": "review2-20261126-213002-5ff7"
     },
     {
       "kind": "spec",
@@ -1021,12 +1055,18 @@
       ],
       "origin": "generated",
       "reviewReasons": [
-        "RF-003 locator-unresolved: locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep",
-        "RF-011 judge: Missing Email assertion on Contact detail page in step 2: Step 2 expected result 'Contact detail page opens and displays Last Name 'Doe' and Email '<EMAIL_1>'' requires Email to be visible on the detail page. Test only verifies Email via SOQL, not on the UI."
+        "RF-003 locator-unresolved: account-record.contactsNewButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-004 locator-unresolved: account-record.contactsRelatedList did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-005 locator-unresolved: account-record.relatedTab did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-006 locator-unresolved: contact-new.email did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-007 locator-unresolved: contact-new.lastName did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-008 locator-unresolved: contact-new.root did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-009 locator-unresolved: contact-new.saveButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-011 judge: Missing Email assertion on Contact detail page in step 2: Step 2 expected result 'Contact detail page opens and displays Last Name 'Doe' and Email '<EMAIL_1>'' requires Email to be visible on the detail page. Test only verifies Email via SOQL, not on the UI. [carried over from review2-20261126-095851-512d: judge unavailable]"
       ],
-      "reviewStatus": "REVIEW_REQUIRED",
+      "reviewStatus": "BLOCKED",
       "buildRun": "run-p4-build-decided-8",
-      "reviewedBy": "review2-20261126-095851-512d",
+      "reviewedBy": "review2-20261126-151415-cced",
       "dependsOn": [
         {
           "component": "Field:Contact.Email",
@@ -1061,42 +1101,26 @@
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-048-sales-rep-enters-syntactically-invalid-email-save.spec.ts",
-      "hash": "82cbc0b738b23b82",
+      "hash": "7274655279f3c427",
       "testCaseIds": [
         "TC-SF-219-048"
       ],
       "caseHash": "1816b6e234b04be4",
-      "irHash": "8304097dfe03df0f",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "irHash": "f81f0e8d20a19d87",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
         "account-record.relatedTab",
         "contact-new.email",
-        "contact-new.firstName",
         "contact-new.lastName",
         "contact-new.root",
         "contact-new.saveButton"
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
-      "origin": "generated",
-      "reviewReasons": [
-        "RF-004 message-unevidenced: step 2 expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid",
-        "RF-005 locator-unresolved: locators were dry-run as system-admin, not as the case persona sales-rep: unverified for sales-rep"
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-8",
-      "reviewedBy": "review2-20261126-095851-512d",
       "dependsOn": [
         {
           "component": "Field:Contact.Email",
           "hash": "Field:1ff1e49584a3d3298e477de73bc32c71"
-        },
-        {
-          "component": "Field:Contact.FirstName",
-          "hash": "Field:e5825cd31e06d509bdd16bc4b1d0702f"
         },
         {
           "component": "Field:Contact.LastName",
@@ -1115,10 +1139,6 @@
           "hash": "a05d25896cd2610a"
         },
         {
-          "component": "Locator:contact-new/textbox:New Contact/Name required/First Name",
-          "hash": "217765c57a55ade0"
-        },
-        {
           "component": "Locator:contact-new/textbox:New Contact/Name required/Last Name",
           "hash": "c2740cf09b7467bb"
         },
@@ -1126,18 +1146,34 @@
           "component": "Locator:contact-new/button:New Contact/Save",
           "hash": "388393889e843b68"
         }
-      ]
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [
+        "RF-001 locator-unresolved: account-record.contactsNewButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-002 locator-unresolved: account-record.contactsRelatedList did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-003 locator-unresolved: account-record.relatedTab did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-004 locator-unresolved: contact-new.email did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-005 locator-unresolved: contact-new.lastName did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-006 locator-unresolved: contact-new.root did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
+        "RF-007 locator-unresolved: contact-new.saveButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)"
+      ],
+      "reviewStatus": "BLOCKED",
+      "buildRun": "run-p5-build-2",
+      "reviewedBy": "review2-20261126-213002-5ff7"
     },
     {
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-050-duplicate-contact-warning-shown-when-saving-contac.spec.ts",
-      "hash": "2b139d2e72711f44",
+      "hash": "664c82c65857a661",
       "testCaseIds": [
         "TC-SF-219-050"
       ],
-      "caseHash": "aa6cf9fc2b7bf878",
-      "irHash": "b264aa751fc1663e",
-      "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
+      "caseHash": "7d38047f0fdcc1b9",
+      "irHash": "0025616b93e43b7c",
+      "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
       "locatorsUsed": [
         "account-record.contactsNewButton",
         "account-record.contactsRelatedList",
@@ -1150,18 +1186,6 @@
         "contact-new.saveButton",
         "contact-record.emailField"
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
-      "origin": "generated",
-      "reviewReasons": [
-        "RF-006 message-unevidenced: step 2 expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid",
-        "RF-012 judge: Missing duplicate warning assertion in step 2: Step 2 expected result 'A possible duplicate warning is displayed indicating a Contact with the same Email already exists on this Account; the Save button remains enabled' requires assertion that the duplicate warning dialog/message appears. Test only checks saveButton is visible, not that the warning is displayed.",
-        "RF-013 judge: Step 5 assertion does not match expected result: Step 5 expected result 'Test execution result shows PASS for the duplicate warning scenario, confirming RE_VERIFY status is satisfied' is a meta-expectation about test execution status. Test implements it as a SOQL AccountId check, which does not match the stated expected result."
-      ],
-      "reviewStatus": "REVIEW_REQUIRED",
-      "buildRun": "run-p4-build-decided-8",
-      "reviewedBy": "review2-20261126-095851-512d",
       "dependsOn": [
         {
           "component": "Field:Account.Name",
@@ -1215,7 +1239,14 @@
           "component": "Locator:contact-record/button:Details/Edit Email",
           "hash": "c0bafb6c095839d0"
         }
-      ]
+      ],
+      "dataBindings": [
+        "account-contact"
+      ],
+      "origin": "generated",
+      "reviewReasons": [],
+      "reviewStatus": "APPROVED",
+      "buildRun": "run-p5-build-5"
     },
     {
       "kind": "spec",

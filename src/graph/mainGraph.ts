@@ -21,6 +21,9 @@ import { writeBuildReport } from './buildReport.js';
 import { createPlanNode, type DesignHook } from './designNodes.js';
 import { writeDesignReport } from './designReport.js';
 import { QAGraphState, type QAGraphStateType, type QAGraphUpdate } from './state.js';
+import type { ExecutionOutcome } from '../runner/execute.js';
+import { loadReportData, writeExecutionReports } from '../report/execution.js';
+import { attemptLog } from '../models/attemptLog.js';
 
 /**
  * Main graph (PLAN.md §2), Phases 1–4 (build <-> review2 after the design; `qa build` enters at build):
@@ -61,7 +64,16 @@ export interface GraphDeps {
    * reviewed cases (`qa build`) enters at `build`.
    */
   build?: Omit<BuildDeps, 'root' | 'router' | 'skills' | 'redactor' | 'logger' | 'say'>;
+  /**
+   * Phase 5 Runner: executes the APPROVED, current specs of the story (no LLM). Absent → no execute node. A run
+   * seeded with `executeSeed` (`qa run`) enters at execute; a full run reaches it after review2.
+   */
+  execute?: ExecuteHook;
 }
+
+export type ExecuteHook = (
+  s: Pick<QAGraphStateType, 'runId' | 'storyKey' | 'org' | 'autonomy'>,
+) => Promise<ExecutionOutcome>;
 
 export interface DiscoverHookResult {
   org: string;
@@ -102,6 +114,8 @@ const CAPS: Record<string, NodeCapabilities> = {
   // Generator / Reviewer pass 2 failing degrades to mechanical skeletons / deterministic review.
   build: { retry: true, fallback: false, degrade: true, ask: false },
   review2: { retry: true, fallback: false, degrade: true, ask: false },
+  // Playwright retries flaky tests itself; a runner failure is escalated (reported), never retried blindly.
+  execute: { retry: false, fallback: false, degrade: false, ask: false },
   report: { retry: false, fallback: false, degrade: false, ask: false },
 };
 
@@ -400,6 +414,45 @@ export function buildMainGraph(deps: GraphDeps) {
   const build = wrap('build', 'test-generator', (s) => (builder ? builder.build(s) : {}));
   const review2 = wrap('review2', 'test-reviewer', (s) => (builder ? builder.review2(s) : {}));
 
+  // ------------------------------------------------------------------ execute (Phase 5 Runner, no LLM)
+  const execute = wrap('execute', 'runner', async (s) => {
+    if (!deps.execute) return {};
+    const out = await deps.execute({ runId: s.runId, storyKey: s.storyKey, org: s.org, autonomy: s.autonomy });
+    const issues: Issue[] = [];
+    if (out.status === 'BLOCKED' && out.blockedReason) {
+      issues.push(
+        createIssue({
+          kind: /approval/.test(out.blockedReason) ? 'DATA' : 'AUTH',
+          node: 'execute',
+          message: out.blockedReason,
+          resolution: 'ESCALATED',
+        }),
+      );
+    }
+    const now = new Date().toISOString();
+    return {
+      results: out.results,
+      dataLedger: out.dataLedger,
+      execution: out.summary,
+      executionGate: out.gate,
+      executionStatus: out.status,
+      ...(out.blockedReason ? { executionBlockedReason: out.blockedReason } : {}),
+      ...(out.reconcile ? { reconcile: out.reconcile } : {}),
+      issues,
+      evidence: out.results
+        .filter((r) => r.state !== 'SKIPPED')
+        .map((r) => ({
+          id: `EV-RUN-${r.caseId ?? r.testId}`,
+          claim: `${r.caseId ?? r.testId} ${r.state} on ${s.org} (${r.environment}, ${r.browser ?? '-'}): ${r.reason ?? ''}`,
+          sources: [`runs/${s.runId}/results.json`, ...(r.specPath ? [r.specPath] : [])],
+          agent: 'runner',
+          confidence: r.state === 'PASS' || r.state === 'FAIL' ? 1 : 0.5,
+          environment: r.environment,
+          createdAt: now,
+        })),
+    };
+  });
+
   // ------------------------------------------------------------------ report
   const report = wrap(
     'report',
@@ -408,7 +461,8 @@ export function buildMainGraph(deps: GraphDeps) {
       const status = finalStatus(s);
       const paths = await ensureRunFolder(deps.root, s.runId);
       // A build-only run (`qa build`, seeded with reviewed cases) has no analysis of its own to report.
-      const buildOnly = !s.requirements.length && s.buildSpecs.length > 0;
+      // An execute-only run (`qa run`) likewise reports its execution, not an analysis.
+      const buildOnly = !s.requirements.length && (s.buildSpecs.length > 0 || s.executeSeed);
       const outputs = buildOnly ? [] : await writeAnalysisReport(s, paths.dir, status);
       if (!buildOnly) say(`Report written: ${outputs.find((o) => o.endsWith('.md')) ?? paths.dir}`);
       if (s.testCases.length && s.charter) {
@@ -420,6 +474,24 @@ export function buildMainGraph(deps: GraphDeps) {
         const buildOut = await writeBuildReport(s, paths.dir, status);
         outputs.push(...buildOut);
         say(`Build report written: ${buildOut.find((o) => o.endsWith('build-report.md')) ?? paths.dir}`);
+      }
+      if (s.execution) {
+        const env = deps.adapter.env;
+        const jira =
+          typeof env['JIRA_BASE_URL'] === 'string' && !/<[^>]+>/.test(env['JIRA_BASE_URL'])
+            ? env['JIRA_BASE_URL']
+            : undefined;
+        const execOut = await writeExecutionReports(
+          loadReportData({
+            root: deps.root,
+            runId: s.runId,
+            status,
+            failedAttempts: [...attemptLog.failed()],
+            ...(jira ? { jiraBaseUrl: jira } : {}),
+          }),
+        );
+        outputs.push(...execOut);
+        say(`Execution reports written: ${execOut.find((o) => o.endsWith('index.md')) ?? paths.dir}`);
       }
       return { status, outputs };
     },
@@ -506,7 +578,9 @@ export function buildMainGraph(deps: GraphDeps) {
       case 'build':
         return s.buildSpecs.length ? 'review2' : 'report';
       case 'review2':
-        return Object.keys(s.buildFeedback).length ? 'build' : 'report';
+        return Object.keys(s.buildFeedback).length ? 'build' : deps.execute ? 'execute' : 'report';
+      case 'execute':
+        return 'report';
       default:
         return 'report';
     }
@@ -521,18 +595,21 @@ export function buildMainGraph(deps: GraphDeps) {
     'review',
     'build',
     'review2',
+    'execute',
     'report',
   ] as const;
   /**
    * `qa design`: a run seeded with earlier analysis (requirements, no inputs) starts at plan.
    * `qa build`: a run seeded with reviewed test cases (no inputs, no requirements) starts at build.
    */
-  const entry = (s: QAGraphStateType): 'intake' | 'plan' | 'build' =>
-    !s.inputs.length && s.testCases.length && !s.requirements.length && deps.build
-      ? 'build'
-      : !s.inputs.length && s.requirements.length && deps.design
-        ? 'plan'
-        : 'intake';
+  const entry = (s: QAGraphStateType): 'intake' | 'plan' | 'build' | 'execute' =>
+    s.executeSeed && deps.execute
+      ? 'execute'
+      : !s.inputs.length && s.testCases.length && !s.requirements.length && deps.build
+        ? 'build'
+        : !s.inputs.length && s.requirements.length && deps.design
+          ? 'plan'
+          : 'intake';
   const graph = new StateGraph(QAGraphState)
     .addNode('intake', intake)
     .addNode('understand', understand)
@@ -542,9 +619,10 @@ export function buildMainGraph(deps: GraphDeps) {
     .addNode('review', review)
     .addNode('build', build)
     .addNode('review2', review2)
+    .addNode('execute', execute)
     .addNode('report', report)
     .addNode('triage', triage)
-    .addConditionalEdges(START, entry, ['intake', 'plan', 'build'])
+    .addConditionalEdges(START, entry, ['intake', 'plan', 'build', 'execute'])
     .addEdge('intake', 'triage')
     .addEdge('understand', 'triage')
     .addEdge('clarify', 'triage')
@@ -553,6 +631,7 @@ export function buildMainGraph(deps: GraphDeps) {
     .addEdge('review', 'triage')
     .addEdge('build', 'triage')
     .addEdge('review2', 'triage')
+    .addEdge('execute', 'triage')
     .addConditionalEdges(
       'triage',
       (s) => ((routes as readonly string[]).includes(s.route) ? (s.route as (typeof routes)[number]) : 'report'),

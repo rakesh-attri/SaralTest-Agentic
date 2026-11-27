@@ -15,7 +15,7 @@ setup('authenticate persona', async ({ browserName: _browser }, testInfo) => {
     request: { persona: ctx.persona, org: ctx.org },
     authDir: ctx.authDir,
     ttlMinutes: ctx.personas.sessionTtlMinutes,
-    browser: ctx.execution.browser,
+    browser: s.browser, // the Runner's resolved browser (QA_BROWSER), not the yaml default
     headless: ctx.execution.headless,
   });
   testInfo.annotations.push({

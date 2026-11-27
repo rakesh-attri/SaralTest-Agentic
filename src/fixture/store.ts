@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
+import { errorConditionHolds, FormulaError } from './formula.js';
 import { matches, scalar, type SoqlQuery } from './soql.js';
 
 /** Minimal object model for the fixture (only what the Account → Contact demo needs). */
@@ -42,15 +43,33 @@ export function loadSeed(file: string): Seed {
   return Seed.parse(JSON.parse(readFileSync(file, 'utf8')));
 }
 
+export interface FixtureErrorItem {
+  errorCode: string;
+  message: string;
+  fields: string[];
+}
+
 export class FixtureError extends Error {
   constructor(
     readonly status: number,
     readonly errorCode: string,
     message: string,
     readonly fields: string[] = [],
+    /** Further errors of the same save (Salesforce returns every failing validation rule). */
+    readonly more: FixtureErrorItem[] = [],
   ) {
     super(message);
   }
+}
+
+/** An active validation rule the fixture enforces (copied from metadata; FIXTURE only). */
+export interface FixtureRule {
+  object: string;
+  name: string;
+  formula: string;
+  message: string;
+  /** Field the error is shown on (errorDisplayField); none = page-level error. */
+  field?: string;
 }
 
 /** In-memory org. Everything here is FIXTURE data. */
@@ -58,6 +77,12 @@ export class FixtureStore {
   private readonly records = new Map<string, Map<string, SObject>>();
   private readonly objects = new Map<string, ObjectDef>();
   private counter = 1000; // seed ids use 1..999
+  private rules: FixtureRule[] = [];
+
+  /** Validation rules enforced on create / update (the server loads them from the fixture metadata). */
+  setValidationRules(rules: readonly FixtureRule[]): void {
+    this.rules = [...rules];
+  }
 
   constructor(readonly seed: Seed) {
     for (const o of seed.objects) this.objects.set(o.name.toLowerCase(), o as unknown as ObjectDef);
@@ -120,6 +145,9 @@ export class FixtureStore {
           throw new FixtureError(400, 'INVALID_CROSS_REFERENCE_KEY', `invalid cross reference id`, [f.name]);
         }
       }
+      if (f.type === 'email' && typeof v === 'string' && v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+        throw new FixtureError(400, 'INVALID_EMAIL_ADDRESS', `${f.label}: invalid email address: ${v}`, [f.name]);
+      }
       if (f.length && typeof v === 'string' && v.length > f.length) {
         throw new FixtureError(400, 'STRING_TOO_LONG', `${f.label}: data value too large`, [f.name]);
       }
@@ -137,9 +165,32 @@ export class FixtureStore {
     }
   }
 
+  /** Validation rules on the record as it would be saved (create: the new values; update: merged). */
+  private applyRules(def: ObjectDef, record: Record<string, unknown>): void {
+    const failing: FixtureErrorItem[] = [];
+    for (const r of this.rules.filter((x) => x.object.toLowerCase() === def.name.toLowerCase())) {
+      let holds: boolean;
+      try {
+        holds = errorConditionHolds(r.formula, record);
+      } catch (err) {
+        const msg = err instanceof FormulaError ? err.message : String(err);
+        throw new FixtureError(500, 'FIXTURE_UNSUPPORTED_FORMULA', `rule ${r.name}: ${msg}`);
+      }
+      if (holds)
+        failing.push({
+          errorCode: 'FIELD_CUSTOM_VALIDATION_EXCEPTION',
+          message: r.message,
+          fields: r.field ? [r.field] : [],
+        });
+    }
+    const [first, ...more] = failing;
+    if (first) throw new FixtureError(400, first.errorCode, first.message, first.fields, more);
+  }
+
   create(object: string, data: Record<string, unknown>, createdById?: string): SObject {
     const def = this.describe(object);
     this.validate(def, data, true);
+    this.applyRules(def, data);
     const id = this.newId(def.keyPrefix);
     const rec: SObject = {
       ...data,
@@ -155,12 +206,17 @@ export class FixtureStore {
     const def = this.describe(object);
     const rec = this.get(object, id);
     this.validate(def, data, false);
+    this.applyRules(def, { ...rec, ...data });
     Object.assign(rec, data);
   }
 
   delete(object: string, id: string): void {
     this.get(object, id);
     this.table(object).delete(id);
+    // As Salesforce: deleting an Account deletes its Contacts (qa-prod run-p5-live-1 left none behind).
+    if (object.toLowerCase() === 'account') {
+      for (const c of this.children('Contact', 'AccountId', id)) this.table('Contact').delete(c.Id);
+    }
   }
 
   private resolve(object: string, rec: SObject, path: string): unknown {

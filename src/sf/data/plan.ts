@@ -96,6 +96,15 @@ export class SnapshotFacts {
     if (!c) return undefined;
     return { createable: c.body?.['createable'] !== false, deletable: c.body?.['deletable'] !== false };
   }
+  /** Every known field of an object (UNKNOWN components excluded). */
+  fields(object: string): FieldFact[] {
+    const prefix = `Field|${object}.`;
+    return [...this.byKey.keys()]
+      .filter((k) => k.startsWith(prefix))
+      .map((k) => this.field(object, k.slice(prefix.length)))
+      .filter((f): f is FieldFact => f !== undefined);
+  }
+
   field(object: string, field: string): FieldFact | undefined {
     const c = this.known('Field', `${object}.${field}`);
     if (!c) return undefined;
@@ -369,6 +378,15 @@ export function buildDataPlan(i: BuildPlanInput): DataPlan {
     const fields: DataPlanStep['fields'] = Object.fromEntries(
       Object.entries(base.fields).filter(([k]) => !v.remove.includes(k)),
     );
+    // Synthetic values get the variant's own tokens: a copy of the positive record's Email etc. would trip an active
+    // duplicate rule before the rule under test (qa-prod run-p5-live-data-1: DUPLICATES_DETECTED instead of
+    // REQUIRED_FIELD_MISSING). Recipe (business) values stay as approved.
+    const recipeObj = recipe.objects.find((o) => o.object === base.object);
+    for (const k of Object.keys(fields)) {
+      const tpl = recipeObj?.fields[k];
+      if (base.fieldSources[k] === 'synthetic' && tpl !== undefined)
+        fields[k] = fillPlaceholders(tpl, i.runId, `${base.stepId}:${v.name}`, k);
+    }
     for (const [k, val] of Object.entries(v.set))
       fields[k] = fillPlaceholders(val, i.runId, `${base.stepId}:${v.name}`, k);
     // Keep the variant's own unique name, so an unexpected save can be found and cleaned up.

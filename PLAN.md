@@ -448,9 +448,9 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
   Final counts are in `docs/phase-4-notes.md`. Phase 4 is closed.
 
 ### Phase 5 — Execution & reporting
-- [ ] Runner (approved tests only), browser channel switch, result states incl. UNCERTAIN, LIVE/FIXTURE/MOCK labels
-- [ ] reporting-labs + Playwright HTML + additional reports; JIRA comment
-- [ ] Application Explorer captures error texts by observation on qa-prod (operator 2026-11-26). This is safe because
+- [x] Runner (approved tests only), browser channel switch, result states incl. UNCERTAIN, LIVE/FIXTURE/MOCK labels
+- [x] reporting-labs + Playwright HTML + additional reports; JIRA comment (posted after operator approval: SF-219 comment 10068)
+- [x] Application Explorer captures error texts by observation on qa-prod (operator 2026-11-26). This is safe because
       a rejected save creates no record, so there is nothing to clean up; still verify by SOQL that no record exists
       after each attempt.
   - Capture two texts:
@@ -459,8 +459,16 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
   - Store each text as OBSERVED evidence (page state + screenshot reference), then re-review TC-SF-219-046 and 050
     (and any other `message-unevidenced` spec).
   - Until then those specs stay REVIEW_REQUIRED.
+- [x] Contact edit form in the Application Explorer; sales-rep locator check + re-reviews (operator 2026-11-26)
 - **Exit:** Account → Contact demo (CLAUDE.md §Acceptance demo) passes end to end on the offline fixture, then live on
   the `dedicated-qa-prod` org.
+- **Status (2026-11-26):** the pipeline runs end to end on the fixture (`run-p5-fixture-4`) and live on qa-prod
+  (`run-p5-live-4`, chromium; Chrome `run-p5-live-chrome-2`): gate, identity, approved data, execution, LIVE/FIXTURE
+  labels, data CLEAN with re-query 0, all reports, `pnpm validate:run` valid; `Contact.AccountId` verified by SOQL in
+  `run-p5-live-data-2`. Test results: **3 PASS, 4 FAIL** on both (the 4 specs expect the Contact page after a
+  related-list Save; qa-prod stays on the Account) — not investigated (Phase 7). sales-rep specs BLOCKED (no Contact
+  access). JIRA comment posted after approval (SF-219 comment 10068, via REST; MCP consent lacks the site). See
+  `docs/phase-5-notes.md`.
 
 ### Phase 6 — Visual QA
 - [ ] Baselines + masking + approve command; layout checks; states; viewports; a11y; visual-diff report

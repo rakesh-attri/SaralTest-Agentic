@@ -168,7 +168,7 @@ export class GuardedChatModel extends BaseChatModel {
         this.guard.limiter?.cooldown(wait);
         throw rateLimitedError(
           this.guard.provider,
-          `${this.guard.provider}/${this.guard.model}: rate limited by the provider (HTTP 429); cooling down ${Math.ceil(wait / 1000)} s`,
+          `${this.guard.provider}/${this.guard.model}: rate limited by the provider (HTTP 429); cooling down ${Math.ceil(wait / 1000)} s — provider said: ${(err instanceof Error ? err.message : String(err)).replace(/\s+/g, ' ').slice(0, 600)}`,
           wait,
           err,
         );

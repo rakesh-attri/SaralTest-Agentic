@@ -1,3 +1,4 @@
+import { md } from '../report/format.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { QAGraphStateType } from './state.js';
@@ -7,10 +8,14 @@ import type { QAGraphStateType } from './state.js';
  * operator. The Reporter agent (Phase 5) builds the full report set on top of these files.
  */
 
-const md = (s: string): string => s.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
 
 export function finalStatus(s: QAGraphStateType): QAGraphStateType['status'] {
   if (s.status === 'BLOCKED') return 'BLOCKED';
+  if (s.executionStatus === 'BLOCKED') return 'BLOCKED';
+  if (s.executeSeed) {
+    const open = s.issues.some((i) => i.resolution === 'DEGRADED' || i.resolution === 'ESCALATED' || !i.resolution);
+    return s.executionStatus === 'COMPLETE' && !open ? 'COMPLETE' : 'PARTIAL';
+  }
   if (!s.requirements.length && !s.buildSpecs.length) return 'PARTIAL';
   const unfinished = s.issues.some(
     (i) =>

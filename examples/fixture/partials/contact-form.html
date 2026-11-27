@@ -1,0 +1,60 @@
+<div class="page-error" role="alert" hidden>
+          <p>We hit a snag.</p>
+          <p class="page-error-detail"></p>
+        </div>
+        <div class="form-element">
+          <label for="input-{{rand}}-1">First Name</label>
+          <input id="input-{{rand}}-1" data-field="FirstName" type="text" maxlength="40" />
+          <div class="field-error" id="err-{{rand}}-1" hidden></div>
+        </div>
+        <div class="form-element">
+          <label for="input-{{rand}}-2"><abbr title="required" aria-hidden="true">*</abbr>Last Name</label>
+          <input id="input-{{rand}}-2" data-field="LastName" type="text" maxlength="80" aria-required="true" />
+          <div class="field-error" id="err-{{rand}}-2" hidden></div>
+        </div>
+        <div class="form-element">
+          <label for="input-{{rand}}-7">Title</label>
+          <input id="input-{{rand}}-7" data-field="Title" type="text" maxlength="128" />
+          <div class="field-error" id="err-{{rand}}-7" hidden></div>
+        </div>
+        <div class="form-element">
+          <label for="input-{{rand}}-3">Email</label>
+          <input id="input-{{rand}}-3" data-field="Email" type="email" maxlength="80" />
+          <div class="field-error" id="err-{{rand}}-3" hidden></div>
+        </div>
+        <div class="form-element">
+          <label for="input-{{rand}}-5">Phone</label>
+          <input id="input-{{rand}}-5" data-field="Phone" type="tel" maxlength="40" />
+          <div class="field-error" id="err-{{rand}}-5" hidden></div>
+        </div>
+        <div class="form-element picklist">
+          <span class="label" id="label-{{rand}}-8">Lead Source</span>
+          <button type="button" role="combobox" id="input-{{rand}}-8" data-field="LeadSource" data-value=""
+            aria-labelledby="label-{{rand}}-8" aria-haspopup="listbox" aria-expanded="false"
+            aria-controls="listbox-{{rand}}-8">--None--</button>
+          <div role="listbox" id="listbox-{{rand}}-8" aria-label="Lead Source" hidden>
+            <div role="option" data-value="" aria-selected="true">--None--</div>
+            {{leadSourceOptions}}
+          </div>
+          <div class="field-error" id="err-{{rand}}-8" hidden></div>
+        </div>
+        <fieldset class="form-element" aria-label="Mailing Address">
+          <legend>Mailing Address</legend>
+          <label for="input-{{rand}}-9">Mailing Street</label>
+          <textarea id="input-{{rand}}-9" data-field="MailingStreet" maxlength="255"></textarea>
+          <label for="input-{{rand}}-10">Mailing City</label>
+          <input id="input-{{rand}}-10" data-field="MailingCity" type="text" maxlength="40" />
+          <label for="input-{{rand}}-11">Mailing Zip/Postal Code</label>
+          <input id="input-{{rand}}-11" data-field="MailingPostalCode" type="text" maxlength="20" />
+          <label for="input-{{rand}}-6">Mailing Country</label>
+          <input id="input-{{rand}}-6" data-field="MailingCountry" type="text" maxlength="80" />
+        </fieldset>
+        <div class="form-element">
+          <label for="input-{{rand}}-4">Account Name</label>
+          <input id="input-{{rand}}-4" role="combobox" aria-expanded="false" aria-autocomplete="list" data-field="AccountName"
+            value="{{Account.Name}}" readonly />
+        </div>
+        <footer>
+          <button type="button" name="CancelEdit">Cancel</button>
+          <button type="submit" name="SaveEdit" class="brand">Save</button>
+        </footer>

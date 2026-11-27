@@ -30,6 +30,18 @@ import {
 import { buildDataPlan, loadRecipe, RECIPE_DIR, SnapshotFacts } from '../sf/data/plan.js';
 import { createRuntime, parseModelChain } from './analyze.js';
 import { registryFile } from './locators.js';
+import { ObservedMessageStore } from '../knowledge/observedMessages.js';
+import type { ObservedMessage } from '../core/schemas/execution.js';
+
+/** Latest UI-observed messages of an org (empty when none were captured). */
+function observedFor(root: string, orgId: string): ObservedMessage[] {
+  const store = new ObservedMessageStore(join(root, '.qa-memory', 'knowledge.db'));
+  try {
+    return store.latest(orgId);
+  } finally {
+    store.close();
+  }
+}
 
 type Say = (msg: string) => void;
 
@@ -134,7 +146,10 @@ export function createBuild(
         recipes,
         facts,
         personas: personas.personas.map((p) => p.id),
+        observedMessages: observedFor(o.root, org.orgId),
       };
+      if (ctx.observedMessages?.length)
+        notes.push(`Observed messages (OBSERVED evidence): ${String(ctx.observedMessages.length)} for ${org.alias}.`);
       return { ctx, notes };
     } finally {
       snapshots.close();
@@ -148,13 +163,14 @@ export function createBuild(
     ...(o.offline
       ? {}
       : {
-          dryRun: async (refs: string[]) => {
+          dryRun: async (refs: string[], personaId?: string) => {
             if (!catalog) throw new QAError('UNKNOWN', 'dry-run before the build inputs were loaded');
+            const persona = personaId ?? o.personaId;
             const ctx = await createSfContext({
               root: o.root,
               runId: o.runId,
               orgAlias: o.orgAlias,
-              ...(o.personaId ? { personaId: o.personaId } : {}),
+              ...(persona ? { personaId: persona } : {}),
             });
             const sf = await ctx.connect();
             o.say(
@@ -434,6 +450,7 @@ export async function snapshotCurrency(
       facts: latest,
       locator: registryLookup(registry.list({ org: org.orgId })),
       stories: [storyKey],
+      orgAlias,
     });
     for (const x of st.stale) notes.push(`STALE ${x.caseId}: ${staleReason(x.stale)}`);
     if (st.untracked.length)

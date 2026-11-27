@@ -114,3 +114,32 @@ as code. MCP is not used: `browser_evaluate` is blocked, and rule 5 applies.
 | APPROVED | a generated spec with no open finding and a resolved dry-run |
 
 Only APPROVED specs are executed by the Runner (Phase 5).
+
+## 8. Execution (`qa run`, Phase 5)
+
+The generated specs are executed by the Playwright Test runner through the Runner (`src/runner/execute.ts`), never
+step by step through Playwright MCP (CLAUDE.md rule 5).
+
+1. **Gate** — only APPROVED specs with a current dependency record run (`src/runner/gate.ts`). Staleness is re-checked
+   against the org the specs were built for only (`manifest.org`).
+2. **Preflight** — identity check (HARD_STOP → run BLOCKED), browser resolution, one browser session per persona (its
+   landed host becomes `SF_BASE_URL`), recipe approvals (missing → BLOCKED before any test).
+3. **Run** — `npx playwright test <spec files> --project <persona>` with `QA_ORG`, `QA_RUN_ID`, `QA_RUN_DIR`,
+   `QA_STORY_KEY`, `QA_BROWSER`, `QA_AUTONOMY`, `QA_ENVIRONMENT`, `SF_BASE_URL`. Spec filters come before `--project`
+   (a variadic option).
+4. **Results** — `results.json` (normalised), `playwright-results.json` (raw). See `docs/reports-guide.md`.
+5. **Data** — one data sub-run per test attempt; afterwards every sub-run is cleaned again and re-queried; untagged
+   records created by the run user during the run are reported.
+
+**Browsers.** `--browser` > `QA_BROWSER` > `config/execution.yaml` `browser`. `chromium` is Playwright's bundled browser;
+`chrome` / `msedge` are local installs (Playwright `channel`). A channel that cannot be launched falls back to
+`fallbackBrowser`, and every result records the fallback.
+
+**Lightning behaviour the helpers handle (qa-prod, Phase 5):**
+- a failed save shows a popover ("We hit a snag." / "Similar Records Exist") that is its **own modal dialog** and hides
+  the record form from the accessibility tree — `expectFieldError` closes it first (`closeSavePopover`);
+- a picklist near the bottom of a record modal opens under the docked form footer — `selectPicklist` picks the same
+  option by keyboard when the click is intercepted;
+- a Save from a related list **stays on the parent record** (toast + new row); it does not open the new record.
+
+None of these change an assertion, an expected value or a step.

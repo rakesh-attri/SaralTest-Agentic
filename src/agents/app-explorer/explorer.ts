@@ -21,6 +21,11 @@ export interface Capture {
   rootExpr: string;
   /** Bring the page into this state right before it is read (e.g. select a tab). */
   prepare?: () => Promise<boolean>;
+  /**
+   * The root's own accessible name holds record data (Lightning names the edit modal "Edit <record name>"): in element
+   * keys that scope is replaced by this static name, and it is never added to a locator (`rootExpr` already scopes).
+   */
+  scopeAlias?: { role: string; match: RegExp; name: string };
 }
 
 export interface PageSpec {
@@ -131,10 +136,48 @@ export const newContactFromAccount: PageSpec = {
   },
 };
 
+/** Root expression of the Contact edit form: the modal Lightning names "Edit <Contact name>" (no record data kept). */
+export const CONTACT_EDIT_ROOT = "getByRole('dialog', { name: /^Edit / })";
+
+/**
+ * Contact edit form: the record page's Edit button on an existing Contact (picked by read-only SOQL). Observe only —
+ * the form is read and cancelled, never saved.
+ */
+export const contactEditForm: PageSpec = {
+  id: 'contact-edit',
+  title: 'Contact edit form (record page › Edit)',
+  object: 'Contact',
+  async open(page, env) {
+    const main = await recordPage(page, `${env.baseUrl}/lightning/r/Contact/${env.contactId}/view`);
+    await main.getByRole('button', { name: 'Edit', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: /^Edit / });
+    await dialog.waitFor({ state: 'visible', timeout: 60_000 });
+    await waitStable(dialog);
+    return {
+      captures: [
+        {
+          state: 'edit dialog',
+          root: dialog,
+          rootExpr: CONTACT_EDIT_ROOT,
+          scopeAlias: { role: 'dialog', match: /^Edit /, name: 'Edit Contact' },
+        },
+      ],
+      path: 'Contact record page › Edit',
+      cleanup: async () => {
+        const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true });
+        if ((await cancel.count()) === 1) await cancel.click();
+        else await page.keyboard.press('Escape');
+        await dialog.waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => undefined);
+      },
+    };
+  },
+};
+
 export const PAGES: Record<string, PageSpec> = {
   'account-record': recordPageSpec('account-record', 'Account', 'Account record page'),
   'contact-record': recordPageSpec('contact-record', 'Contact', 'Contact record page'),
   'contact-new': newContactFromAccount,
+  'contact-edit': contactEditForm,
 };
 
 export interface ExploreInput {
@@ -262,8 +305,16 @@ export async function explorePages(i: ExploreInput): Promise<{ pages: PageResult
               continue;
             }
             const name = node.name ?? '';
-            const scopes = node.ancestors.filter((a) => SCOPE_ROLES.has(a.role) && a.name && !/\d{4,}/.test(a.name));
-            const key = `${node.role}:${[...scopes.map((s) => s.name ?? ''), name].join('/')}`;
+            const alias = cap.scopeAlias;
+            const isRootScope = (a: { role: string; name?: string }): boolean =>
+              alias !== undefined && a.role === alias.role && alias.match.test(a.name ?? '');
+            const named = node.ancestors.filter((a) => SCOPE_ROLES.has(a.role) && a.name);
+            // Scopes with record data are dropped (4+ digits), the aliased root keeps a static name in the key only.
+            const scopes = named.filter((a) => !isRootScope(a) && !/\d{4,}/.test(a.name ?? ''));
+            const keyScopes = named
+              .filter((a) => isRootScope(a) || !/\d{4,}/.test(a.name ?? ''))
+              .map((a) => (isRootScope(a) ? (alias?.name ?? '') : (a.name ?? '')));
+            const key = `${node.role}:${[...keyScopes, name].join('/')}`;
             if (seen.has(key)) continue;
             seen.add(key);
             const found = await findUnique(cap, node.role, name, scopes);
