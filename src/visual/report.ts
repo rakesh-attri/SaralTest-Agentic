@@ -144,5 +144,21 @@ export function writeVisualReport(runDir: string, s: VisualRunSummary, rec?: Rec
   const htmlFile = join(dir, 'visual-diff.html');
   writeFileSync(mdFile, renderVisualDiffMd(s, rec), 'utf8');
   writeFileSync(htmlFile, renderVisualDiffHtml(s, rec), 'utf8');
-  return [mdFile, htmlFile];
+  const indexFile = join(dir, 'index.md');
+  writeFileSync(
+    indexFile,
+    [
+      `# Reports — visual run ${s.runId} (${environmentLabel(s.environment)})`,
+      '',
+      `${String(s.counts.match)} MATCH · ${String(s.counts.candidates)} candidate(s) · layout ${String(s.counts.layout)} · a11y FAIL ${String(s.counts.a11yFail)} · data ${rec?.status ?? 'NONE'}`,
+      '',
+      '- Visual-diff report: [visual-diff.md](visual-diff.md) · [html](visual-diff.html)',
+      '- Playwright HTML: [../playwright-report/index.html](../playwright-report/index.html)',
+      '- Summary (JSON): [../visual/visual-summary.json](../visual/visual-summary.json)',
+      '- Data reconciliation: [../visual/data-reconciliation.json](../visual/data-reconciliation.json)',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  return [mdFile, htmlFile, indexFile];
 }
