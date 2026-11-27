@@ -4,7 +4,7 @@ import type { Locator, Page, TestInfo } from '@playwright/test';
 import { snapshotName, type LayoutFinding, type VisualRegion } from '../../src/core/schemas/visual.js';
 import { checkLayout } from '../support/layout.js';
 import { runSettings } from '../support/runConfig.js';
-import { expectRegionScreenshot, maskLocators, maskPlan } from '../support/visual.js';
+import { expectRegionScreenshot, maskLocators, maskPlan, shotOptions } from '../support/visual.js';
 
 const settings = runSettings();
 
@@ -44,6 +44,18 @@ export async function captureRegion(
     maskPlan([...settings.execution.visual.mask, 'names', 'counters'], runPrefix),
   );
   await expectRegionScreenshot(page, locator, name, { mask, maxDiffPixelRatio: ratioFor(region) });
+  // The masked image of this run, attached even on a match: `qa visual approve` can re-approve it (release change).
+  const o = shotOptions({ mask, maxDiffPixelRatio: ratioFor(region) });
+  await testInfo.attach(`visual-shot-${name}.png`, {
+    body: await locator.screenshot({
+      mask: o.mask,
+      maskColor: o.maskColor,
+      animations: o.animations,
+      caret: o.caret,
+      scale: o.scale,
+    }),
+    contentType: 'image/png',
+  });
   const findings = await checkLayout(page, locator, {
     region,
     viewport: p.viewport,

@@ -18,6 +18,7 @@ import { registerAuth } from './auth.js';
 import { registerBuild } from './build.js';
 import { registerData } from './data.js';
 import { registerDecide } from './decide.js';
+import { registerVisual } from './visual.js';
 import { registerRun } from './run.js';
 import { registerReport } from './report.js';
 import { registerJiraComment } from './jiraComment.js';
@@ -93,6 +94,7 @@ export function buildCli(): Command {
   registerData(program, rootOf, say);
   registerDecide(program, rootOf, say);
   registerRun(program, rootOf, say);
+  registerVisual(program, rootOf, say);
   registerJiraComment(registerReport(program, rootOf, say), rootOf, say);
 
   const mcp = program.command('mcp').description('MCP server utilities');
@@ -317,7 +319,6 @@ export function buildCli(): Command {
     ['explore', 'Goal-directed exploration', 7],
     ['history', 'Past runs and trends', 9],
     ['learnings', 'Inspect learnings', 8],
-    ['visual', 'Visual baselines', 6],
   ];
   for (const [name, desc, phase] of later) {
     program
