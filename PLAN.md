@@ -475,8 +475,10 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
 - **Exit:** seeded visual change reported as candidate; approving the baseline clears it.
 - **Status (2026-11-27):** exit met on the **offline fixture**: `run-p6-fixture-9` reported 4 DIFF candidates for the
   seeded move; after approval `AP-74584af9d3b7`, `run-p6-fixture-10` was 6 MATCH. All fixture runs pass `pnpm validate:visual`.
-  The **live qa-prod proof is pending**: the operator chose "not yet", and the Setup layout move is still to do. See
-  `docs/phase-6-notes.md`.
+  Live qa-prod (desktop): R1 approved (`run-p6-live-3`, AP-ad178d5f7b56), R2 3 MATCH (`run-p6-live-9`), the seeded
+  Phone move reported as DIFF and cleared by approval both ways (move `-11` AP-0d3f1447ba4f, revert `-14`
+  AP-176058e3a085). Left open by the operator: account-record header strip (0.091 %, `-15`), intermittent dialog
+  Address shift; tablet viewport deferred. See `docs/phase-6-notes.md`.
 
 ### Phase 7 — Investigation, healing, exploration
 - [ ] Failure Investigator (full taxonomy), Self-Healer (AST check: assertions unchanged; repairs auditable/reversible),
