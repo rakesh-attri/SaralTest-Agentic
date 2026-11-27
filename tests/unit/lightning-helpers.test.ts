@@ -231,6 +231,22 @@ describe('Lightning + a11y helpers on the offline fixture (real Chromium, FIXTUR
     expect(await page.locator('[data-qa-a11y-scope]').count()).toBe(0);
   });
 
+  it('scanScoped reaches a region inside nested shadow roots (Lightning tabpanel, qa-prod run-p6-live-4)', async () => {
+    await openRecord(page, 'Account', ACCOUNT);
+    await page.getByRole('main').evaluate((main) => {
+      const outer = document.createElement('records-outer');
+      const inner = document.createElement('records-inner');
+      outer.attachShadow({ mode: 'open' }).append(inner);
+      inner.attachShadow({ mode: 'open' }).innerHTML =
+        '<div role="tabpanel" aria-label="Shadow Details"><input type="text" name="unlabelledInShadow"></div>';
+      main.append(outer);
+    });
+    const panel = page.getByRole('tabpanel', { name: 'Shadow Details' });
+    const r = await scanScoped(page, panel, NS);
+    expect(r.baseline.flatMap((v) => v.targets).join(' ')).toMatch(/unlabelledInShadow/);
+    expect(await page.locator('[data-qa-a11y-scope]').count()).toBe(0);
+  });
+
   it('checkTabOrder: all reachable in visual order; an unreachable field or a visual reorder fails', async () => {
     const dialog = await openDialog();
     const els = {

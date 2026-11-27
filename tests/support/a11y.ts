@@ -86,19 +86,35 @@ export function classifyViolations(results: AxeLikeResults, ns: A11yNamespaces):
 /** Run axe on exactly one region. The region is marked with a one-off attribute so `include` cannot over-match. */
 export async function scanScoped(page: Page, scope: Locator, ns: A11yNamespaces): Promise<A11yScanResult> {
   const token = randomBytes(6).toString('hex');
-  await scope.evaluate((el, t) => {
-    el.setAttribute('data-qa-a11y-scope', t);
+  // The scope and every shadow host above it are marked; axe gets the path (outermost host first). A plain selector
+  // cannot reach an element inside a shadow root: the Contact Details tabpanel on Lightning (qa-prod run-p6-live-4).
+  const path = await scope.evaluate((el, t) => {
+    const out: string[] = [];
+    let cur: Element | null = el;
+    for (let i = 0; cur; i++) {
+      cur.setAttribute('data-qa-a11y-scope', `${t}-${String(i)}`);
+      out.unshift(`[data-qa-a11y-scope="${t}-${String(i)}"]`);
+      const root = cur.getRootNode();
+      cur = root instanceof ShadowRoot ? root.host : null;
+    }
+    return out;
   }, token);
   try {
+    const [outer = '', next, ...rest] = path;
     const results = await new AxeBuilder({ page })
-      .include(`[data-qa-a11y-scope="${token}"]`)
+      .include(next === undefined ? outer : { fromShadowDom: [outer, next, ...rest] })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .options({ ancestry: true })
       .analyze();
     return classifyViolations(results, ns);
   } finally {
     await scope.evaluate((el) => {
-      el.removeAttribute('data-qa-a11y-scope');
+      let cur: Element | null = el;
+      while (cur) {
+        cur.removeAttribute('data-qa-a11y-scope');
+        const root = cur.getRootNode();
+        cur = root instanceof ShadowRoot ? root.host : null;
+      }
     });
   }
 }

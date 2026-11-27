@@ -272,6 +272,19 @@ export async function collectLayout(
         return '';
       };
       const rootNode = (el: Element): Document | ShadowRoot => el.getRootNode() as Document | ShadowRoot;
+      /**
+       * Lookup inside the element's own tree. Lightning Locker forbids ShadowRoot.getElementById (qa-prod
+       * run-p6-live-4); querySelector is tried next, and a blocked lookup just yields no name.
+       */
+      const inRoot = (el: Element, selector: string, id?: string): Element | null => {
+        const root = rootNode(el);
+        try {
+          if (id !== undefined && root instanceof Document) return root.getElementById(id);
+          return root.querySelector(selector);
+        } catch {
+          return null;
+        }
+      };
       /** Text without aria-hidden parts (e.g. the required "*"), as an accessible name would read. */
       const textOf = (el: Element): string => {
         let t = '';
@@ -289,7 +302,7 @@ export async function collectLayout(
           const t = by
             .split(/\s+/)
             .map((id) => {
-              const r = rootNode(el).getElementById(id);
+              const r = inRoot(el, `[id="${CSS.escape(id)}"]`, id);
               return r ? textOf(r) : '';
             })
             .join(' ')
@@ -297,7 +310,7 @@ export async function collectLayout(
           if (t) return t.slice(0, 60);
         }
         if (el.id) {
-          const lab = rootNode(el).querySelector(`label[for="${CSS.escape(el.id)}"]`);
+          const lab = inRoot(el, `label[for="${CSS.escape(el.id)}"]`);
           if (lab && textOf(lab)) return textOf(lab).slice(0, 60);
         }
         const role = roleOf(el);
