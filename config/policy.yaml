@@ -56,9 +56,10 @@ checkpoints:                     # human checkpoints; autonomy level decides whi
   - publish-learnings
   - prod-test-org-mutations
   - publish-run-comment            # JIRA run comment: the exact text is approved by a human at every autonomy level
+  - approve-visual-baseline        # visual baselines + accepted Salesforce-owned a11y findings: a human at every level
 approvals:
   L1: all
   L2: [missing-rules-and-unknown-transitions, review-required-expectations, new-data-recipe-or-mutation-type,
        behaviour-changing-locator-repairs, confirm-bug-and-external-submission, publish-learnings, prod-test-org-mutations,
-       publish-run-comment]
-  L3: [prod-test-org-mutations, publish-run-comment]
+       publish-run-comment, approve-visual-baseline]
+  L3: [prod-test-org-mutations, publish-run-comment, approve-visual-baseline]

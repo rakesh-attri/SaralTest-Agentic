@@ -332,6 +332,14 @@ export const ExecutionConfig = z.object({
     maxDiffPixelRatio: z.number().min(0).max(1),
     mask: z.array(z.string()),
     allowExternalUpload: z.boolean(),
+    /** Viewport names (from `viewports`) the visual suite runs on; functional tests use `viewports[0]` only. */
+    viewports: z.array(z.string().min(1)).min(1).default(['desktop']),
+    /** Baselines live in `<baselineDir>/<org>/` (repo-relative). */
+    baselineDir: z.string().min(1).default('tests/visual-baselines'),
+    /** Per-region ratio overrides (reported in the visual-diff report whenever used). */
+    regionRatio: z.record(z.string(), z.number().min(0).max(1)).default({}),
+    /** Cumulative layout-shift score above which a `layout-shift` finding is reported. */
+    layoutShiftThreshold: z.number().min(0).default(0.1),
   }),
   /** Playwright `testIdAttribute` for custom LWCs that carry test ids (PLAN.md §12: open for custom LWCs). */
   testIdAttribute: z.string().min(1).default('data-testid'),
@@ -353,6 +361,13 @@ export const ExecutionConfig = z.object({
       customNamespaces: ['c'],
       standardNamespaces: ['lightning', 'force', 'records', 'one', 'forcegenerated', 'runtime_', 'flexipage', 'slds'],
     }),
+}).superRefine((c, ctx) => {
+  const names = new Set(c.viewports.map((v) => v.name));
+  c.visual.viewports.forEach((v, i) => {
+    if (!names.has(v)) {
+      ctx.addIssue({ code: 'custom', path: ['visual', 'viewports', i], message: `viewport ${v} not defined in viewports` });
+    }
+  });
 });
 export type ExecutionConfig = z.infer<typeof ExecutionConfig>;
 
