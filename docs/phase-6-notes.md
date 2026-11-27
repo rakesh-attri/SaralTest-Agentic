@@ -98,6 +98,44 @@ pnpm validate:visual <runIds>
   and report banner.
 - `qa visual status --org fixture`: 6 baselines, all OK.
 
+## ▶ Resume here: live R1 on qa-prod
+
+State on 2026-11-27, branch `claude/phase-6-visual-qa` at the commit that added this section:
+- The fixture proof is complete; fixture baselines are approved and committed (`tests/visual-baselines/fixture/`, 6, all OK).
+- **No qa-prod run has started.** `tests/visual-baselines/qa-prod/` does not exist yet.
+- Next step: **live R1**. The operator has to say go first (they answered "not yet" on 2026-11-27).
+
+Before R1, check these preconditions:
+1. qa-prod's Contact Layout is unchanged (Phone in its original position).
+2. `pnpm qa doctor --live` or `pnpm qa auth status --org qa-prod` is green: identity `00DdN00000uQ5dKUAS`.
+3. The recipe approval still matches. Preflight checks `recipe:account-contact@136f8241a8ee3c57` (`AP-fc20bc1739d9`).
+   If the recipe hash changed, the run stops BLOCKED and prints the `qa data approve` line, which needs the operator's
+   approval.
+
+Run R1 (the run id below is the one to use):
+
+```powershell
+pnpm qa visual run --org qa-prod --run-id run-p6-live-1
+pnpm validate:visual run-p6-live-1
+```
+
+What to expect, and what to do next:
+- **Expected:** 6 NO_BASELINE candidates, plus any Salesforce-owned axe rules as NEW_STANDARD. The run creates 4
+  Accounts and 4 Contacts in total (one of each per test) and cleans them up.
+- **Before asking for approval:** open `runs/run-p6-live-1/report/visual-diff.html` and check every actual image:
+  - no visible record names, emails, dates or IDs;
+  - the dialog is captured by its content box (`contentClip` on the real Lightning DOM);
+  - layout findings and Tab-order results make sense.
+  If something leaks or the dialog capture is wrong, fix it before asking for approval.
+- **Approval:** the operator approves in chat, then
+  `pnpm qa visual approve --run run-p6-live-1 --by "Rakesh Sharma" [--a11y]`.
+- **R2:** `run-p6-live-2` must be 6 MATCH. If Lightning's own rendering noise is above 0.05 %, tighten the masks; any
+  ratio change goes into `regionRatio` and is reported.
+- **Seeded change:** then follow steps 3–5 below. Tell the operator when to move Phone in Setup, and use run ids
+  `run-p6-live-3`, `run-p6-live-4` and so on.
+- **When the live exit passes:** update this file, the capability-matrix row "Exit — live qa-prod" and PLAN.md
+  Phase 6 status.
+
 ## Live proof on qa-prod (pending — not run)
 
 The operator answered "not yet" to the live start on 2026-11-27. Steps when approved:
