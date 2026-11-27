@@ -1,0 +1,311 @@
+/// <reference lib="dom" />
+// Local layout checks (visual-testing skill, PLAN.md §7g): deterministic, read-only, no AI.
+// Element boxes are collected in the browser (shadow DOM included); the analysis is a pure function so it is unit
+// tested without a browser. Every finding is a review candidate in the visual-diff report, never a defect by itself.
+import type { Locator, Page } from '@playwright/test';
+import type { LayoutFinding, VisualRegion } from '../../src/core/schemas/visual.js';
+
+export interface ElementBox {
+  /** Index in the snapshot; `parent` is the index of the nearest collected ancestor (or -1). */
+  index: number;
+  parent: number;
+  name: string;
+  role: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visible: boolean;
+  required: boolean;
+  interactive: boolean;
+  /** Fixed-text element (label, button, tab) whose text is cut off: scrollWidth − clientWidth in px. */
+  overflowPx: number;
+}
+
+export interface LayoutSnapshot {
+  viewport: { width: number; height: number };
+  boxes: ElementBox[];
+}
+
+export interface PageStateSnapshot {
+  bodyTextLength: number;
+  hasMain: boolean;
+  spinnersVisible: number;
+  errorTexts: string[];
+}
+
+export interface LayoutOptions {
+  region: VisualRegion;
+  viewport: string;
+  /** Overlap below this area (px²) is ignored (borders / focus outlines touching). */
+  minOverlapPx2?: number;
+  layoutShift?: number;
+  layoutShiftThreshold?: number;
+}
+
+const area = (a: ElementBox, b: ElementBox): number => {
+  const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+  const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+  return w > 0 && h > 0 ? w * h : 0;
+};
+
+function isAncestor(boxes: ElementBox[], anc: number, node: number): boolean {
+  let p = boxes[node]?.parent ?? -1;
+  while (p >= 0) {
+    if (p === anc) return true;
+    p = boxes[p]?.parent ?? -1;
+  }
+  return false;
+}
+
+/** Pure analysis of one region's element boxes. */
+export function analyzeLayout(snap: LayoutSnapshot, o: LayoutOptions): LayoutFinding[] {
+  const out: LayoutFinding[] = [];
+  const base = { region: o.region, viewport: o.viewport, elements: [] as string[] };
+  const minOverlap = o.minOverlapPx2 ?? 16;
+  const shown = snap.boxes.filter((b) => b.visible && b.width > 0 && b.height > 0);
+  const interactive = shown.filter((b) => b.interactive);
+  for (let i = 0; i < interactive.length; i++) {
+    for (let j = i + 1; j < interactive.length; j++) {
+      const a = interactive[i];
+      const b = interactive[j];
+      if (!a || !b || isAncestor(snap.boxes, a.index, b.index) || isAncestor(snap.boxes, b.index, a.index)) continue;
+      const ov = area(a, b);
+      if (ov >= minOverlap) {
+        out.push({
+          ...base,
+          kind: 'overlap',
+          elements: [a.name, b.name],
+          detail: `"${a.name}" (${a.role}) and "${b.name}" (${b.role}) overlap by ${Math.round(ov)} px²`,
+          value: Math.round(ov),
+        });
+      }
+    }
+  }
+  for (const b of shown) {
+    if (b.overflowPx > 1) {
+      out.push({
+        ...base,
+        kind: 'clipped-text',
+        elements: [b.name],
+        detail: `"${b.name}" (${b.role}) text is cut off by ${Math.round(b.overflowPx)} px`,
+        value: Math.round(b.overflowPx),
+      });
+    }
+    if (b.interactive && (b.x + b.width > snap.viewport.width + 1 || b.x < -1)) {
+      out.push({
+        ...base,
+        kind: 'off-screen',
+        elements: [b.name],
+        detail: `"${b.name}" (${b.role}) extends outside the ${snap.viewport.width}px-wide viewport (x ${Math.round(b.x)}, width ${Math.round(b.width)})`,
+      });
+    }
+  }
+  for (const b of snap.boxes) {
+    if (b.required && (!b.visible || b.width === 0 || b.height === 0)) {
+      out.push({
+        ...base,
+        kind: 'hidden-required',
+        elements: [b.name],
+        detail: `required control "${b.name}" (${b.role}) is not visible`,
+      });
+    }
+  }
+  if (o.layoutShift !== undefined && o.layoutShift > (o.layoutShiftThreshold ?? 0.1)) {
+    out.push({
+      ...base,
+      kind: 'layout-shift',
+      detail: `cumulative layout shift ${o.layoutShift.toFixed(3)} > ${String(o.layoutShiftThreshold ?? 0.1)}`,
+      value: Number(o.layoutShift.toFixed(4)),
+    });
+  }
+  return out;
+}
+
+/** Pure: blank page, loading that never finished, or an error banner. */
+export function analyzePageState(s: PageStateSnapshot, o: Pick<LayoutOptions, 'region' | 'viewport'>): LayoutFinding[] {
+  const out: LayoutFinding[] = [];
+  const base = { region: o.region, viewport: o.viewport, elements: [] as string[] };
+  if (!s.hasMain || s.bodyTextLength < 20) {
+    out.push({
+      ...base,
+      kind: 'blank-page',
+      detail: `page looks blank (main region ${s.hasMain ? 'present' : 'missing'}, ${s.bodyTextLength} chars of text)`,
+    });
+  }
+  if (s.spinnersVisible > 0) {
+    out.push({
+      ...base,
+      kind: 'loading-not-finished',
+      detail: `${s.spinnersVisible} loading indicator(s) still visible`,
+    });
+  }
+  for (const t of s.errorTexts) out.push({ ...base, kind: 'error-banner', detail: `error shown: ${t}` });
+  return out;
+}
+
+/** Installs a `PerformanceObserver` that sums layout-shift entries (call before navigation). */
+export async function observeLayoutShift(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __qaLayoutShift: number };
+    w.__qaLayoutShift = 0;
+    try {
+      new PerformanceObserver((list) => {
+        for (const e of list.getEntries() as (PerformanceEntry & { value: number; hadRecentInput: boolean })[]) {
+          if (!e.hadRecentInput) w.__qaLayoutShift += e.value;
+        }
+      }).observe({ type: 'layout-shift', buffered: true });
+    } catch {
+      // layout-shift entries not supported by this browser: the score stays 0
+    }
+  });
+}
+
+export async function readLayoutShift(page: Page): Promise<number | undefined> {
+  return page.evaluate(() => (window as unknown as { __qaLayoutShift?: number }).__qaLayoutShift);
+}
+
+/** Collect element boxes of one region (open shadow roots included). Names are accessible names, never values. */
+export async function collectLayout(region: Locator): Promise<LayoutSnapshot> {
+  return region.evaluate((root) => {
+    const INTERACTIVE = new Set([
+      'button',
+      'link',
+      'textbox',
+      'combobox',
+      'checkbox',
+      'radio',
+      'tab',
+      'searchbox',
+      'spinbutton',
+      'menuitem',
+      'switch',
+    ]);
+    const FIXED_TEXT = new Set(['label', 'button', 'tab', 'heading']);
+    const roleOf = (el: Element): string => {
+      const r = el.getAttribute('role');
+      if (r) return r;
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'button') return 'button';
+      if (tag === 'a' && el.hasAttribute('href')) return 'link';
+      if (tag === 'select') return 'combobox';
+      if (tag === 'textarea') return 'textbox';
+      if (tag === 'label') return 'label';
+      if (/^h[1-6]$/.test(tag)) return 'heading';
+      if (tag === 'input') {
+        const t = (el as HTMLInputElement).type;
+        if (t === 'hidden') return '';
+        if (t === 'checkbox' || t === 'radio') return t;
+        if (t === 'button' || t === 'submit') return 'button';
+        return 'textbox';
+      }
+      return '';
+    };
+    const rootNode = (el: Element): Document | ShadowRoot => el.getRootNode() as Document | ShadowRoot;
+    /** Text without aria-hidden parts (e.g. the required "*"), as an accessible name would read. */
+    const textOf = (el: Element): string => {
+      let t = '';
+      for (const n of Array.from(el.childNodes)) {
+        if (n.nodeType === Node.TEXT_NODE) t += n.textContent ?? '';
+        else if (n instanceof Element && n.getAttribute('aria-hidden') !== 'true') t += textOf(n);
+      }
+      return t.replace(/\s+/g, ' ').trim();
+    };
+    const nameOf = (el: Element): string => {
+      const aria = el.getAttribute('aria-label');
+      if (aria) return aria.trim().slice(0, 60);
+      const by = el.getAttribute('aria-labelledby');
+      if (by) {
+        const t = by
+          .split(/\s+/)
+          .map((id) => {
+            const r = rootNode(el).getElementById(id);
+            return r ? textOf(r) : '';
+          })
+          .join(' ')
+          .trim();
+        if (t) return t.slice(0, 60);
+      }
+      if (el.id) {
+        const lab = rootNode(el).querySelector(`label[for="${CSS.escape(el.id)}"]`);
+        if (lab && textOf(lab)) return textOf(lab).slice(0, 60);
+      }
+      const role = roleOf(el);
+      // field values (textbox content, link text of record names) are never collected
+      if (role === 'textbox' || role === 'combobox' || role === 'link')
+        return el.getAttribute('title')?.slice(0, 60) ?? role;
+      return textOf(el).slice(0, 60) || role;
+    };
+    const boxes: {
+      index: number;
+      parent: number;
+      name: string;
+      role: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      visible: boolean;
+      required: boolean;
+      interactive: boolean;
+      overflowPx: number;
+    }[] = [];
+    const walk = (node: Element, parent: number): void => {
+      let me = parent;
+      const role = roleOf(node);
+      if (role && (INTERACTIVE.has(role) || FIXED_TEXT.has(role))) {
+        const r = node.getBoundingClientRect();
+        const cs = getComputedStyle(node);
+        const visible =
+          cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity) > 0 && r.width > 0 && r.height > 0;
+        const required = node.hasAttribute('required') || node.getAttribute('aria-required') === 'true';
+        const he = node as HTMLElement;
+        const overflowPx =
+          FIXED_TEXT.has(role) && cs.overflow !== 'visible' ? Math.max(0, he.scrollWidth - he.clientWidth) : 0;
+        me = boxes.length;
+        boxes.push({
+          index: me,
+          parent,
+          name: nameOf(node),
+          role,
+          x: r.x,
+          y: r.y,
+          width: r.width,
+          height: r.height,
+          visible,
+          required,
+          interactive: INTERACTIVE.has(role),
+          overflowPx,
+        });
+      }
+      if (node.shadowRoot) for (const c of Array.from(node.shadowRoot.children)) walk(c, me);
+      for (const c of Array.from(node.children)) walk(c, me);
+    };
+    walk(root, -1);
+    return { viewport: { width: window.innerWidth, height: window.innerHeight }, boxes };
+  });
+}
+
+const ERROR_TEXT = /Sorry to interrupt|Looks like there's a problem|Something went wrong|An unexpected error/i;
+
+/** Page-level state for blank / loading / error-banner checks. */
+export async function collectPageState(page: Page): Promise<PageStateSnapshot> {
+  const spinnersVisible = await page.getByRole('status', { name: /^Loading/ }).count();
+  const hasMain = (await page.getByRole('main').count()) > 0;
+  const bodyText = await page.evaluate(() => document.body.innerText);
+  const bodyTextLength = bodyText.trim().length;
+  const alerts = await page.getByRole('alert').allInnerTexts();
+  const errorTexts = alerts.map((t) => t.replace(/\s+/g, ' ').trim()).filter((t) => ERROR_TEXT.test(t));
+  const m = ERROR_TEXT.exec(bodyText);
+  if (m && !errorTexts.length) errorTexts.push(m[0]);
+  return { bodyTextLength, hasMain, spinnersVisible, errorTexts };
+}
+
+/** All layout + page-state findings for one region (read-only). */
+export async function checkLayout(page: Page, region: Locator, o: LayoutOptions): Promise<LayoutFinding[]> {
+  const layoutShift = o.layoutShift ?? (await readLayoutShift(page));
+  return [
+    ...analyzePageState(await collectPageState(page), o),
+    ...analyzeLayout(await collectLayout(region), { ...o, ...(layoutShift === undefined ? {} : { layoutShift }) }),
+  ];
+}

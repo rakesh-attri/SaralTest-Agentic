@@ -27,10 +27,20 @@ describe('visual contracts', () => {
       approvedAt: '2026-11-27T10:00:00.000Z',
       sourceRun: 'run-1',
     };
-    const ok = BaselineManifest.parse({ org: 'qa-prod', orgId: '00DdN00000uQ5dKUAS', environment: 'LIVE', baselines: [base] });
+    const ok = BaselineManifest.parse({
+      org: 'qa-prod',
+      orgId: '00DdN00000uQ5dKUAS',
+      environment: 'LIVE',
+      baselines: [base],
+    });
     expect(ok.a11y).toEqual([]);
     expect(() =>
-      BaselineManifest.parse({ org: 'qa-prod', orgId: '00DdN00000uQ5dKUAS', environment: 'LIVE', baselines: [{ ...base, sha256: 'x' }] }),
+      BaselineManifest.parse({
+        org: 'qa-prod',
+        orgId: '00DdN00000uQ5dKUAS',
+        environment: 'LIVE',
+        baselines: [{ ...base, sha256: 'x' }],
+      }),
     ).toThrow();
     expect(() =>
       BaselineManifest.parse({
@@ -78,7 +88,10 @@ describe('visual contracts', () => {
 });
 
 describe('visual config', () => {
-  const example = parse(readFileSync(join(repo, 'config', 'execution.example.yaml'), 'utf8')) as Record<string, unknown>;
+  const example = parse(readFileSync(join(repo, 'config', 'execution.example.yaml'), 'utf8')) as Record<
+    string,
+    unknown
+  >;
 
   it('example config selects desktop + one smaller viewport', () => {
     const c = ExecutionConfig.parse(example);
