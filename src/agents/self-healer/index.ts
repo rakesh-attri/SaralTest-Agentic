@@ -162,8 +162,8 @@ export function planRepairs(
     return { plans: [], refused: `registry expression does not quote "${wantName}" (regex names are not auto-healed)` };
   const plans: LocatorPlan[] = cands.data.slice(0, maxAttempts).map((c) => {
     const roleChanged = Boolean(member.role) && c.role !== member.role;
-    const contains =
-      c.name.toLowerCase().includes(wantName.toLowerCase()) || wantName.toLowerCase().includes(c.name.toLowerCase());
+    // Only a name that keeps the old one ("Save" → "Save Record") is the same element; a shorter one may be another.
+    const contains = c.name.toLowerCase().includes(wantName.toLowerCase());
     return {
       kind: 'locator',
       member,
@@ -172,7 +172,7 @@ export function planRepairs(
       newName: c.name,
       newRole: c.role,
       similarity: c.similarity,
-      behaviourChanging: roleChanged || (!contains && nameSimilarity(wantName, c.name) < 0.5),
+      behaviourChanging: roleChanged || !(contains || nameSimilarity(wantName, c.name) >= 0.67),
     };
   });
   return { plans };

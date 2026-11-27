@@ -78,6 +78,12 @@ export class FixtureStore {
   private readonly objects = new Map<string, ObjectDef>();
   private counter = 1000; // seed ids use 1..999
   private rules: FixtureRule[] = [];
+  private behaviour: { blockContactDeleteWithOpenCases: boolean } = { blockContactDeleteWithOpenCases: false };
+
+  /** Product behaviour toggles (Phase 7): BR-08 is off by default, as on qa-prod (operator 2026-11-27). */
+  setBehaviour(b: { blockContactDeleteWithOpenCases: boolean }): void {
+    this.behaviour = { ...b };
+  }
 
   /** Validation rules enforced on create / update (the server loads them from the fixture metadata). */
   setValidationRules(rules: readonly FixtureRule[]): void {
@@ -194,6 +200,7 @@ export class FixtureStore {
     const id = this.newId(def.keyPrefix);
     const rec: SObject = {
       ...data,
+      ...this.computed(def, data),
       Id: id,
       CreatedDate: new Date().toISOString(),
       ...(createdById ? { CreatedById: createdById } : {}),
@@ -207,15 +214,34 @@ export class FixtureStore {
     const rec = this.get(object, id);
     this.validate(def, data, false);
     this.applyRules(def, { ...rec, ...data });
-    Object.assign(rec, data);
+    Object.assign(rec, data, this.computed(def, { ...rec, ...data }));
+  }
+
+  /** System-computed fields (not createable): Case.IsClosed follows Status, as in Salesforce. */
+  private computed(def: ObjectDef, rec: Record<string, unknown>): Record<string, unknown> {
+    return def.name === 'Case' ? { IsClosed: rec['Status'] === 'Closed' } : {};
   }
 
   delete(object: string, id: string): void {
     this.get(object, id);
+    const kind = object.toLowerCase();
+    const hasCases = this.objects.has('case');
+    if (kind === 'contact' && hasCases) {
+      const open = this.children('Case', 'ContactId', id).filter((c) => c['IsClosed'] !== true);
+      // BR-08 as the product would implement it (a trigger's addError). Off by default: qa-prod does not block it.
+      if (this.behaviour.blockContactDeleteWithOpenCases && open.length) {
+        throw new FixtureError(400, 'DELETE_FAILED', 'A Contact that has open Cases cannot be deleted.');
+      }
+    }
     this.table(object).delete(id);
-    // As Salesforce: deleting an Account deletes its Contacts (qa-prod run-p5-live-1 left none behind).
-    if (object.toLowerCase() === 'account') {
+    // As Salesforce: deleting an Account deletes its Contacts and Cases (qa-prod run-p5-live-1 left none behind).
+    if (kind === 'account') {
       for (const c of this.children('Contact', 'AccountId', id)) this.table('Contact').delete(c.Id);
+      if (hasCases) for (const c of this.children('Case', 'AccountId', id)) this.table('Case').delete(c.Id);
+    }
+    // Deleting a Contact clears the Contact lookup on its Cases (the Cases stay).
+    if (kind === 'contact' && hasCases) {
+      for (const c of this.children('Case', 'ContactId', id)) c['ContactId'] = null;
     }
   }
 

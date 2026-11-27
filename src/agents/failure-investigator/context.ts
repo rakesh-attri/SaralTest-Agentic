@@ -2,6 +2,7 @@
 // IR, the designed test case and the text of every evidence id the failing expectation cites. All local files written
 // by earlier phases (tests/generated/<story>/manifest.json, runs/<buildRun>/build/ir, runs/<designRun>/…).
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { caseEditEvidenceId, loadCaseEdits } from '../../inputs/caseEdits.js';
 import { join } from 'node:path';
 import { z } from 'zod';
 import {
@@ -77,12 +78,23 @@ export function loadCaseContext(root: string, caseId: string): CaseContext {
   const tcFile = join(root, 'runs', designRun, 'design', 'test-cases.json');
   if (existsSync(tcFile)) {
     const raw = readJson(tcFile);
-    const list: unknown[] = Array.isArray(raw) ? (raw as unknown[]) : ((raw as { testCases?: unknown[] }).testCases ?? []);
+    const list: unknown[] = Array.isArray(raw)
+      ? (raw as unknown[])
+      : ((raw as { testCases?: unknown[] }).testCases ?? []);
     const found = list.find((t) => (t as { id?: string }).id === caseId);
     const tc = found ? TestCase.safeParse(found) : undefined;
     if (tc?.success) ctx.testCase = tc.data;
   }
   ctx.evidenceText = loadEvidenceText(root, designRun);
+  // Operator decisions recorded with the case edits (examples/case-edits/<story>.yaml), e.g. BR-08's positive case.
+  const ce = join(root, 'examples', 'case-edits', `${storyKey}.yaml`);
+  if (existsSync(ce)) {
+    try {
+      for (const d of loadCaseEdits(ce).decisions) ctx.evidenceText.set(caseEditEvidenceId(storyKey, d.id), d.text);
+    } catch {
+      /* an invalid edits file is reported by qa build, not here */
+    }
+  }
   return ctx;
 }
 
@@ -93,6 +105,31 @@ export function caseStepOfTitle(title: string | undefined, ir?: TestIR): number 
   if (byIr) return byIr.caseStep;
   const m = /^(\d+)\.\s/.exec(title);
   return m?.[1] ? Number(m[1]) - 1 : undefined;
+}
+
+/** IR checks a Playwright matcher / Lightning helper can implement (run-p7-fx-base-2: map by what failed, not by order). */
+const HELPER_CHECKS: Record<string, IrAssertion['check'][]> = {
+  expectSavePopover: ['saveWarning'],
+  expectToast: ['toast', 'recordView'],
+  expectFieldError: ['fieldError'],
+  expectRecordTitle: ['recordTitle', 'recordView'],
+  recordIdFromView: ['recordView'],
+};
+const MATCHER_CHECKS: [RegExp, IrAssertion['check'][]][] = [
+  [/\.toHaveURL\(/, ['recordView']],
+  [/\.(?:toContainText|toHaveText)\(/, ['recordField', 'recordTitle', 'toast', 'relatedListHasRecord', 'fieldError']],
+  [/\.toBeHidden\(/, ['hidden']],
+  [/\.toHaveValue\(/, ['inputValue']],
+  [/\.toBeVisible\(/, ['visible', 'relatedListHasRecord', 'fieldError', 'recordView']],
+  [/expect\.poll|\.toBe\(|\.toEqual\(/, ['soqlField', 'soqlNoRecord', 'historyTracked', 'apiRejects']],
+];
+
+/** Candidate IR checks for a failure, from the helper in the stack or the matcher in the error's first line. */
+export function checksOfFailure(message: string): IrAssertion['check'][] | undefined {
+  const helper = /\bat (expect\w+|recordIdFromView) \(/.exec(message)?.[1];
+  if (helper && HELPER_CHECKS[helper]) return HELPER_CHECKS[helper];
+  const first = message.split('\n').find((l) => l.trim()) ?? '';
+  return MATCHER_CHECKS.find(([re]) => re.test(first))?.[1];
 }
 
 /** The IR assertion a signal most likely refers to (within the failed step). */
@@ -109,25 +146,20 @@ export function failedAssertion(
   const topStep = r.failure?.steps.find((s) => !s.ok)?.title ?? stepTitle;
   const caseStep = caseStepOfTitle(topStep, ctx.ir);
   const kinds = new Set(signals.map((s) => s.kind));
-  // No step info (Phase 5 results): the first step holding an assertion of the kind the signal names.
-  const bySignal = kinds.has('URL_MISMATCH')
-    ? ctx.ir.steps.find((s) => s.assertions.some((x) => x.check === 'recordView'))
-    : undefined;
-  const step = ctx.ir.steps.find((s) => s.caseStep === caseStep) ?? bySignal ?? ctx.ir.steps[ctx.ir.steps.length - 1];
+  const message = r.failure?.attempts[r.failure.attempts.length - 1]?.message ?? r.errorSummary ?? r.reason ?? '';
+  const checks = checksOfFailure(message) ?? (kinds.has('URL_MISMATCH') ? ['recordView' as const] : undefined);
+  // No step info (Phase 5 results): the first step holding an assertion of the kind the failure names.
+  const byCheck = checks ? ctx.ir.steps.find((s) => s.assertions.some((x) => checks.includes(x.check))) : undefined;
+  const step = ctx.ir.steps.find((s) => s.caseStep === caseStep) ?? byCheck ?? ctx.ir.steps[ctx.ir.steps.length - 1];
   if (!step) return undefined;
   const pick = (pred: (a: IrAssertion) => boolean): IrAssertion | undefined => step.assertions.find(pred);
+  // In order of the candidate list (the helper / matcher's most specific check first).
   let a: IrAssertion | undefined;
-  if (kinds.has('URL_MISMATCH')) a = pick((x) => x.check === 'recordView');
-  if (!a && kinds.has('ASSERTION_MISMATCH')) {
-    const received = signals.find((s) => s.kind === 'ASSERTION_MISMATCH');
-    a =
-      pick(
-        (x) => (x.check === 'soqlField' || x.check === 'soqlNoRecord') && Boolean(received?.detail.includes('toBe')),
-      ) ?? pick((x) => x.check !== 'visible' && x.check !== 'hidden');
+  for (const c of checks ?? []) {
+    a = pick((x) => x.check === c);
+    if (a) break;
   }
-  if (!a && (kinds.has('LOCATOR_NOT_FOUND') || kinds.has('LOCATOR_NOT_UNIQUE'))) {
-    a = pick((x) => x.check === 'visible') ?? step.assertions[0];
-  }
+  if (!a && (kinds.has('LOCATOR_NOT_FOUND') || kinds.has('LOCATOR_NOT_UNIQUE'))) a = pick((x) => x.check === 'visible');
   a ??= step.assertions[0];
   return a ? { assertion: a, caseStep: step.caseStep } : undefined;
 }
@@ -164,7 +196,8 @@ export function claimSupport(ctx: CaseContext, assertion: IrAssertion): ClaimSup
       } page)`,
     };
   }
-  const lit = 'equals' in assertion && assertion.equals.kind === 'literal' ? assertion.equals.value : undefined;
+  const ref = 'equals' in assertion ? assertion.equals : 'contains' in assertion ? assertion.contains : undefined;
+  const lit = ref?.kind === 'literal' ? ref.value : undefined;
   if (lit === undefined) {
     return texts.length
       ? { status: 'supported', detail: `stated by ${ids.join(', ')}` }

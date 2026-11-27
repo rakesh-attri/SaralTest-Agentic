@@ -58,7 +58,13 @@
 
       <section role="tabpanel" id="related-{{rand}}" aria-labelledby="tab-related-{{rand}}" hidden>
         <article class="related-list" aria-label="Cases">
-          <header><h2>Cases (0)</h2></header>
+          <header><h2>Cases (<span class="count">{{CaseCount}}</span>)</h2></header>
+          <table aria-label="Cases">
+            <thead><tr><th scope="col">Subject</th><th scope="col">Status</th></tr></thead>
+            <tbody>
+              {{CaseRows}}
+            </tbody>
+          </table>
         </article>
       </section>
     </main>
@@ -69,6 +75,18 @@
         <h2 id="modal-title-{{rand}}">Edit {{Contact.Name}}</h2>
         {{contactFormFields}}
       </form>
+    </section>
+
+    <!-- Delete confirmation, as Lightning's "Delete Contact" modal (after the edit dialog: the page script's first dialog
+         is the edit form). FIXTURE markup. -->
+    <section class="modal delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-title-{{rand}}" hidden>
+      <h2 id="delete-title-{{rand}}">Delete Contact</h2>
+      <p>Are you sure you want to delete this contact?</p>
+      <p class="delete-error" role="alert" hidden></p>
+      <div class="actions">
+        <button type="button" name="CancelDelete">Cancel</button>
+        <button type="button" name="ConfirmDelete" class="brand">Delete</button>
+      </div>
     </section>
 
     <div class="spinner" role="status" aria-label="Loading" hidden></div>

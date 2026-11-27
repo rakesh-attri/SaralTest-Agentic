@@ -1,0 +1,48 @@
+# Phase 7 fault-injection suite (OFFLINE FIXTURE only — never a Salesforce result).
+# Each fault reproduces one failure class; the Failure Investigator must name it. Script faults must be healed with
+# the assertions unchanged (fixture repairs are verified, then reverted). Run: pnpm qa faults run --suite examples/faults/fixture-suite.yaml
+id: fixture-p7
+environment: FIXTURE
+org: fixture
+story: SF-219
+description: One fault per failure class on the approved SF-219 specs (TC-007 create, TC-010 phone rule, TC-031 BR-08).
+faults:
+  - id: F1-label-rename
+    title: The Save button of the Contact dialogs is renamed "Save Record"
+    caseId: TC-SF-219-007
+    inject: { labelRenames: [{ from: Save, to: Save Record }] }
+    expectedVerdict: SCRIPT_LOCATOR
+    expectHeal: true
+  - id: F2-late-toast
+    title: The success toast appears 30 s after Save (helper waits 20 s)
+    caseId: TC-SF-219-007
+    inject: { toastDelayMs: 30000 }
+    expectedVerdict: SCRIPT_TIMING
+    expectHeal: true
+  - id: F3-br08-not-enforced
+    title: BR-08 not implemented — a Contact with an open Case can be deleted (as on qa-prod)
+    caseId: TC-SF-219-031
+    inject: { behaviour: { blockContactDeleteWithOpenCases: false } }
+    expectedVerdict: PRODUCT_DEFECT
+  - id: F4-new-account-rule
+    title: A new Account validation rule requires Phone; the approved recipe sets none
+    caseId: TC-SF-219-007
+    inject:
+      extraRules:
+        - { object: Account, name: Account_Phone_Required, formula: "ISBLANK(Phone)", message: "Enter the Account phone." }
+    expectedVerdict: TEST_DATA
+  - id: F5-lightning-503
+    title: Lightning record pages answer 503 (maintenance); the API still answers
+    caseId: TC-SF-219-007
+    inject: { unavailablePaths: ["^/lightning/r/Account/"] }
+    expectedVerdict: ENVIRONMENT
+  - id: F6-account-read-only
+    title: The admin persona loses create / edit on Account
+    caseId: TC-SF-219-007
+    inject: { readOnlyObjects: [Account] }
+    expectedVerdict: PERMISSION_CONFIG
+  - id: F7-phone-rule-off
+    title: The approved Phone 10-digit rule is no longer enforced
+    caseId: TC-SF-219-010
+    inject: { disableRules: [Phone_Must_Be_10_Digits] }
+    expectedVerdict: PRODUCT_DEFECT

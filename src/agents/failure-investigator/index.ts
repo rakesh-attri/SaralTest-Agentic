@@ -2,7 +2,7 @@
 // (cheapest discriminating check first) → Conclude. Code decides wherever a deterministic rule applies; the reasoning
 // model concludes only otherwise, within the hypotheses the experiments left open, citing evidence ids that exist.
 // Below `minConfidence` the verdict is UNKNOWN. Every observation and experiment is written to the evidence ledger.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PolicyConfig } from '../../config/schemas.js';
 import type { Environment, Experiment, Investigation, TestResult, Verdict } from '../../core/schemas/index.js';
@@ -34,7 +34,7 @@ import {
 } from './experiments.js';
 import { decide, hypothesesFor, scoreHypotheses, type RuleDecision } from './rules.js';
 import { CONCLUSION_CONTRACT, InvestigatorConclusion } from './schema.js';
-import { extractSignals, hasSignal } from './signals.js';
+import { extractSignals, hasSignal, pageStateSignals } from './signals.js';
 
 export const INVESTIGATOR_SKILLS = ['defect-investigation', 'salesforce-platform'] as const;
 
@@ -92,6 +92,9 @@ export async function investigateFailure(
   const now = o.now ?? (() => new Date());
   const failureId = `F-${r.runId}-${r.caseId ?? r.testId}`.replace(/[^A-Za-z0-9-]/g, '-');
   const signals = extractSignals(r);
+  // Page state at failure (maintenance / login page) from the ARIA snapshot Playwright attached.
+  const ecFile = r.failure?.errorContext ? join(o.sourceRunDir, r.failure.errorContext) : undefined;
+  if (ecFile && existsSync(ecFile)) signals.push(...pageStateSignals(readFileSync(ecFile, 'utf8')));
   const ctx = loadCaseContext(o.root, r.caseId ?? r.testId);
   const env: ExperimentEnv = {
     root: o.root,
@@ -150,8 +153,12 @@ export async function investigateFailure(
   record(await identityAndHealth(env));
   record(dataLedgerCheck(env, r));
   record(snapshotDiff(env, r.caseId ?? r.testId));
+  // Objects the case touches: asserted objects + data-plan aliases that are object names (Account, Contact, Case).
   const objects = o.objects ?? [
-    ...new Set(ctx.ir?.steps.flatMap((s) => s.assertions.flatMap((a) => ('object' in a ? [a.object] : []))) ?? []),
+    ...new Set([
+      ...(ctx.ir?.data.filter((d) => /^[A-Z][A-Za-z0-9_]*$/.test(d)) ?? []),
+      ...(ctx.ir?.steps.flatMap((s) => s.assertions.flatMap((a) => ('object' in a ? [a.object] : []))) ?? []),
+    ]),
   ];
   if (hasSignal(signals, 'DATA_SETUP_FAILED', 'VALIDATION_ERROR', 'DUPLICATE_RULE')) {
     record(

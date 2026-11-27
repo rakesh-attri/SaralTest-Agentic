@@ -8,6 +8,7 @@ import { HardStopError } from '../core/errors.js';
 import { createLogger } from '../core/logger.js';
 import { exitCodeFor, formatReport, runDoctor } from '../doctor/runDoctor.js';
 import { startFixtureServer } from '../fixture/server.js';
+import { loadFixtureFaults } from '../fixture/faults.js';
 import { ToolAllowList } from '../mcp/allowList.js';
 import { loadMcpJson, McpHub } from '../mcp/client.js';
 import { needsOAuth } from '../doctor/checks/mcp.js';
@@ -21,6 +22,7 @@ import { registerDecide } from './decide.js';
 import { registerVisual } from './visual.js';
 import { registerInvestigate } from './investigate.js';
 import { registerHeal } from './heal.js';
+import { registerFaults } from './faults.js';
 import { registerRun } from './run.js';
 import { registerReport } from './report.js';
 import { registerJiraComment } from './jiraComment.js';
@@ -99,6 +101,7 @@ export function buildCli(): Command {
   registerVisual(program, rootOf, say);
   registerInvestigate(program, rootOf, say);
   registerHeal(program, rootOf, say);
+  registerFaults(program, rootOf, say);
   registerJiraComment(registerReport(program, rootOf, say), rootOf, say);
 
   const mcp = program.command('mcp').description('MCP server utilities');
@@ -149,17 +152,23 @@ export function buildCli(): Command {
     .option('--port <n>', 'port', '4545')
     .option('--metadata <file>', 'setup metadata file (e.g. examples/fixture/metadata.changed-vr.json)')
     .option('--layout <file>', 'Contact page layout (e.g. examples/fixture/layouts/contact-moved-field.json)')
-    .action(async (o: { port: string; metadata?: string; layout?: string }) => {
+    .option(
+      '--faults <file>',
+      'Phase 7 fault injection / product behaviour (e.g. examples/faults/f1-label-rename.yaml)',
+    )
+    .action(async (o: { port: string; metadata?: string; layout?: string; faults?: string }) => {
       const root = rootOf();
       const fx = await startFixtureServer({
         fixtureDir: join(root, 'examples', 'fixture'),
         port: Number(o.port),
         ...(o.metadata ? { metadataFile: resolve(root, o.metadata) } : {}),
         ...(o.layout ? { layoutFile: resolve(root, o.layout) } : {}),
+        ...(o.faults ? { faults: loadFixtureFaults(resolve(root, o.faults)) } : {}),
       });
       say(`OFFLINE FIXTURE serving at ${fx.url} (not Salesforce; everything is labelled FIXTURE)`);
       if (o.metadata) say(`  setup metadata: ${o.metadata}`);
       if (o.layout) say(`  Contact page layout: ${o.layout} (FIXTURE seeded layout)`);
+      if (o.faults) say(`  FAULTS injected: ${o.faults} (FIXTURE fault injection)`);
       say(
         `  record page: ${fx.url}/secur/frontdoor.jsp?sid=fixture-admin-token&retURL=/lightning/r/Account/001FX0000000001AAA/view`,
       );

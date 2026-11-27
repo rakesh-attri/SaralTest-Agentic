@@ -37,6 +37,7 @@ export const SignalKind = z.enum([
   'PASSED_ON_RETRY', // Playwright retry passed
   'DIFFERENT_FAILURE_ON_RETRY', // the retry failed with another error
   'DATA_NOT_CLEAN', // cleanup INCOMPLETE / KEPT
+  'LOCAL_ENVIRONMENT', // the test machine itself: SQLite busy, file locks (run-p7-fx-base-2 "database is locked")
 ]);
 export type SignalKind = z.infer<typeof SignalKind>;
 
@@ -315,6 +316,9 @@ export const FaultSuite = z.object({
   id: z.string(),
   environment: Environment,
   description: z.string().optional(),
+  /** Org alias the faults are injected into (the offline fixture). */
+  org: z.string().default('fixture'),
+  story: z.string(),
   faults: z.array(FaultCase).min(1),
 });
 export type FaultSuite = z.infer<typeof FaultSuite>;

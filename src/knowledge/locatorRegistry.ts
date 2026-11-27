@@ -65,7 +65,7 @@ export class LocatorRegistry {
 
   constructor(readonly file: string) {
     mkdirSync(dirname(file), { recursive: true });
-    this.db = new DatabaseSync(file);
+    this.db = new DatabaseSync(file, { timeout: 10_000 }); // busy timeout: parallel workers (run-p7-fx-base-2 "database is locked")
     this.db.exec(`
       PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS locators (org TEXT NOT NULL, page TEXT NOT NULL, element TEXT NOT NULL, persona TEXT NOT NULL,

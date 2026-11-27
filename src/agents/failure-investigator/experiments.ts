@@ -458,6 +458,8 @@ export function ariaLocateIn(nodes: readonly AriaNode[], expr: string): AriaLoca
   const t = locatorTarget(expr);
   if (!t) return undefined;
   const wantName = t.name ?? t.label ?? t.text ?? '';
+  // A locator without a name (getByRole('status')) cannot be matched by name: no candidates.
+  if (!wantName) return { originalPresent: false, candidates: [] };
   const roleOk = (role: string): boolean => (t.role ? role === t.role : t.label ? FIELD_ROLES.has(role) : true);
   const originalPresent = nodes.some((n) => roleOk(n.role) && n.name === wantName);
   const candidates = nodes
@@ -467,6 +469,15 @@ export function ariaLocateIn(nodes: readonly AriaNode[], expr: string): AriaLoca
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, 5);
   return { originalPresent, candidates };
+}
+
+/**
+ * A candidate strong enough to call the element renamed: the new name contains the old one ("Save" → "Save Record")
+ * or the names are very similar. "Edit Title" → "Edit" is NOT strong: a shorter name may be another element
+ * (run-p7-fx-base-2, TC-036: the record-level Edit button).
+ */
+export function isStrongCandidate(oldName: string, c: { name: string; similarity: number }): boolean {
+  return c.name.toLowerCase().includes(oldName.toLowerCase()) || c.similarity >= 0.67;
 }
 
 export function ariaLocate(env: ExperimentEnv, r: TestResult, signals: readonly FailureSignal[]): ExperimentRun {
@@ -493,8 +504,23 @@ export function ariaLocate(env: ExperimentEnv, r: TestResult, signals: readonly 
       data,
     );
   }
-  if (found.candidates.length) {
+  const t = locatorTarget(locator);
+  const oldName = t?.name ?? t?.label ?? t?.text ?? '';
+  const strong = found.candidates.filter((c) => isStrongCandidate(oldName, c));
+  if (!strong.length && found.candidates.length) {
     const c = found.candidates[0];
+    return mk(
+      env,
+      'aria-locate',
+      q,
+      'INCONCLUSIVE',
+      `not on the page; only weak matches (best: ${c?.role} "${c?.name}", similarity ${c?.similarity.toFixed(2)})`,
+      src,
+      data,
+    );
+  }
+  if (strong.length) {
+    const c = strong[0];
     return mk(
       env,
       'aria-locate',

@@ -16,6 +16,16 @@ export interface RuleDecision {
 export type ExperimentMap = Partial<Record<ExperimentKind, Experiment>>;
 
 const ASSERTABLE = new Set(['APPROVED_REQUIREMENT', 'DECLARED_CONFIG', 'VERIFIED']);
+/** IR checks that assert an expected state appears (not a navigation target or an element to act on). */
+const STATE_CHECKS = new Set([
+  'fieldError',
+  'saveWarning',
+  'toast',
+  'recordField',
+  'recordTitle',
+  'relatedListHasRecord',
+  'hidden',
+]);
 
 export function byKind(experiments: readonly Experiment[]): ExperimentMap {
   const m: ExperimentMap = {};
@@ -31,7 +41,7 @@ interface Rule {
   test: (s: readonly FailureSignal[], x: ExperimentMap) => RuleDecision | undefined;
 }
 
-const ENV_SIGNALS = ['HTTP_5XX', 'MAINTENANCE', 'LOGIN_PAGE', 'NETWORK_ERROR'] as const;
+const ENV_SIGNALS = ['HTTP_5XX', 'MAINTENANCE', 'LOGIN_PAGE', 'NETWORK_ERROR', 'LOCAL_ENVIRONMENT'] as const;
 
 export const RULES: readonly Rule[] = [
   {
@@ -203,6 +213,43 @@ export const RULES: readonly Rule[] = [
         : undefined,
   },
   {
+    // An expected state element (field error, save warning, toast, record value) never appeared: not late (longer
+    // waits fail too), not renamed (no strong ARIA candidate), reproduced on fresh data, and stated by an assertable
+    // requirement → the org does not do what the requirement says.
+    id: 'R-DEF-2',
+    test: (s, x) => {
+      const trace = x['requirement-trace'];
+      const check = typeof trace?.data['check'] === 'string' ? trace.data['check'] : '';
+      const stated = trace?.outcome === 'REFUTES' && ASSERTABLE.has(String(trace.data['evidenceLevel']));
+      const ok =
+        hasSignal(s, 'LOCATOR_NOT_FOUND') &&
+        STATE_CHECKS.has(check) &&
+        stated &&
+        !is(x, 'aria-locate', 'SUPPORTS') &&
+        is(x, 'rerun-extended-waits', 'REFUTES') &&
+        is(x, 'rerun-fresh-data', 'SUPPORTS') &&
+        !is(x, 'health-probe', 'SUPPORTS') &&
+        !hasSignal(s, ...ENV_SIGNALS, 'DATA_SETUP_FAILED');
+      if (!ok) return undefined;
+      const api = is(x, 'api-reproduce', 'SUPPORTS');
+      return {
+        rule: 'R-DEF-2',
+        verdict: 'PRODUCT_DEFECT',
+        confidence: api ? 0.9 : 0.75,
+        rationale: `the expected ${check} never appears (not with longer waits, not under another name) on every fresh-data rerun; it is stated by a ${String(trace.data['evidenceLevel'])} requirement${api ? ' and reproduced through the API' : ''}`,
+        evidenceIds: ev(
+          x,
+          'requirement-trace',
+          'aria-locate',
+          'rerun-extended-waits',
+          'rerun-fresh-data',
+          'api-reproduce',
+          'health-probe',
+        ),
+      };
+    },
+  },
+  {
     id: 'R-DEF-1',
     test: (s, x) => {
       const trace = x['requirement-trace'];
@@ -272,16 +319,14 @@ export function hypothesesFor(signals: readonly FailureSignal[]): Hypothesis[] {
   add('STALE_KNOWLEDGE', 'An org component changed after the spec was built', 'snapshot / locator diff');
   add('ENVIRONMENT', 'The org or network was unavailable', 'identity + health probe');
   add('TEST_DATA', 'The test data was wrong for this org', 'data ledger');
-  return hs
-    .slice(0, 5)
-    .map((h, i) => ({
-      id: `H${i + 1}`,
-      text: h.text,
-      test: h.test,
-      evidenceIds: [],
-      verdict: h.verdict,
-      status: 'OPEN' as const,
-    }));
+  return hs.slice(0, 5).map((h, i) => ({
+    id: `H${i + 1}`,
+    text: h.text,
+    test: h.test,
+    evidenceIds: [],
+    verdict: h.verdict,
+    status: 'OPEN' as const,
+  }));
 }
 
 /** Map experiment outcomes onto the hypotheses (SUPPORTED / REFUTED / INCONCLUSIVE). */

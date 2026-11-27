@@ -11,6 +11,7 @@ import { SnapshotStore } from '../../knowledge/snapshotStore.js';
 import { executeStory, type ExecuteDeps } from '../../runner/execute.js';
 import type { GuardedSalesforce } from '../../sf/client.js';
 import type { SfContext } from '../../sf/context.js';
+import type { Autonomy } from '../../core/state.js';
 import { SnapshotFacts } from '../../sf/data/plan.js';
 import { staleDependencies } from '../test-generator/dependencies.js';
 import { registryLookup, storyManifestFile } from '../test-generator/staleness.js';
@@ -32,6 +33,8 @@ export interface ProviderOptions {
   reruns: boolean;
   say: (m: string) => void;
   executeDeps?: ExecuteDeps;
+  /** Autonomy of the reruns (the fixture runs at L3; live runs use the policy level and its approvals). */
+  autonomy?: Autonomy;
 }
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
@@ -119,6 +122,7 @@ export function createProviders(o: ProviderOptions): InvestigationProviders {
                   storyKey: story,
                   orgAlias: o.orgAlias,
                   cases: [caseId],
+                  ...(o.autonomy ? { autonomy: o.autonomy } : {}),
                   echo: false,
                   say: () => undefined,
                   redact: (s) => o.ctx.redactor.redactText(s),

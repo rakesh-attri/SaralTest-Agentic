@@ -15,6 +15,16 @@ import {
 } from './metadata.js';
 import { applyLayout, fixtureContactLayouts, loadFixtureLayout } from './layout.js';
 import { FixtureError, FixtureStore, loadSeed, type SObject } from './store.js';
+import {
+  applyLabelRenames,
+  applyRuleFaults,
+  isReadOnly,
+  isUnavailable,
+  MAINTENANCE_PAGE,
+  NO_FAULTS,
+  pageFaultScript,
+  type FixtureFaults,
+} from './faults.js';
 
 /**
  * Offline Salesforce fixture (PLAN.md §11 Phase 0, CLAUDE.md rule 13). Mock REST/SOQL + static Lightning-like pages.
@@ -32,6 +42,8 @@ export interface FixtureServerOptions {
   metadataFile?: string;
   /** Page layout of the Contact Details panel / Contact form (Phase 6 seeded visual change); default: template order. */
   layoutFile?: string;
+  /** Phase 7 fault injection (labels, delays, rules, 503, read-only objects) + product behaviour toggles. */
+  faults?: FixtureFaults;
 }
 
 export interface FixtureServer {
@@ -110,19 +122,29 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
   const seed = loadSeed(join(fixtureDir, 'seed.json'));
   const store = new FixtureStore(seed);
   let metadata = loadFixtureMetadata(opts.metadataFile ?? join(fixtureDir, 'metadata.json'));
-  store.setValidationRules(enforcedRules(metadata));
-  const template = await readFile(join(fixtureDir, 'pages', 'account-record.html'), 'utf8');
+  const faults = opts.faults ?? NO_FAULTS;
+  store.setValidationRules(applyRuleFaults(enforcedRules(metadata), faults));
+  store.setBehaviour(faults.behaviour);
+  const PAGE_SCRIPT = '<script src="/fixture/static/record-page.js"></script>';
+  const withFaults = (html: string): string =>
+    applyLabelRenames(html, faults.labelRenames).replace(PAGE_SCRIPT, `${pageFaultScript(faults)}\n    ${PAGE_SCRIPT}`);
+  const template = withFaults(await readFile(join(fixtureDir, 'pages', 'account-record.html'), 'utf8'));
   const layout = opts.layoutFile ? loadFixtureLayout(opts.layoutFile) : undefined;
-  const contactTemplate = applyLayout(
-    await readFile(join(fixtureDir, 'pages', 'contact-record.html'), 'utf8'),
-    'details',
-    layout?.contact.details,
+  const contactTemplate = withFaults(
+    applyLayout(
+      await readFile(join(fixtureDir, 'pages', 'contact-record.html'), 'utf8'),
+      'details',
+      layout?.contact.details,
+    ),
   );
   // One Contact form for both dialogs (New Contact on the Account page, Edit on the Contact page), as in Lightning.
-  const contactForm = applyLayout(
-    await readFile(join(fixtureDir, 'partials', 'contact-form.html'), 'utf8'),
-    'form',
-    layout?.contact.form,
+  const contactForm = applyLabelRenames(
+    applyLayout(
+      await readFile(join(fixtureDir, 'partials', 'contact-form.html'), 'utf8'),
+      'form',
+      layout?.contact.form,
+    ),
+    faults.labelRenames,
   );
   const leadSourceOptions = (
     store.describe('Contact').fields.find((f) => f.name === 'LeadSource')?.picklistValues ?? []
@@ -172,6 +194,16 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
     return fill(template, values);
   };
 
+  const caseValues = (contact: SObject): Record<string, string> => {
+    const cases = seed.objects.some((o) => o.name === 'Case') ? store.children('Case', 'ContactId', contact.Id) : [];
+    return {
+      CaseCount: String(cases.length),
+      CaseRows: cases
+        .map((c) => `<tr><th scope="row">${esc(c['Subject'])}</th><td>${esc(c['Status'])}</td></tr>`)
+        .join('\n'),
+    };
+  };
+
   const renderContact = (contact: SObject, user: (typeof seed.users)[number]): string => {
     const accountId = typeof contact['AccountId'] === 'string' ? contact['AccountId'] : undefined;
     const account = accountId ? store.get('Account', accountId) : undefined;
@@ -194,6 +226,7 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
       'User.Name': esc(user['Name']),
       'User.Id': esc(user['Id']),
       'Contact.CreatedDate': esc(salesforceDateTime(contact['CreatedDate'])),
+      ...caseValues(contact),
       rand: randomBytes(3).toString('hex'),
       writeDisabled: user['canWrite'] === true ? '' : 'disabled',
     };
@@ -244,6 +277,12 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
       return;
     }
 
+    if (isUnavailable(path, faults)) {
+      if (path.startsWith('/lightning/'))
+        send(res, 503, MAINTENANCE_PAGE, { 'content-type': 'text/html; charset=utf-8' });
+      else send(res, 503, [{ errorCode: 'SERVER_UNAVAILABLE', message: '503 Service Unavailable (maintenance)' }]);
+      return;
+    }
     const user = userFor(req);
     if (!user) {
       if (path.startsWith('/lightning/')) {
@@ -283,7 +322,7 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
       });
       return;
     }
-    if (path === '/lightning/page/home') {
+    if (path === '/lightning/page/home' || /^\/lightning\/o\/(Contact|Account)\/(home|list)$/.test(path)) {
       send(res, 200, '<!doctype html><title>Home | Salesforce (OFFLINE FIXTURE)</title><h1>Home</h1>', {
         'content-type': 'text/html; charset=utf-8',
       });
@@ -332,11 +371,16 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
     }
     const [, object, idOrDescribe] = m;
     const writes = method !== 'GET';
-    if (writes && user['canWrite'] !== true) {
+    if (writes && (user['canWrite'] !== true || isReadOnly(object, faults))) {
       throw new FixtureError(403, 'INSUFFICIENT_ACCESS_OR_READONLY', 'insufficient access rights on object id');
     }
     if (idOrDescribe === 'describe') {
-      send(res, 200, describeSf(store, metadata, store.describe(object)));
+      const d = describeSf(store, metadata, store.describe(object));
+      send(
+        res,
+        200,
+        isReadOnly(object, faults) ? { ...d, createable: false, updateable: false, deletable: false } : d,
+      );
       return;
     }
     if (!idOrDescribe) {
@@ -402,7 +446,7 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
     },
     setMetadata(meta: FixtureMetadata) {
       metadata = meta;
-      store.setValidationRules(enforcedRules(meta));
+      store.setValidationRules(applyRuleFaults(enforcedRules(meta), faults));
     },
     close: () =>
       new Promise<void>((ok) => {

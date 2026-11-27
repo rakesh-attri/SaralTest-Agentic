@@ -65,7 +65,11 @@ export function signalsOfMessage(message: string, ctx: { step?: string; source: 
     });
   } else if (/expect\(.*\)\.\w+/.test(first) || /^\s*Expected/m.test(message)) {
     // An assertion whose element was never found is a locator problem, not a value mismatch.
-    const elementMissing = /element\(s\) not found|waiting for (?:getBy|locator)/.test(message) && !rec;
+    // "Expected element never appeared": not found, or a not.toHaveCount(0) wait that kept resolving to 0 elements
+    // (expectToast / expectSavePopover). Whether it is late, renamed or really absent is for the experiments.
+    const neverAppeared = /not\.toHaveCount/.test(first) && /^\s*Received:\s*0\s*$/m.test(message);
+    const elementMissing =
+      (/element\(s\) not found|waiting for (?:getBy|locator)/.test(message) && !rec) || neverAppeared;
     if (elementMissing) {
       out.push({ kind: 'LOCATOR_NOT_FOUND', detail: first, ...(loc ? { locator: loc } : {}), ...base });
     } else {
@@ -106,6 +110,9 @@ export function signalsOfMessage(message: string, ctx: { step?: string; source: 
     )
   ) {
     out.push({ kind: 'LOGIN_PAGE', detail: first, ...base });
+  }
+  if (/database is locked|SQLITE_BUSY|\bEBUSY\b|resource busy or locked/.test(message)) {
+    out.push({ kind: 'LOCAL_ENVIRONMENT', detail: first, ...base });
   }
   if (/fetch failed|ECONNRESET|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|socket hang up|net::ERR_/.test(message)) {
     out.push({ kind: 'NETWORK_ERROR', detail: first, ...base });
@@ -158,6 +165,20 @@ export function extractSignals(r: TestResult): FailureSignal[] {
     seen.add(k);
     return true;
   });
+}
+
+/** Page state at the moment of failure, from the ARIA snapshot (Playwright error-context): maintenance / login pages. */
+export function pageStateSignals(errorContextMd: string): FailureSignal[] {
+  const yaml = errorContextMd.split(/^```yaml\s*$/m)[1]?.split(/^```\s*$/m)[0] ?? '';
+  const headings = [...yaml.matchAll(/-\s+heading\s+"([^"]*)"/g)].map((m) => m[1] ?? '');
+  const out: FailureSignal[] = [];
+  const h = headings.find((x) =>
+    /service unavailable|maintenance|temporarily unavailable|down for maintenance/i.test(x),
+  );
+  if (h) out.push({ kind: 'MAINTENANCE', detail: `page shows "${h}"`, source: 'attachment:error-context' });
+  const login = headings.find((x) => /^(log ?in|sign in)\b|login \| salesforce/i.test(x));
+  if (login) out.push({ kind: 'LOGIN_PAGE', detail: `page shows "${login}"`, source: 'attachment:error-context' });
+  return out;
 }
 
 export const hasSignal = (signals: readonly FailureSignal[], ...kinds: FailureSignal['kind'][]): boolean =>
