@@ -178,18 +178,9 @@ export async function checkTabOrder(
       return false;
     });
 
-  // Start at the element that comes first in document order (where keyboard users enter the region).
-  let first: string | undefined;
-  for (const name of names) {
-    const el = elements[name];
-    if (!el || !boxes.some((b) => b.name === name)) continue;
-    const cur = first ? elements[first] : undefined;
-    const handle = cur ? await cur.elementHandle() : null;
-    const before = handle
-      ? await el.evaluate((a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING), handle)
-      : true;
-    if (before) first = name;
-  }
+  // Start where the expected order starts. compareDocumentPosition is arbitrary across shadow roots (Lightning),
+  // so "first in document order" started the dialog at First Name and Phone was only reached after wrapping (R1/R2).
+  const first = expectedOrder[0];
   if (first) await elements[first]?.focus();
   const visited: string[] = [];
   let leftScope = false;

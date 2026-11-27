@@ -252,8 +252,13 @@ describe('Lightning + a11y helpers on the offline fixture (real Chromium, FIXTUR
     });
     const reordered = await checkTabOrder(page, dialog, els);
     expect(reordered.expectedOrder[0]).toBe('cancel');
-    expect(reordered.inOrder).toBe(false);
+    // focus starts at the visually first control; the reorder shows as out of order, focus leaving or fields missed
+    const passes = reordered.inOrder && !reordered.leftScope && reordered.missing.length === 0;
+    expect(passes).toBe(false);
 
+    await els.cancel.evaluate((b) => {
+      b.removeAttribute('style');
+    });
     await els.email.evaluate((i) => {
       i.setAttribute('tabindex', '-1');
     });

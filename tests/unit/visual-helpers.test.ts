@@ -229,11 +229,20 @@ describe('visual + layout helpers on the offline fixture (real Chromium, FIXTURE
 
   it('a placeholder in the region keeps the capture waiting; an open dialog is not a blank page', async () => {
     const main = await openRecord(page, 'Account', ACCOUNT);
-    await main.evaluate((el) => el.appendChild(document.createElement('force-placeholder2')));
-    await expect(waitForRegionReady(page, main, 1500)).rejects.toThrow();
-    await main.locator('force-placeholder2').evaluate((el) => {
-      el.remove();
+    await main.evaluate((el) => {
+      const ph = document.createElement('force-placeholder2');
+      ph.style.cssText = 'display:block;height:20px';
+      el.appendChild(ph);
+      // an empty 0×0 placeholder (Account highlights panel after load) does not block the capture
+      el.appendChild(document.createElement('force-placeholder2'));
     });
+    await expect(waitForRegionReady(page, main, 1500)).rejects.toThrow();
+    await main
+      .locator('force-placeholder2')
+      .first()
+      .evaluate((el) => {
+        el.remove();
+      });
     await waitForRegionReady(page, main);
     const dialog = await openDialog();
     await page.getByRole('main').evaluate((el) => {

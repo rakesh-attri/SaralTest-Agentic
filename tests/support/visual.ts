@@ -104,7 +104,8 @@ export const LOADING_PLACEHOLDERS = 'force-placeholder2, force-placeholder, ligh
  */
 export async function waitForRegionReady(page: Page, region: Locator, timeout = 30_000): Promise<void> {
   await waitForSpinners(page, timeout);
-  await expect(region.locator(LOADING_PLACEHOLDERS)).toHaveCount(0, { timeout });
+  // Visible ones only: the Account highlights panel keeps an empty 0×0 force-placeholder2 after load (run-p6-live-2).
+  await expect(region.locator(LOADING_PLACEHOLDERS).filter({ visible: true })).toHaveCount(0, { timeout });
   let previous = '';
   await expect
     .poll(
