@@ -4,7 +4,15 @@ import type { Locator, Page, TestInfo } from '@playwright/test';
 import { snapshotName, type LayoutFinding, type VisualRegion } from '../../src/core/schemas/visual.js';
 import { checkLayout } from '../support/layout.js';
 import { runSettings } from '../support/runConfig.js';
-import { contentClip, expectRegionScreenshot, maskLocators, maskPlan, regionShot, settle } from '../support/visual.js';
+import {
+  contentClip,
+  expectRegionScreenshot,
+  markVolatile,
+  maskLocators,
+  maskPlan,
+  regionShot,
+  settle,
+} from '../support/visual.js';
 
 const settings = runSettings();
 
@@ -50,8 +58,10 @@ export async function captureRegion(
   // An overlay is captured by its content box: page-level masks (record title, spinners behind the backdrop) would
   // be painted over the dialog content, so only masks inside the dialog apply.
   const regionPlan = c.clipToContent ? { ...plan, title: false, status: false } : plan;
-  const mask = [...maskLocators(page, locator, regionPlan), ...(c.extraMasks ?? [])];
+  const masks = maskLocators(page, locator, regionPlan);
+  const mask = [...masks.mask, ...(c.extraMasks ?? [])];
   await settle(page);
+  await markVolatile(masks.hide);
   const clip = c.clipToContent ? await contentClip(locator) : undefined;
   const o = { mask, maxDiffPixelRatio: ratioFor(region), ...(clip ? { clip } : {}) };
   await expectRegionScreenshot(page, locator, name, o);

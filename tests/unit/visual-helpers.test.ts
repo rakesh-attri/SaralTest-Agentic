@@ -15,7 +15,16 @@ import {
   readLayoutShift,
   type ElementBox,
 } from '../support/layout.js';
-import { DATE_PATTERNS, RECORD_ID_PATTERN, maskLocators, maskPlan, settle, shotOptions } from '../support/visual.js';
+import {
+  DATE_PATTERNS,
+  RECORD_ID_PATTERN,
+  VOLATILE_ATTR,
+  markVolatile,
+  maskLocators,
+  maskPlan,
+  regionShot,
+  settle,
+} from '../support/visual.js';
 
 const ACCOUNT = '001FX0000000001AAA';
 
@@ -154,27 +163,20 @@ describe('visual + layout helpers on the offline fixture (real Chromium, FIXTURE
     expect(kinds).toContain('hidden-required');
   });
 
-  it('masks resolve inside the region and a masked region screenshot is stable', async () => {
+  it('volatile values are hidden at their own size; the masked region screenshot is stable', async () => {
     const main = await openRecord(page, 'Account', ACCOUNT);
     const masks = maskLocators(page, main, maskPlan(['dates', 'recordIds', 'spinners', 'userNames', 'pii'], 'QA-'));
-    expect(await masks.at(-2)?.count()).toBeGreaterThan(0); // record title
+    expect(masks.mask).toHaveLength(1); // spinners
+    expect(await masks.hide.at(-1)?.count()).toBeGreaterThan(0); // record title
     await settle(page);
-    const o = shotOptions({ mask: masks, maxDiffPixelRatio: 0.01 });
-    const a = await main.screenshot({
-      mask: o.mask,
-      maskColor: o.maskColor,
-      animations: o.animations,
-      caret: o.caret,
-      scale: o.scale,
-    });
-    const b = await main.screenshot({
-      mask: o.mask,
-      maskColor: o.maskColor,
-      animations: o.animations,
-      caret: o.caret,
-      scale: o.scale,
-    });
+    expect(await markVolatile(masks.hide)).toBeGreaterThan(0);
+    const o = { mask: masks.mask, maxDiffPixelRatio: 0.01 };
+    const a = await regionShot(page, main, o);
+    const b = await regionShot(page, main, o);
     expect(a.equals(b)).toBe(true);
+    const title = page.getByRole('main').getByRole('heading', { level: 1 });
+    expect(await title.getAttribute(VOLATILE_ATTR)).toBe('');
+    expect(await title.isVisible()).toBe(true); // hidden only inside the screenshot (style option), not on the page
   });
 });
 

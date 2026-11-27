@@ -5,6 +5,7 @@
 //   counters. Labels are NOT masked, so a moved or renamed field still shows as a difference;
 // - capture is stabilised (spinners settled, fonts loaded, animations off, caret hidden, no hover/focus ring).
 import { expect, type Locator, type Page } from '@playwright/test';
+import { join } from 'node:path';
 import { waitForSpinners } from './lightning.js';
 
 /** Mask categories from `config/execution.yaml` `visual.mask` (+ `names`, `counters`). */
@@ -52,13 +53,42 @@ export function maskPlan(categories: readonly string[], runPrefix?: string): Mas
   return { text, links: names || has('pii'), title: names, status: has('spinners') };
 }
 
-/** Locators to mask inside `region` (and page-level spinners / the record title, which may sit outside it). */
-export function maskLocators(page: Page, region: Locator, plan: MaskPlan): Locator[] {
-  const out: Locator[] = plan.text.map((re) => region.getByText(re));
-  if (plan.links) out.push(region.getByRole('link'));
-  if (plan.title) out.push(page.getByRole('main').getByRole('heading', { level: 1 }));
-  if (plan.status) out.push(page.getByRole('status'));
-  return out;
+export interface RegionMasks {
+  /** Elements whose text varies per run: hidden at their own size (no box whose width follows the text length). */
+  hide: Locator[];
+  /** Painted over by Playwright (fixed-size controls such as a pre-filled lookup input, spinners). */
+  mask: Locator[];
+}
+
+/**
+ * What to hide / mask inside `region` (and page-level spinners / the record title, which may sit outside it).
+ * Text values are hidden with `visibility: hidden` instead of a painted mask: a painted box takes the width of the
+ * run-unique text (run-p6-fixture-6: 85 px of noise per region from mask widths), a hidden one leaves the same blank
+ * space every run while labels and layout stay visible.
+ */
+export function maskLocators(page: Page, region: Locator, plan: MaskPlan): RegionMasks {
+  const hide: Locator[] = plan.text.map((re) => region.getByText(re));
+  if (plan.links) hide.push(region.getByRole('link'));
+  if (plan.title) hide.push(page.getByRole('main').getByRole('heading', { level: 1 }));
+  return { hide, mask: plan.status ? [page.getByRole('status')] : [] };
+}
+
+/** Attribute + stylesheet that hide volatile values during a screenshot (the style pierces shadow DOM). */
+export const VOLATILE_ATTR = 'data-qa-volatile';
+export const VOLATILE_STYLE = `[${VOLATILE_ATTR}] { visibility: hidden !important; }`;
+/** The same rule as a file: `toHaveScreenshot` takes `stylePath` (only `locator.screenshot` takes `style`). */
+export const VOLATILE_STYLE_PATH = join(import.meta.dirname, 'visual-volatile.css');
+
+/** Mark the elements of `locators` as volatile; returns how many were marked. */
+export async function markVolatile(locators: readonly Locator[]): Promise<number> {
+  let n = 0;
+  for (const l of locators) {
+    n += await l.evaluateAll((els, attr) => {
+      for (const e of els) e.setAttribute(attr, '');
+      return els.length;
+    }, VOLATILE_ATTR);
+  }
+  return n;
 }
 
 /** Make the page still before a screenshot: spinners gone, fonts loaded, no hover or focus ring. */
@@ -85,10 +115,12 @@ export function shotOptions(o: RegionShotOptions): {
   animations: 'disabled';
   caret: 'hide';
   scale: 'css';
+  stylePath: string;
   maxDiffPixelRatio: number;
 } {
   return {
     mask: o.mask,
+    stylePath: VOLATILE_STYLE_PATH,
     maskColor: '#FF00FF',
     animations: 'disabled',
     caret: 'hide',
@@ -161,6 +193,13 @@ export async function expectRegionScreenshot(
 /** The same masked image, as bytes (attached to the run so a matching region can still be re-approved). */
 export async function regionShot(page: Page, region: Locator, o: RegionShotOptions & { clip?: Clip }): Promise<Buffer> {
   const x = shotOptions(o);
-  const opts = { mask: x.mask, maskColor: x.maskColor, animations: x.animations, caret: x.caret, scale: x.scale };
+  const opts = {
+    mask: x.mask,
+    maskColor: x.maskColor,
+    animations: x.animations,
+    caret: x.caret,
+    scale: x.scale,
+    style: VOLATILE_STYLE,
+  };
   return o.clip ? page.screenshot({ ...opts, clip: o.clip }) : region.screenshot(opts);
 }

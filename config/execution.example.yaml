@@ -6,7 +6,7 @@ viewports:
   - { name: laptop,  width: 1280, height: 720 }
   - { name: tablet,  width: 1024, height: 768 }
 visual:
-  maxDiffPixelRatio: 0.01
+  maxDiffPixelRatio: 0.0005    # 0.05 %: fixture noise 0 px; a moved field = 409 px (0.135 %) on the Contact Details panel (run cal-p6-c3)
   mask: [dates, recordIds, spinners, userNames, pii]
   allowExternalUpload: false   # screenshots never sent to an external model unless true for the run
   viewports: [desktop, tablet] # visual suite: desktop + one smaller viewport (functional tests: viewports[0] only)

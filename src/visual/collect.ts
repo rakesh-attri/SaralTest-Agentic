@@ -100,6 +100,12 @@ const PROJECT = /^visual-(.+)-([a-z0-9]+)$/;
 const plain = (s: string): string => s.replace(/\u001b\[[0-9;]*m/g, '');
 const RATIO = /(\d+) pixels \(ratio ([\d.]+) of all image pixels\) are different/;
 
+/** Width / height from a PNG's IHDR chunk (undefined when the bytes are not a PNG). */
+export function pngSize(b: Buffer): { width: number; height: number } | undefined {
+  if (b.length < 24 || b.readUInt32BE(0) !== 0x89504e47) return undefined;
+  return { width: b.readUInt32BE(16), height: b.readUInt32BE(20) };
+}
+
 function body(a: z.infer<typeof Attachment>): Buffer | undefined {
   if (a.body !== undefined) return Buffer.from(a.body, 'base64');
   if (a.path && existsSync(a.path)) return readFileSync(a.path);
@@ -216,15 +222,18 @@ export function collectVisual(i: CollectInput): Collected {
           );
         } else if (actual || err) {
           const r = err ? RATIO.exec(err) : null;
+          // Playwright rounds the ratio to 2 decimals in its message; compute it from the pixel count and image size.
+          const size = actualBuf ? pngSize(actualBuf) : undefined;
+          const ratio = r ? (size ? Number(r[1]) / (size.width * size.height) : Number(r[2])) : undefined;
           out.candidates.push(
             VisualCandidate.parse({
               ...base,
               status: 'DIFF',
               images,
               ...actualSha,
-              ...(r ? { diffPixels: Number(r[1]), diffPixelRatio: Math.min(1, Number(r[2])) } : {}),
+              ...(r && ratio !== undefined ? { diffPixels: Number(r[1]), diffPixelRatio: Math.min(1, ratio) } : {}),
               reason: r
-                ? `${r[1] ?? '?'} pixels differ (ratio ${r[2] ?? '?'} > allowed ${String(base.maxDiffPixelRatio)})`
+                ? `${r[1] ?? '?'} pixels differ (${((ratio ?? 0) * 100).toFixed(3)} % > allowed ${(base.maxDiffPixelRatio * 100).toFixed(3)} %)`
                 : (err
                     ?.split('\n')
                     .find((l) => /different|size|Expected an image/i.test(l))
