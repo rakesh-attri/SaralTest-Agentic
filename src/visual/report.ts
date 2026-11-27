@@ -60,7 +60,7 @@ export function renderVisualDiffMd(s: VisualRunSummary, rec?: ReconcileReport): 
       'No layout findings (overlap, clipped text, off-screen, hidden required controls, layout shift, blank / loading / error state).',
     );
   else {
-    L.push('| Region | Viewport | Kind | Detail |', '|---|---|---|---|');
+    L.push('| Status | Owner | Region | Viewport | Kind | Detail |', '|---|---|---|---|---|---|');
     for (const f of s.layout)
       L.push(`| ${f.status ?? '-'} | ${f.owner} | ${f.region} | ${f.viewport} | ${f.kind} | ${md(f.detail)} |`);
   }
