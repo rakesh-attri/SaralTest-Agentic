@@ -26,7 +26,10 @@ test.describe('Visual baselines: Account → Contact pages', () => {
         await account.open(data.id('Account'));
         await selectTab(account.detailsTab);
         await waitForSpinners(page);
-        await captureRegion(page, testInfo, 'account-record', account.root, runPrefix());
+        await captureRegion(page, testInfo, 'account-record', account.root, runPrefix(), {
+          // the Activity timeline is dynamic Salesforce content, masked as a whole (operator 2026-11-27)
+          panelAnchors: [account.root.getByRole('tab', { name: 'Activity', exact: true })],
+        });
       });
 
       await test.step('New Contact dialog from the Contacts related list', async () => {

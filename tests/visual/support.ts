@@ -12,6 +12,7 @@ import {
   maskLocators,
   maskPlan,
   pageClip,
+  panelMask,
   regionShot,
   settle,
   unmarkedVolatile,
@@ -46,6 +47,11 @@ export interface CaptureOptions {
   extraMasks?: Locator[];
   /** Capture the overlay's content box instead of the full-viewport dialog element (modal dialogs). */
   clipToContent?: boolean;
+  /**
+   * Dynamic Salesforce panels masked as a whole (operator 2026-11-27: the Account Activity panel is content, not
+   * layout). Each anchor is an element of the panel's card, e.g. its tab; see panelMask.
+   */
+  panelAnchors?: Locator[];
 }
 
 export async function captureRegion(
@@ -82,7 +88,15 @@ export async function captureRegion(
     )
     .toBe(0);
   const clip = c.clipToContent ? await contentClip(locator) : await pageClip(page, locator);
-  const o = { mask, maxDiffPixelRatio: ratioFor(region), clip, ...(c.clipToContent ? {} : { fullPage: true }) };
+  const panels = [];
+  for (const [i, anchor] of (c.panelAnchors ?? []).entries())
+    panels.push(await panelMask(page, anchor, locator, `p${String(i)}`));
+  const o = {
+    mask: [...mask, ...panels.map((x) => x.mask)],
+    maxDiffPixelRatio: ratioFor(region),
+    clip,
+    ...(c.clipToContent ? {} : { fullPage: true }),
+  };
   await expectRegionScreenshot(page, locator, name, o);
   // Re-rendered during the capture → the image may show a value: never offer it as a baseline proposal.
   expect(await unmarkedVolatile(masks.hide), `${name}: a volatile value re-rendered during capture`).toBe(0);
@@ -91,6 +105,7 @@ export async function captureRegion(
     body: await regionShot(page, locator, o),
     contentType: 'image/png',
   });
+  for (const x of panels) await x.remove();
   const findings = await checkLayout(page, locator, {
     region,
     viewport: p.viewport,
