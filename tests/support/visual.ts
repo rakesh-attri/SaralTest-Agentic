@@ -97,16 +97,70 @@ export function shotOptions(o: RegionShotOptions): {
   };
 }
 
+export interface Clip {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * The visible content box of an overlay region. Lightning (and the fixture) render a modal dialog as a fixed,
+ * full-viewport element with the content in one inner container; screenshotting the dialog element would capture the
+ * page behind the backdrop (other run data). Descends while exactly one child holds all of the text, and returns that
+ * child's box (clamped to the viewport); undefined when the region itself is already the content.
+ */
+export async function contentClip(region: Locator): Promise<Clip | undefined> {
+  return region.evaluate((root) => {
+    const kidsOf = (el: Element): Element[] => [
+      ...Array.from(el.shadowRoot?.children ?? []),
+      ...Array.from(el.children),
+    ];
+    const text = (el: Element): number => (el instanceof HTMLElement ? el.innerText.trim().length : 0);
+    let el: Element = root;
+    for (let depth = 0; depth < 12; depth++) {
+      const r = el.getBoundingClientRect();
+      const withText = kidsOf(el).filter((k) => {
+        const kr = k.getBoundingClientRect();
+        return kr.width > 0 && kr.height > 0 && text(k) > 0;
+      });
+      const only = withText[0];
+      if (withText.length !== 1 || !only) break;
+      const kr = only.getBoundingClientRect();
+      if (kr.width * kr.height > 0.9 * r.width * r.height && only.children.length === 0) break;
+      el = only;
+    }
+    if (el === root) return undefined;
+    const r = el.getBoundingClientRect();
+    const x = Math.max(0, r.x);
+    const y = Math.max(0, r.y);
+    const width = Math.min(window.innerWidth, r.x + r.width) - x;
+    const height = Math.min(window.innerHeight, r.y + r.height) - y;
+    const rootBox = root.getBoundingClientRect();
+    if (width * height > 0.9 * rootBox.width * rootBox.height) return undefined;
+    return { x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) };
+  });
+}
+
 /**
  * Soft screenshot assertion of one region against `<name>.png` (a mismatch is recorded, the test continues so layout
- * and a11y checks still run). The runner turns failures into candidates; nothing here judges them as defects.
+ * and a11y checks still run). With `clip`, the page is captured inside that box (overlay content, see contentClip).
+ * The runner turns failures into candidates; nothing here judges them as defects.
  */
 export async function expectRegionScreenshot(
   page: Page,
   region: Locator,
   name: string,
-  o: RegionShotOptions,
+  o: RegionShotOptions & { clip?: Clip },
 ): Promise<void> {
   await settle(page);
-  await expect.soft(region).toHaveScreenshot(`${name}.png`, shotOptions(o));
+  if (o.clip) await expect.soft(page).toHaveScreenshot(`${name}.png`, { ...shotOptions(o), clip: o.clip });
+  else await expect.soft(region).toHaveScreenshot(`${name}.png`, shotOptions(o));
+}
+
+/** The same masked image, as bytes (attached to the run so a matching region can still be re-approved). */
+export async function regionShot(page: Page, region: Locator, o: RegionShotOptions & { clip?: Clip }): Promise<Buffer> {
+  const x = shotOptions(o);
+  const opts = { mask: x.mask, maskColor: x.maskColor, animations: x.animations, caret: x.caret, scale: x.scale };
+  return o.clip ? page.screenshot({ ...opts, clip: o.clip }) : region.screenshot(opts);
 }

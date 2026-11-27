@@ -30,7 +30,11 @@ const yamlFile = (n: string): string => {
 };
 
 const Att = z.object({ name: z.string() });
-const PwRes = z.object({ status: z.string().optional(), attachments: z.array(Att).default([]) });
+const PwRes = z.object({
+  status: z.string().optional(),
+  attachments: z.array(Att).default([]),
+  errors: z.array(z.object({ message: z.string().default('') })).default([]),
+});
 const PwTest = z.object({ projectName: z.string(), results: z.array(PwRes).default([]) });
 const PwSpec = z.object({ title: z.string(), tests: z.array(PwTest).default([]) });
 interface S {
@@ -68,10 +72,15 @@ for (const runId of runIds) {
     // statuses re-derived from Playwright's own JSON
     const pw = z.object({ suites: z.array(z.unknown()).default([]) }).parse(json(join(dir, 'playwright-results.json')));
     const atts = new Map<string, Set<string>>();
+    const errs = new Map<string, string[]>();
     for (const sp of walk(pw.suites as S[]).filter((x) => x.title.startsWith('VIS-'))) {
       for (const t of sp.tests) {
         const vp = /-([a-z0-9]+)$/.exec(t.projectName)?.[1] ?? '';
         atts.set(vp, new Set((t.results.at(-1)?.attachments ?? []).map((a) => a.name)));
+        errs.set(
+          vp,
+          (t.results.at(-1)?.errors ?? []).map((e) => e.message),
+        );
       }
     }
     let derivedOk = 0;
@@ -80,8 +89,11 @@ for (const runId of runIds) {
       const actual = a.has(`${c.name}-actual.png`);
       const expected = a.has(`${c.name}-expected.png`);
       const captured = a.has(`visual-layout-${c.region}.json`) || a.has(`visual-shot-${c.name}.png`);
+      const noSnapshot = (errs.get(c.viewport) ?? []).some(
+        (m) => m.includes(`${c.name}.png`) && /snapshot doesn't exist/i.test(m),
+      );
       const exp =
-        actual && !expected
+        (actual && !expected) || noSnapshot
           ? ['NO_BASELINE']
           : actual
             ? ['DIFF']

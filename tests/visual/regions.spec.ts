@@ -34,7 +34,10 @@ test.describe('Visual baselines: Account → Contact pages', () => {
         await account.contactsNewButton.click();
         await expect(dialog.root).toBeVisible();
         await waitForSpinners(dialog.root);
-        await captureRegion(page, testInfo, 'new-contact-dialog', dialog.root, runPrefix());
+        await captureRegion(page, testInfo, 'new-contact-dialog', dialog.root, runPrefix(), {
+          extraMasks: [dialog.accountId], // the pre-filled Account lookup shows this run's Account name
+          clipToContent: true,
+        });
         await dialog.cancelButton.click(); // nothing is saved
         await expect(dialog.root).toBeHidden();
       });

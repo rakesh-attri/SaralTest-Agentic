@@ -65,11 +65,7 @@ const fakeSpawn =
             contentType: 'image/png',
           });
           if (o.missing) {
-            attachments.push({
-              name: `${name}-actual.png`,
-              path: file(`${name}-actual.png`, img),
-              contentType: 'image/png',
-            });
+            // as Playwright with updateSnapshots 'none': no -actual attachment, only the error
             errors.push({ message: `A snapshot doesn't exist at ${name}.png, writing actual.` });
           } else if (o.diff?.includes(name)) {
             attachments.push({

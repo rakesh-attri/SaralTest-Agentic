@@ -203,7 +203,8 @@ export function collectVisual(i: CollectInput): Collected {
         };
         const actualSha = actualBuf ? { actualSha256: sha256Buffer(actualBuf) } : {};
         const err = errors.find((e) => e.includes(`${name}.png`));
-        if (actual && !expected) {
+        const noSnapshot = err !== undefined && /snapshot doesn't exist/i.test(err);
+        if ((actual && !expected) || noSnapshot) {
           out.candidates.push(
             VisualCandidate.parse({
               ...base,

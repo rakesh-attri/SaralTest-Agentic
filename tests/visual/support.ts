@@ -4,7 +4,7 @@ import type { Locator, Page, TestInfo } from '@playwright/test';
 import { snapshotName, type LayoutFinding, type VisualRegion } from '../../src/core/schemas/visual.js';
 import { checkLayout } from '../support/layout.js';
 import { runSettings } from '../support/runConfig.js';
-import { expectRegionScreenshot, maskLocators, maskPlan, shotOptions } from '../support/visual.js';
+import { contentClip, expectRegionScreenshot, maskLocators, maskPlan, regionShot, settle } from '../support/visual.js';
 
 const settings = runSettings();
 
@@ -29,31 +29,35 @@ export function ratioFor(region: VisualRegion): number {
  * Screenshot of one region against its baseline (soft), then the local layout checks. Layout findings are attached
  * (`visual-layout.json`) as review candidates; they do not fail the test.
  */
+export interface CaptureOptions {
+  /** Inputs whose value is a run-specific record name (a lookup's selected value): masked too. */
+  extraMasks?: Locator[];
+  /** Capture the overlay's content box instead of the full-viewport dialog element (modal dialogs). */
+  clipToContent?: boolean;
+}
+
 export async function captureRegion(
   page: Page,
   testInfo: TestInfo,
   region: VisualRegion,
   locator: Locator,
   runPrefix: string,
+  c: CaptureOptions = {},
 ): Promise<LayoutFinding[]> {
   const p = visualProject(testInfo);
   const name = snapshotName(region, p.persona, p.viewport);
-  const mask = maskLocators(
-    page,
-    locator,
-    maskPlan([...settings.execution.visual.mask, 'names', 'counters'], runPrefix),
-  );
-  await expectRegionScreenshot(page, locator, name, { mask, maxDiffPixelRatio: ratioFor(region) });
+  const plan = maskPlan([...settings.execution.visual.mask, 'names', 'counters'], runPrefix);
+  // An overlay is captured by its content box: page-level masks (record title, spinners behind the backdrop) would
+  // be painted over the dialog content, so only masks inside the dialog apply.
+  const regionPlan = c.clipToContent ? { ...plan, title: false, status: false } : plan;
+  const mask = [...maskLocators(page, locator, regionPlan), ...(c.extraMasks ?? [])];
+  await settle(page);
+  const clip = c.clipToContent ? await contentClip(locator) : undefined;
+  const o = { mask, maxDiffPixelRatio: ratioFor(region), ...(clip ? { clip } : {}) };
+  await expectRegionScreenshot(page, locator, name, o);
   // The masked image of this run, attached even on a match: `qa visual approve` can re-approve it (release change).
-  const o = shotOptions({ mask, maxDiffPixelRatio: ratioFor(region) });
   await testInfo.attach(`visual-shot-${name}.png`, {
-    body: await locator.screenshot({
-      mask: o.mask,
-      maskColor: o.maskColor,
-      animations: o.animations,
-      caret: o.caret,
-      scale: o.scale,
-    }),
+    body: await regionShot(page, locator, o),
     contentType: 'image/png',
   });
   const findings = await checkLayout(page, locator, {
