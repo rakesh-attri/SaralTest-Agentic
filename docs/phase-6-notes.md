@@ -4,9 +4,11 @@ Branch `claude/phase-6-visual-qa` (from `claude/phase-5-execution-reporting` at 
 plus one commit per fix found in the fixture runs.
 
 **Exit criterion (PLAN.md §11):** a seeded visual change is reported as a candidate, and approving the baseline clears it.
-**Status (2026-11-27):** met on the **offline fixture** (FIXTURE). Live qa-prod: R1 baselines approved
-(AP-ad178d5f7b56) and R2 is **3 MATCH, desktop only** (run-p6-live-9). The **tablet viewport is deferred** (see
-*Deferred: tablet viewport*). Next: the seeded Phone move in Setup.
+**Status (2026-11-27):** met on the **offline fixture** (FIXTURE). Live qa-prod (desktop): R1 approved
+(AP-ad178d5f7b56), R2 3 MATCH (run-p6-live-9), and the seeded Phone move was reported as DIFF and cleared by
+approval **both ways** (move: live-11 → AP-0d3f1447ba4f; revert: live-14 → AP-176058e3a085). Final run live-15:
+2 MATCH + account-record DIFF 0.091 % from the record header strip — **open, left for later** (operator). Tablet
+viewport deferred.
 
 **Scope (operator, 2026-11-27):**
 - Baselines for the New Contact dialog, the Contact record page (Details) and the Account record page.
@@ -150,15 +152,27 @@ hides a label. Cause **not found**. Tried:
 Next step when resumed: capture the marked elements of a run-tagged Account in a real run (attach the list of
 `data-qa-volatile` elements per region), then re-approve both account-record baselines with the label visible.
 
-## Resume here: seeded change on qa-prod (desktop)
+## Seeded change on qa-prod (desktop)
 
-1. **Operator, in Setup:** Object Manager → Contact → Page Layouts → Contact Layout → drag **Phone** to another row
-   or column → Save. Do not run `qa discover` while the layout is moved.
-2. `pnpm qa visual run --org qa-prod --run-id run-p6-live-10` → expect DIFF on contact-details and
-   new-contact-dialog (desktop), account-record MATCH.
-3. Operator approves → `run-p6-live-11` must be 3 MATCH.
-4. Operator reverts the layout → `run-p6-live-12` (DIFF back) → approve → `run-p6-live-13` 3 MATCH.
-5. Then: capability-matrix row "Exit — live qa-prod", PLAN.md Phase 6 status.
+| Run | Layout | Result | Notes |
+|---|---|---|---|
+| run-p6-live-10 | Phone moved (Additional Information, row 3, left; checked via describe/layouts) | dialog DIFF 0.326 %, contact-details DIFF 0.727 %, account-record DIFF 1.55 % | account-record: Activity panel captured loading (spinner) — unrelated to Phone |
+| run-p6-live-11 | moved | same 2 Contact DIFFs; account-record DIFF (Activity stencil rows) | **Approved the 2 Contact images: AP-0d3f1447ba4f** |
+| run-p6-live-12 | moved | 2 MATCH; account-record new image | Activity panel masked as a whole (operator); mask stopped at the tab bar → widened to the card |
+| run-p6-live-13 | moved | contact-details MATCH; account-record masked image; dialog DIFF 0.62 % | Dialog: intermittent Address-section shift (not proposed). **Approved account-record: AP-c4cadc1d966c** |
+| run-p6-live-14 | Phone back (row 1, right; checked) | dialog DIFF 0.326 %, contact-details DIFF 0.766 %, account-record MATCH | **Approved the 2 Contact images: AP-176058e3a085** — byte-identical to R1 (same sha256) |
+| run-p6-live-15 | back | 2 MATCH, account-record DIFF 0.091 % | Record header (highlights) fields Account Owner / Industry ~25 px apart from the baseline; Details + Activity mask identical |
+
+All runs: validator valid, data CLEAN, layout FAIL 0, a11y FAIL 0.
+
+**Open (left for later, operator 2026-11-27):**
+- account-record: the record header strip lays out differently between loads (live-15, 0.091 %). Option: mask the
+  header field strip like the Activity panel, re-approve, re-run.
+- new-contact-dialog: intermittent Address-section shift (live-13, 0.62 %).
+- Two Salesforce-owned dialog a11y rules (`aria-prohibited-attr`, `sf-section-tab-order-not-applied`) are
+  NEW_STANDARD on desktop, not accepted yet.
+- Branches: `claude/phase-6-visual-qa` (main checkout) has the baselines and code; the docs commits are on
+  `claude/phase-6-r1-baseline-91b6ed` (the main checkout has unrelated uncommitted graphify changes).
 
 ## Not verified / known limits
 

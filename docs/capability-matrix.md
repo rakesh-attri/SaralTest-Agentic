@@ -187,7 +187,7 @@ _Last updated: Phase 6 visual QA — 2026-11-27 (branch `claude/phase-6-visual-q
 | Independent validator | implemented | `scripts/validate-visual.ts` (`pnpm validate:visual`) | |
 | Fixture page layout (`qa fixture serve --layout`) for the offline seeded change | implemented | `src/fixture/layout.ts`, `examples/fixture/layouts/` | FIXTURE only |
 | Exit: seeded change reported as candidate, approval clears it — **fixture** | implemented | `runs/run-p6-fixture-9` → `-10` | 4 DIFF → approved AP-74584af9d3b7 → 6 MATCH |
-| Exit — **live qa-prod** | partial | `runs/run-p6-live-3` (R1, AP-ad178d5f7b56), `run-p6-live-9` (R2: 3 MATCH, desktop) | Seeded Phone move in Setup not done yet (operator step, `docs/phase-6-notes.md`). Tablet deferred |
+| Exit — **live qa-prod** | partial (desktop) | R1 `run-p6-live-3`, R2 `-9`, move `-11` (AP-0d3f1447ba4f), revert `-14` (AP-176058e3a085), final `-15` | Seeded change reported and cleared both ways. Open: account-record header strip varies (0.091 %, live-15), intermittent dialog Address shift. Tablet deferred |
 | AI classification of candidates (redacted text + ARIA snapshot) | planned | — | Not built in Phase 6; candidates go to a human |
 | Visual QA on Experience Cloud | blocked | — | Digital Experiences not enabled in qa-prod (unchanged) |
 
@@ -206,7 +206,7 @@ _Last updated: Phase 6 visual QA — 2026-11-27 (branch `claude/phase-6-visual-q
 | Azure DevOps organisation + PAT | ADO work items as input (optional) | Rakesh | Set `ADO_ORG_URL` and `ADO_PAT` (Credential Manager preferred) |
 | Small reasoning model on the Gemini free tier | stable cross-source conflict detection | Rakesh | Enable billing, move `reasoning` + `judge` to a Pro model, re-run the Phase 1 demo — or use NVIDIA NIM (below) |
 | Gemini Pro judge returns 429 (free-tier quota 0) | a real Pro-class Test Reviewer (Phase 3), later Defect Judge | Rakesh | Enable billing; `judge: gemini-3.1-pro-preview` is already configured with a flash-lite fallback |
-| Live Phase 6 proof on qa-prod (seeded change) | Phase 6 exit on a real org | Rakesh | Move Phone on the Contact Layout in Setup now (R1 + R2 done), approve the DIFFs, then revert it |
+| Phase 6 live leftovers on qa-prod | a clean 3 MATCH final run | operator | Decide on masking the account-record header strip (live-15) and the dialog Address shift |
 | Q1–Q3 assumed; 4 org conflicts (Email / Phone required, duplicate rule inactive, Title list) | assertable cases for AC3–AC5, BR-03/04/06/08/10 | product owner + SF admin | Answer the questions (`qa resume` / new analyze) and fix or confirm the org config, then `qa design` again |
 
 ## Later phases
@@ -214,7 +214,7 @@ _Last updated: Phase 6 visual QA — 2026-11-27 (branch `claude/phase-6-visual-q
 | Capability | Status | Phase |
 |---|---|---|
 | Runner, reporting-labs + Playwright HTML, JIRA comment, Account→Contact demo | implemented (Phase 5) | 5 |
-| Visual QA | fixture exit met; live R1 + R2 done on desktop, seeded change pending; tablet deferred (Phase 6) | 6 |
+| Visual QA | fixture exit met; live desktop: seeded change caught and cleared both ways, final run 2/3 MATCH (header strip open); tablet deferred (Phase 6) | 6 |
 | Investigation, healing, exploration, fault injection | planned | 7 |
 | DeepEval judge model over the judge chain (OpenAI-compatible, failover on 429) | partial (pre-Phase-4) | `src/eval/judgeEndpoint.ts`, `eval/qa_eval/judge_model.py` |
 | DeepEval sidecar runner, metrics/gates, golden set, learning lifecycle | planned | 8 |
