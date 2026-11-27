@@ -12,6 +12,7 @@
   },
   "scripts": {
     "qa": "tsx src/cli/index.ts",
+    "graph:update": "graphify update .",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",

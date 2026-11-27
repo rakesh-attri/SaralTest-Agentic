@@ -1,0 +1,30 @@
+# Graphify scan exclusions (gitignore syntax). Dev tooling only: see docs/graphify-guide.md
+# Secrets / local state - never index
+.env
+.env.*
+!.env.example
+.auth/
+.mcp.json
+*.key
+*.pem
+config/*.yaml
+!config/*.example.yaml
+!config/policy.yaml
+!config/mcp-tools.yaml
+.qa-memory/
+
+# Generated / bulky output
+node_modules/
+runs/
+test-results/
+playwright-report/
+reporting-labs/
+reporting-labs.history.json
+dist/
+coverage/
+tests/visual-baselines/
+eval/.venv/
+eval/.deepeval/
+.claude/worktrees/
+.tmp/
+graphify-out/

@@ -217,5 +217,6 @@ _Last updated: Phase 6 visual QA — 2026-11-27 (branch `claude/phase-6-visual-q
 | Investigation, healing, exploration, fault injection | planned | 7 |
 | DeepEval judge model over the judge chain (OpenAI-compatible, failover on 429) | partial (pre-Phase-4) | `src/eval/judgeEndpoint.ts`, `eval/qa_eval/judge_model.py` |
 | DeepEval sidecar runner, metrics/gates, golden set, learning lifecycle | planned | 8 |
+| Graphify codebase map for LLM navigation (dev tooling, not part of the product) | implemented (code graph); semantic doc pass / community names pending a backend choice | `graphify-out/`, `docs/graphify-guide.md` |
 | CI/CD, full CLI, exit codes | planned | 9 |
 | Autonomy levels, prod-test-org, dashboards, multi-org, ADO, MCP chat server | planned | 10 |
