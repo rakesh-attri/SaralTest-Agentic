@@ -23,6 +23,7 @@ import { registerVisual } from './visual.js';
 import { registerInvestigate } from './investigate.js';
 import { registerHeal } from './heal.js';
 import { registerFaults } from './faults.js';
+import { registerDefects } from './defects.js';
 import { registerRun } from './run.js';
 import { registerReport } from './report.js';
 import { registerJiraComment } from './jiraComment.js';
@@ -102,6 +103,7 @@ export function buildCli(): Command {
   registerInvestigate(program, rootOf, say);
   registerHeal(program, rootOf, say);
   registerFaults(program, rootOf, say);
+  registerDefects(program, rootOf, say);
   registerJiraComment(registerReport(program, rootOf, say), rootOf, say);
 
   const mcp = program.command('mcp').description('MCP server utilities');

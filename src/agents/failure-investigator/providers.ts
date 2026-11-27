@@ -19,8 +19,12 @@ import { storyOf } from './context.js';
 import type { ApiReproduction, InvestigationProviders, ObjectAccess, RerunOutcome } from './experiments.js';
 
 /** API reproductions by case id (registered in T6 for BR-08). */
-export type ApiReproducer = (o: { sf: GuardedSalesforce; ctx: SfContext; runId: string }) => Promise<ApiReproduction>;
-export const API_REPRODUCERS = new Map<string, ApiReproducer>();
+export type ApiReproducer = (o: {
+  sf: GuardedSalesforce;
+  ctx: SfContext;
+  runId: string;
+  autonomy: Autonomy;
+}) => Promise<ApiReproduction>;
 
 export interface ProviderOptions {
   root: string;
@@ -140,9 +144,14 @@ export function createProviders(o: ProviderOptions): InvestigationProviders {
         }
       : {}),
     apiReproduce: async (caseId) => {
-      const f = API_REPRODUCERS.get(caseId);
+      const f = (await import('./reproducers.js')).REPRODUCERS[caseId];
       if (!f) return undefined;
-      return f({ sf: o.sf, ctx: o.ctx, runId: `${o.runId}-api`.slice(0, 40) });
+      return f({
+        sf: o.sf,
+        ctx: o.ctx,
+        runId: `${o.runId}-api`.slice(0, 40),
+        autonomy: o.autonomy ?? o.ctx.policy.autonomy,
+      });
     },
   };
 }
