@@ -17,7 +17,7 @@ import {
   type TabOrderResult,
 } from '../support/a11y.js';
 import { selectTab, showRelatedList, waitForSpinners } from '../support/lightning.js';
-import { layoutSections } from '../../src/visual/tabOrder.js';
+import { layoutSections, SECTION_TAB_ORDER_RULE } from '../../src/visual/tabOrder.js';
 import { visualProject } from './support.js';
 
 async function scanRegion(
@@ -27,6 +27,8 @@ async function scanRegion(
   region: VisualRegion,
   scope: Locator,
   tabOrder?: TabOrderResult,
+  /** Focus follows the on-screen row order instead of the layout section's Tab-key setting (Salesforce-owned). */
+  sectionSettingIgnored = false,
 ): Promise<void> {
   const { viewport } = visualProject(testInfo);
   const scan = await scanScoped(page, scope, ns);
@@ -42,16 +44,30 @@ async function scanRegion(
           targets: v.targets.length,
           help: v.help,
         })),
-        baseline: scan.baseline.map((v) => ({
-          ruleId: v.ruleId,
-          impact: v.impact,
-          targets: v.targets.length,
-          help: v.help,
-        })),
+        baseline: [
+          ...scan.baseline.map((v) => ({
+            ruleId: v.ruleId,
+            impact: v.impact,
+            targets: v.targets.length,
+            help: v.help,
+          })),
+          // operator 2026-11-27: a mismatch with the layout setting is Salesforce-owned (NEW_STANDARD / BASELINE)
+          ...(sectionSettingIgnored
+            ? [
+                {
+                  ruleId: SECTION_TAB_ORDER_RULE,
+                  impact: 'moderate',
+                  targets: tabOrder ? Object.values(tabOrder.basis).filter((b) => b.includes('TopToBottom')).length : 0,
+                  help: "Lightning moves focus row by row; the page layout section's Tab-key order is not applied",
+                },
+              ]
+            : []),
+        ],
         unnamed,
         tabOrder: tabOrder
           ? {
-              inOrder: tabOrder.inOrder,
+              inOrder: tabOrder.inOrder || sectionSettingIgnored,
+              sectionSettingIgnored,
               missing: tabOrder.missing,
               leftScope: tabOrder.leftScope,
               visited: tabOrder.visited,
@@ -69,12 +85,13 @@ async function scanRegion(
   if (tabOrder) {
     expect.soft(tabOrder.missing, `${region}: every control reachable by Tab`).toEqual([]);
     expect.soft(tabOrder.leftScope, `${region}: focus stays inside the region`).toBe(false);
-    expect
-      .soft(
-        tabOrder.visited,
-        `${region}: Tab follows the page layout's section order (${Object.values(tabOrder.basis).join(', ')})`,
-      )
-      .toEqual(tabOrder.expectedOrder.filter((n) => tabOrder.visited.includes(n)));
+    if (!sectionSettingIgnored)
+      expect
+        .soft(
+          tabOrder.visited,
+          `${region}: Tab follows the page layout's section order (${Object.values(tabOrder.basis).join(', ')})`,
+        )
+        .toEqual(tabOrder.expectedOrder.filter((n) => tabOrder.visited.includes(n)));
   }
 }
 
@@ -106,42 +123,45 @@ test.describe('Accessibility: Account → Contact pages', () => {
         await waitForSpinners(dialog.root);
         // Expected order from the org's Contact page layout (each section's Tab direction), not an assumption.
         const sections = layoutSections(await sf.get('/sobjects/Contact/describe/layouts'), 'edit');
-        const keys = await checkTabOrder(
-          page,
-          dialog.root,
-          {
-            firstName: dialog.firstName,
-            lastName: dialog.lastName,
-            title: dialog.title,
-            email: dialog.email,
-            phone: dialog.phone,
-            leadSource: dialog.leadSource,
-            mailingStreet: dialog.mailingStreet,
-            mailingCity: dialog.mailingCity,
-            mailingPostalCode: dialog.mailingPostalCode,
-            mailingCountry: dialog.mailingCountry,
-            accountId: dialog.accountId,
-            cancelButton: dialog.cancelButton,
-            saveButton: dialog.saveButton,
+        const dialogControls = {
+          firstName: dialog.firstName,
+          lastName: dialog.lastName,
+          title: dialog.title,
+          email: dialog.email,
+          phone: dialog.phone,
+          leadSource: dialog.leadSource,
+          mailingStreet: dialog.mailingStreet,
+          mailingCity: dialog.mailingCity,
+          mailingPostalCode: dialog.mailingPostalCode,
+          mailingCountry: dialog.mailingCountry,
+          accountId: dialog.accountId,
+          cancelButton: dialog.cancelButton,
+          saveButton: dialog.saveButton,
+        };
+        const keys = await checkTabOrder(page, dialog.root, dialogControls, {
+          sections,
+          fields: {
+            firstName: 'FirstName',
+            lastName: 'LastName',
+            title: 'Title',
+            email: 'Email',
+            phone: 'Phone',
+            leadSource: 'LeadSource',
+            mailingStreet: 'MailingStreet',
+            mailingCity: 'MailingCity',
+            mailingPostalCode: 'MailingPostalCode',
+            mailingCountry: 'MailingCountry',
+            accountId: 'AccountId',
           },
-          {
-            sections,
-            fields: {
-              firstName: 'FirstName',
-              lastName: 'LastName',
-              title: 'Title',
-              email: 'Email',
-              phone: 'Phone',
-              leadSource: 'LeadSource',
-              mailingStreet: 'MailingStreet',
-              mailingCity: 'MailingCity',
-              mailingPostalCode: 'MailingPostalCode',
-              mailingCountry: 'MailingCountry',
-              accountId: 'AccountId',
-            },
-          },
-        );
-        await scanRegion(page, testInfo, a11y, 'new-contact-dialog', dialog.root, keys);
+        });
+        // Differs from the layout setting: Salesforce-owned only if focus follows the on-screen row order instead
+        // (a second pass from the visually first control). Any other order, a missed control or focus leaving: FAIL.
+        let ignored = false;
+        if (!keys.inOrder && !keys.missing.length && !keys.leftScope) {
+          const rows = await checkTabOrder(page, dialog.root, dialogControls);
+          ignored = rows.inOrder && !rows.missing.length && !rows.leftScope;
+        }
+        await scanRegion(page, testInfo, a11y, 'new-contact-dialog', dialog.root, keys, ignored);
         await dialog.cancelButton.click(); // nothing is saved
         await expect(dialog.root).toBeHidden();
       });

@@ -4,6 +4,9 @@
 // Source: REST `GET /sobjects/<Object>/describe/layouts` (observe). Pure functions; Zod at the API boundary.
 import { z } from 'zod';
 
+/** Salesforce-owned a11y candidate: Lightning does not apply the section's Tab-key order (operator 2026-11-27). */
+export const SECTION_TAB_ORDER_RULE = 'sf-section-tab-order-not-applied';
+
 export const SectionTabOrder = z.enum(['LeftToRight', 'TopToBottom']);
 export type SectionTabOrder = z.infer<typeof SectionTabOrder>;
 
