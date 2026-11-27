@@ -32,12 +32,12 @@
       "region": "contact-details",
       "persona": "system-admin",
       "viewport": "desktop",
-      "sha256": "fcaecd352de8ace0b081a0b9c9994b3abf049acf746d2aa5fd1b084a4f5e0109",
+      "sha256": "8daf60bd31e5766aa7d2bf725583fd44d65e2ae76fff67843d84fcef17388ec6",
       "release": "Winter '27",
       "approvedBy": "Rakesh Sharma",
-      "approvalId": "AP-ad178d5f7b56",
-      "approvedAt": "2026-11-27T11:04:39.846Z",
-      "sourceRun": "run-p6-live-3"
+      "approvalId": "AP-0d3f1447ba4f",
+      "approvedAt": "2026-11-27T12:44:13.394Z",
+      "sourceRun": "run-p6-live-11"
     },
     {
       "name": "contact-details-system-admin-tablet",
@@ -56,12 +56,12 @@
       "region": "new-contact-dialog",
       "persona": "system-admin",
       "viewport": "desktop",
-      "sha256": "ae27dc49c7834f98cda47407f27c3fda65846b3ca4ac89c0f48ae03b1cc2f1ec",
+      "sha256": "2df142952258854d5a89a8b6bf875cabf0e1cddfc56d8ff440f51dc7d8ce9187",
       "release": "Winter '27",
       "approvedBy": "Rakesh Sharma",
-      "approvalId": "AP-ad178d5f7b56",
-      "approvedAt": "2026-11-27T11:04:39.846Z",
-      "sourceRun": "run-p6-live-3"
+      "approvalId": "AP-0d3f1447ba4f",
+      "approvedAt": "2026-11-27T12:44:13.394Z",
+      "sourceRun": "run-p6-live-11"
     },
     {
       "name": "new-contact-dialog-system-admin-tablet",
