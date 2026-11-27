@@ -7,7 +7,6 @@ import { A11Y_SCOPE_NOTE } from '../agents/test-generator/render.js';
 import { isAutomatable } from '../core/schemas/testCase.js';
 import type { QAGraphStateType } from './state.js';
 
-
 export interface BuildSummary {
   runId: string;
   storyKey?: string;

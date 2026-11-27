@@ -58,6 +58,8 @@ export interface RuntimeOptions {
   build?: GraphDeps['build'];
   /** Phase 5: the Runner (`qa run`). */
   execute?: GraphDeps['execute'];
+  /** Phase 7: investigate → heal → judge after execute (`qa run --investigate`). */
+  investigate?: GraphDeps['investigate'];
   /** No model router (the run needs no LLM, e.g. `qa run`); unlike --offline the network stays available. */
   noModels?: boolean;
   /**
@@ -200,6 +202,7 @@ export async function createRuntime(o: RuntimeOptions): Promise<Runtime> {
     ...(o.design ? { design: o.design } : {}),
     ...(o.build ? { build: o.build } : {}),
     ...(o.execute ? { execute: o.execute } : {}),
+    ...(o.investigate ? { investigate: o.investigate } : {}),
     ...(router ? { router } : {}),
     skills: SkillLoader.forProject(o.root),
     redactor,
@@ -472,7 +475,28 @@ export function explain(v: QAGraphStateType, id: string): string {
     return `${f.id} ${f.kind} [${f.severity}; ${f.origin}${f.rule ? `:${f.rule}` : ''}] (${f.refs.join(', ')})\n  ${f.text}`;
   const t = v.triageLog.filter((d) => d.issueId.toUpperCase() === key);
   if (t.length) return t.map((d) => `${d.issueId} ${d.kind} at ${d.node} → ${d.response}: ${d.reason}`).join('\n');
-  return `Nothing with id "${id}" in this run (try a requirement id, Q1, F-001 or an issue id).`;
+  // Phase 7: a test case id / failure id → its investigation; a DEF-… id → the defect draft and the judge's decision.
+  const inv = v.investigations.find((i) => i.failureId.toUpperCase() === key || i.caseId?.toUpperCase() === key);
+  if (inv) {
+    const ev = v.evidence.filter((e) => inv.evidenceIds.includes(e.id));
+    return [
+      `${inv.caseId ?? inv.failureId} — ${inv.verdict} (${inv.confidence.toFixed(2)}, ${inv.rule ?? inv.model ?? 'no rule'}) → ${inv.route ?? 'qa-lead'}`,
+      `  ${inv.rationale ?? ''}`,
+      'Experiments:',
+      ...inv.experiments.map((e) => `  ${e.kind}: ${e.outcome} — ${e.result}`),
+      ...ev.map((e) => `Evidence ${e.id}: ${e.claim} [${e.sources.join(', ')}]`),
+    ].join('\n');
+  }
+  const def = v.defects.find((d) => d.id.toUpperCase() === key);
+  if (def)
+    return [
+      `${def.id} — ${def.status ?? 'SUSPECTED'}: ${def.title}`,
+      `  Judge: ${def.judge ? `${def.judge.decision} by ${def.judge.model} — ${def.judge.reason}` : 'not judged'}`,
+      ...(def.judge?.gate.missing.length ? [`  Gate missing: ${def.judge.gate.missing.join('; ')}`] : []),
+      `  Evidence: ${def.evidenceIds.join(', ')}`,
+      `  ${def.published ? 'Published' : 'Not posted (operator approval of the exact text needed)'}`,
+    ].join('\n');
+  return `Nothing with id "${id}" in this run (try a requirement id, Q1, F-001, an issue id, a case id or DEF-…).`;
 }
 
 export function createReadline(): Prompter {

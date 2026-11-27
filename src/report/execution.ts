@@ -4,8 +4,8 @@
 //   execution-report.md/.html · release-confidence.md/.json · cleanup-reconciliation.md · impact-coverage.md +
 //   rtm-results.xlsx · history.md (+ .qa-memory/history.jsonl) · model-attempts.json · index.md
 // Every row carries its environment; FIXTURE / MOCK are never presented as a Salesforce result (rule 13).
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, relative } from 'node:path';
 import ExcelJS from 'exceljs';
 import { z } from 'zod';
 import { Clarification } from '../core/schemas/requirement.js';
@@ -530,10 +530,29 @@ export async function writeExecutionReports(d: ReportData): Promise<string[]> {
             `- Test plan / cases / RTM (design \`${d.manifest?.designRun ?? ''}\`): [test-plan.md](${design}/test-plan.md) · [test-cases.md](${design}/test-cases.md) · [rtm.xlsx](${design}/rtm.xlsx)`,
           ]
         : []),
+      ...phase7Links(d.runDir),
       '',
-      'Visual QA runs separately (`qa visual run`): its visual-diff report is in that run folder (`report/visual-diff.html`). Not produced yet: exploration and defect reports (Phase 7).',
+      'Visual QA runs separately (`qa visual run`): its visual-diff report is in that run folder (`report/visual-diff.html`). Exploration runs separately too (`qa explore`: `runs/<id>/explore/exploration-report.html`).',
       '',
     ].join('\n'),
   );
+  return out;
+}
+
+/** Phase 7 outputs of a run (`qa run --investigate`): investigation, heal and defect reports in `runs/<run>-inv`. */
+export function phase7Links(runDir: string): string[] {
+  // same id rule as createInvestigateHook: `${runId}-inv` cut to 32 characters
+  const inv = join(dirname(runDir), `${basename(runDir)}-inv`.slice(0, 32));
+  const rel = `../../${basename(inv)}`;
+  const out: string[] = [];
+  if (existsSync(join(inv, 'investigation', 'investigation-report.md')))
+    out.push(`- Failure investigation: [investigation-report.md](${rel}/investigation/investigation-report.md)`);
+  const heal = join(`${inv}-heal`, 'heal', 'heal-report.md');
+  if (existsSync(heal)) out.push(`- Self-Healer: [heal-report.md](../../${basename(inv)}-heal/heal/heal-report.md)`);
+  const defects = join(inv, 'defects');
+  if (existsSync(defects)) {
+    const md = readdirSync(defects).filter((f) => f.endsWith('.md'));
+    if (md.length) out.push(`- Defect drafts (not posted; operator approval needed): ${md.map((f) => `[${f}](${rel}/defects/${f})`).join(' · ')}`);
+  }
   return out;
 }
