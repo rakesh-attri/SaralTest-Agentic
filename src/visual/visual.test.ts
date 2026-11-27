@@ -174,6 +174,12 @@ beforeAll(async () => {
   root = makeTempProject();
   const orgsFile = join(root, 'config', 'orgs.yaml');
   writeFileSync(orgsFile, readFileSync(orgsFile, 'utf8').replace('http://127.0.0.1:4545', server.url));
+  // tablet is deferred in the example config; the runner is still tested with two viewports (switched back on)
+  const execFile = join(root, 'config', 'execution.yaml');
+  writeFileSync(
+    execFile,
+    readFileSync(execFile, 'utf8').replace(/^ {2}viewports: \[desktop\]/m, '  viewports: [desktop, tablet]'),
+  );
   cpSync(join(REPO_ROOT, 'examples', 'recipes'), join(root, 'examples', 'recipes'), { recursive: true });
   const ctx = await createSfContext({ root, runId: 'snap-setup', orgAlias: 'fixture' });
   org = ctx.org;

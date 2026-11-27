@@ -93,9 +93,13 @@ describe('visual config', () => {
     unknown
   >;
 
-  it('example config selects desktop + one smaller viewport', () => {
+  it('example config: desktop only while tablet is deferred; tablet stays defined so it can be switched back on', () => {
     const c = ExecutionConfig.parse(example);
-    expect(c.visual.viewports).toEqual(['desktop', 'tablet']);
+    expect(c.visual.viewports).toEqual(['desktop']);
+    expect(c.viewports.map((v) => v.name)).toContain('tablet');
+    expect(
+      ExecutionConfig.parse({ ...c, visual: { ...c.visual, viewports: ['desktop', 'tablet'] } }).visual.viewports,
+    ).toEqual(['desktop', 'tablet']);
     expect(c.visual.baselineDir).toBe('tests/visual-baselines');
   });
 
