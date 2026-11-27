@@ -32,6 +32,8 @@ interface FakeOpts {
   pixel?: string;
   /** the regions test failed before any capture */
   crash?: boolean;
+  /** layout findings: a Salesforce-owned load-time shift (account-record) and one in our own component (contact-details) */
+  layout?: boolean;
 }
 
 const fakeSpawn =
@@ -56,7 +58,9 @@ const fakeSpawn =
           const img = `${o.pixel ?? 'px'}-${name}`;
           attachments.push({
             name: `visual-layout-${region}.json`,
-            body: Buffer.from(JSON.stringify({ region, name, findings: [] })).toString('base64'),
+            body: Buffer.from(
+              JSON.stringify({ region, name, findings: o.layout ? fakeFindings(region, vp) : [] }),
+            ).toString('base64'),
             contentType: 'application/json',
           });
           attachments.push({
@@ -140,10 +144,21 @@ const deps = (spawn: Runner) => ({
   ensureSession: () => Promise.resolve({ landedHost: '127.0.0.1', reused: true }),
 });
 
+function fakeFindings(region: string, viewport: string): Record<string, unknown>[] {
+  const base = { region, viewport, fieldOverlap: false };
+  if (region === 'account-record')
+    return [
+      { ...base, kind: 'layout-shift', detail: 'cumulative layout shift 0.9 > 0.1', value: 0.9, owner: 'salesforce' },
+    ];
+  if (region === 'contact-details')
+    return [{ ...base, kind: 'clipped-text', elements: ['Our Label'], detail: '"Our Label" cut off', owner: 'ours' }];
+  return [];
+}
+
 const run = (runId: string, o: FakeOpts, calls: Record<string, string>[] = [], autonomy: 'L2' | 'L3' = 'L3') =>
   runVisual({ root, runId, orgAlias: 'fixture', autonomy, say, echo: false }, deps(fakeSpawn(o, calls)));
 
-const approve = (runId: string, extra: { only?: string[]; a11y?: boolean } = {}) =>
+const approve = (runId: string, extra: { only?: string[]; a11y?: boolean; layout?: boolean } = {}) =>
   approveBaselines({
     root,
     runId,
@@ -268,5 +283,23 @@ describe('qa visual run / approve on the offline fixture (FIXTURE)', () => {
     const r = approve('vis-7');
     expect(r.skipped[0]?.reason).toMatch(/hash differs/);
     expect(r.approved).toHaveLength(5);
+  });
+
+  it('layout: ours fails, Salesforce-owned is NEW_STANDARD until accepted with --layout, then BASELINE', async () => {
+    const first = await run('vis-8', { layout: true });
+    const st = (region: string): (string | undefined)[] =>
+      first.summary?.layout.filter((f) => f.region === region).map((f) => f.status) ?? [];
+    expect(st('account-record')).toEqual(['NEW_STANDARD', 'NEW_STANDARD']);
+    expect(st('contact-details')).toEqual(['FAIL', 'FAIL']);
+    expect(first.summary?.counts).toMatchObject({ layout: 4, layoutFail: 2, layoutNewStandard: 2 });
+    expect(renderVisualDiffMd(first.summary ?? (undefined as never))).toContain('| NEW_STANDARD | salesforce |');
+
+    const r = approve('vis-8', { layout: true });
+    expect(r.layoutAccepted.map((e) => e.keys)).toEqual([['layout-shift:'], ['layout-shift:']]);
+    const audit = readFileSync(join(root, 'runs', 'vis-8', 'audit.jsonl'), 'utf8');
+    expect(audit.match(/"LayoutBaseline"/g)).toHaveLength(2);
+
+    const next = await run('vis-9', { layout: true });
+    expect(next.summary?.layout.map((f) => f.status).sort()).toEqual(['BASELINE', 'BASELINE', 'FAIL', 'FAIL']);
   });
 });

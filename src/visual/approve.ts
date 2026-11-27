@@ -10,7 +10,14 @@ import type { OrgEntry } from '../config/schemas.js';
 import { QAError } from '../core/errors.js';
 import { runPaths } from '../core/runFolder.js';
 import type { Approval } from '../core/schemas/data.js';
-import type { A11yBaselineEntry, BaselineRecord, VisualCandidate, VisualRunSummary } from '../core/schemas/visual.js';
+import {
+  layoutFindingKey,
+  type A11yBaselineEntry,
+  type BaselineRecord,
+  type LayoutBaselineEntry,
+  type VisualCandidate,
+  type VisualRunSummary,
+} from '../core/schemas/visual.js';
 import { ApprovalStore } from '../security/approvals.js';
 import { AuditLog } from '../security/audit.js';
 import { Redactor } from '../security/redact.js';
@@ -30,6 +37,8 @@ export interface ApproveOptions {
   only?: readonly string[];
   /** Also accept the run's NEW_STANDARD a11y rules. */
   a11y?: boolean;
+  /** Also accept the run's NEW_STANDARD (Salesforce-owned) layout findings. */
+  layout?: boolean;
   note?: string;
   approvalsFile: string;
 }
@@ -38,6 +47,7 @@ export interface ApproveResult {
   approval?: Approval;
   approved: BaselineRecord[];
   a11yAccepted: A11yBaselineEntry[];
+  layoutAccepted: LayoutBaselineEntry[];
   skipped: { name: string; reason: string }[];
   manifestFile?: string;
 }
@@ -89,9 +99,14 @@ export function approveBaselines(o: ApproveOptions): ApproveResult {
   }
   const { take, skipped } = approvable(s, runDir, o.only);
   const newRules = o.a11y ? s.a11y.filter((f) => f.status === 'NEW_STANDARD') : [];
-  if (!take.length && !newRules.length) return { approved: [], a11yAccepted: [], skipped };
+  const newLayout = o.layout ? s.layout.filter((f) => f.status === 'NEW_STANDARD') : [];
+  if (!take.length && !newRules.length && !newLayout.length)
+    return { approved: [], a11yAccepted: [], layoutAccepted: [], skipped };
 
-  const ruleKeys = newRules.map((f) => `a11y:${f.region}:${f.viewport}:${f.ruleId}`);
+  const ruleKeys = [
+    ...newRules.map((f) => `a11y:${f.region}:${f.viewport}:${f.ruleId}`),
+    ...[...new Set(newLayout.map((f) => `layout:${f.region}:${f.viewport}:${layoutFindingKey(f)}`))],
+  ];
   const approval = new ApprovalStore(o.approvalsFile).record({
     checkpoint: VISUAL_BASELINE_CHECKPOINT,
     subject: visualSubject(s.org, take, ruleKeys),
@@ -100,7 +115,7 @@ export function approveBaselines(o: ApproveOptions): ApproveResult {
     runId: o.runId,
     note:
       o.note ??
-      `${String(take.length)} baseline(s): ${take.map((c) => `${c.name} (${c.status})`).join(', ')}${ruleKeys.length ? `; a11y: ${ruleKeys.join(', ')}` : ''}`,
+      `${String(take.length)} baseline(s): ${take.map((c) => `${c.name} (${c.status})`).join(', ')}${ruleKeys.length ? `; accepted: ${ruleKeys.join(', ')}` : ''}`,
   });
   const audit = new AuditLog(runPaths(o.root, o.runId).auditLog, new Redactor());
   const folder = baselineFolder(o.root, o.baselineDir, o.org.alias);
@@ -173,6 +188,39 @@ export function approveBaselines(o: ApproveOptions): ApproveResult {
       outcome: 'SUCCEEDED',
     });
   }
+  const layoutAccepted: LayoutBaselineEntry[] = [];
+  const lgroups = new Map<string, typeof newLayout>();
+  for (const f of newLayout)
+    lgroups.set(`${f.region}|${f.viewport}`, [...(lgroups.get(`${f.region}|${f.viewport}`) ?? []), f]);
+  for (const fs of lgroups.values()) {
+    const f0 = fs[0];
+    if (!f0) continue;
+    const prev = m.layout.find((e) => e.region === f0.region && e.viewport === f0.viewport);
+    const entry: LayoutBaselineEntry = {
+      region: f0.region,
+      viewport: f0.viewport,
+      keys: [...new Set([...(prev?.keys ?? []), ...fs.map((f) => layoutFindingKey(f))])].sort(),
+      approvalId: approval.id,
+      approvedAt: approval.approvedAt,
+      sourceRun: o.runId,
+    };
+    m.layout = [...m.layout.filter((e) => e !== prev), entry];
+    layoutAccepted.push(entry);
+    audit.append({
+      runId: o.runId,
+      orgId: o.org.orgId,
+      user: o.approvedBy,
+      persona: s.persona,
+      action: 'mutate',
+      tool: 'qa visual approve --layout',
+      object: 'LayoutBaseline',
+      recordId: `${entry.region}-${entry.viewport}`,
+      before: prev ? { keys: prev.keys } : null,
+      after: { keys: entry.keys },
+      approvalId: approval.id,
+      outcome: 'SUCCEEDED',
+    });
+  }
   const manifestFile = saveBaselines(folder, m);
-  return { approval, approved, a11yAccepted, skipped, manifestFile };
+  return { approval, approved, a11yAccepted, layoutAccepted, skipped, manifestFile };
 }

@@ -9,6 +9,8 @@ import {
   A11yFinding,
   A11yRegionCheck,
   LayoutFinding,
+  layoutFindingFails,
+  layoutFindingKey,
   VisualCandidate,
   snapshotName,
   type BaselineManifest,
@@ -186,7 +188,19 @@ export function collectVisual(i: CollectInput): Collected {
       for (const region of i.regions) {
         const name = snapshotName(region, persona, viewport);
         const layout = json(att(`visual-layout-${region}.json`), LayoutAttachment);
-        if (layout) out.layout.push(...layout.findings);
+        if (layout) {
+          const accepted = new Set(
+            i.manifest.layout.find((e) => e.region === region && e.viewport === viewport)?.keys ?? [],
+          );
+          for (const f of layout.findings) {
+            const status = layoutFindingFails(f)
+              ? 'FAIL'
+              : accepted.has(layoutFindingKey(f))
+                ? 'BASELINE'
+                : 'NEW_STANDARD';
+            out.layout.push(LayoutFinding.parse({ ...f, status }));
+          }
+        }
         const actual = att(`${name}-actual.png`);
         const expected = att(`${name}-expected.png`);
         const diff = att(`${name}-diff.png`);

@@ -163,6 +163,8 @@ export async function runVisual(
       match: c.candidates.filter((x) => x.status === 'MATCH').length,
       candidates: c.candidates.filter((x) => x.status !== 'MATCH').length,
       layout: c.layout.length,
+      layoutFail: c.layout.filter((x) => x.status === 'FAIL').length,
+      layoutNewStandard: c.layout.filter((x) => x.status === 'NEW_STANDARD').length,
       a11yFail: c.a11y.filter((x) => x.status === 'FAIL').length,
       a11yNewStandard: c.a11y.filter((x) => x.status === 'NEW_STANDARD').length,
     },

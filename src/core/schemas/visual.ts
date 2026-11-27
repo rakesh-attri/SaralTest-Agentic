@@ -44,6 +44,17 @@ export const A11yBaselineEntry = z.object({
 });
 export type A11yBaselineEntry = z.infer<typeof A11yBaselineEntry>;
 
+/** Salesforce-owned layout findings accepted for one region × viewport (`qa visual approve --layout`). */
+export const LayoutBaselineEntry = z.object({
+  region: VisualRegion,
+  viewport: Slug,
+  keys: z.array(z.string().min(1)),
+  approvalId: z.string().regex(/^AP-[0-9a-f]{12}$/),
+  approvedAt: IsoDate,
+  sourceRun: z.string().min(1),
+});
+export type LayoutBaselineEntry = z.infer<typeof LayoutBaselineEntry>;
+
 /** `tests/visual-baselines/<org>/baselines.json`: baselines of one org (fixture and live never mix). */
 export const BaselineManifest = z.object({
   org: Slug,
@@ -51,6 +62,7 @@ export const BaselineManifest = z.object({
   environment: Environment,
   baselines: z.array(BaselineRecord).default([]),
   a11y: z.array(A11yBaselineEntry).default([]),
+  layout: z.array(LayoutBaselineEntry).default([]),
 });
 export type BaselineManifest = z.infer<typeof BaselineManifest>;
 
@@ -106,8 +118,35 @@ export const LayoutFinding = z.object({
   detail: z.string().min(1),
   /** Measured value where one exists (overlap px², layout-shift score, overflow px). */
   value: z.number().optional(),
+  /**
+   * Whose component the finding is in: `salesforce` (standard namespaces: sticky header/footer, Preview buttons,
+   * load-time layout shift) or `ours` (custom namespace, or a page that is not Lightning, e.g. the fixture).
+   */
+  owner: z.enum(['salesforce', 'ours']).default('ours'),
+  /** Overlap of two field controls outside any pinned (fixed / sticky) container: a real overlap, always FAIL. */
+  fieldOverlap: z.boolean().default(false),
+  /** Set by the runner (src/visual/collect.ts): FAIL · BASELINE (accepted) · NEW_STANDARD (Salesforce-owned, new). */
+  status: z.enum(['FAIL', 'BASELINE', 'NEW_STANDARD']).optional(),
 });
 export type LayoutFinding = z.infer<typeof LayoutFinding>;
+
+/** Kinds that describe the page state, not a component: they always fail (blank page, error, endless loading). */
+export const PAGE_STATE_KINDS: readonly LayoutFindingKind[] = [
+  'blank-page',
+  'loading-not-finished',
+  'error-banner',
+  'hidden-required',
+];
+
+/** A layout finding fails the test: our component, a real field overlap, or a broken page state. */
+export function layoutFindingFails(f: Pick<LayoutFinding, 'owner' | 'fieldOverlap' | 'kind'>): boolean {
+  return f.owner === 'ours' || f.fieldOverlap || PAGE_STATE_KINDS.includes(f.kind);
+}
+
+/** Stable key of a Salesforce-owned layout finding (no measured value: CLS and px change per run). */
+export function layoutFindingKey(f: Pick<LayoutFinding, 'kind' | 'elements'>): string {
+  return `${f.kind}:${[...f.elements].sort().join('|')}`;
+}
 
 /**
  * - `FAIL`: violation inside our custom namespaces (fails the test);
@@ -156,6 +195,8 @@ export const VisualRunSummary = z.object({
     match: z.number().int().nonnegative(),
     candidates: z.number().int().nonnegative(),
     layout: z.number().int().nonnegative(),
+    layoutFail: z.number().int().nonnegative().default(0),
+    layoutNewStandard: z.number().int().nonnegative().default(0),
     a11yFail: z.number().int().nonnegative(),
     a11yNewStandard: z.number().int().nonnegative(),
   }),

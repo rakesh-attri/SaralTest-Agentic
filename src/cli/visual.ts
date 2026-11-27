@@ -46,7 +46,7 @@ export function visualSummaryText(s: VisualRunSummary, root: string): string {
     L.push(`  ${s.environment}: offline fixture images — never a Salesforce visual result.`);
   for (const c of s.candidates) L.push(`  ${c.status.padEnd(12)} ${c.name.padEnd(42)} ${c.reason}`);
   L.push(
-    `  screenshots: ${s.counts.match} MATCH · ${s.counts.candidates} candidate(s) · layout findings ${s.counts.layout} · a11y FAIL ${s.counts.a11yFail} · a11y new Salesforce-owned ${s.counts.a11yNewStandard}`,
+    `  screenshots: ${s.counts.match} MATCH · ${s.counts.candidates} candidate(s) · layout findings ${s.counts.layout} (FAIL ${s.counts.layoutFail}, new Salesforce-owned ${s.counts.layoutNewStandard}) · a11y FAIL ${s.counts.a11yFail} · a11y new Salesforce-owned ${s.counts.a11yNewStandard}`,
   );
   for (const t of s.tests.filter((x) => x.state !== 'passed'))
     L.push(`  test ${t.state}: ${t.title}${t.error ? ` — ${t.error}` : ''}`);
@@ -55,7 +55,7 @@ export function visualSummaryText(s: VisualRunSummary, root: string): string {
   if (s.counts.candidates) {
     L.push(
       `  Candidates need a human decision (checkpoint approve-visual-baseline): review the report, then`,
-      `    pnpm qa visual approve --run ${s.runId} --by "<your name>"   (add --only <name,…> to approve some, --a11y to accept new Salesforce-owned a11y rules)`,
+      `    pnpm qa visual approve --run ${s.runId} --by "<your name>"   (add --only <name,…> to approve some, --a11y / --layout to accept new Salesforce-owned a11y rules / layout findings)`,
     );
   }
   return L.join('\n');
@@ -110,7 +110,10 @@ export function registerVisual(program: Command, rootOf: () => string, say: Say)
         say(visualSummaryText(r.summary, root));
         say(`  data: ${r.reconcile?.status ?? 'NONE'} · files: ${files.join(', ')}`);
         const clean =
-          r.summary.counts.candidates === 0 && r.summary.counts.a11yFail === 0 && r.reconcile?.status === 'CLEAN';
+          r.summary.counts.candidates === 0 &&
+          r.summary.counts.a11yFail === 0 &&
+          r.summary.counts.layoutFail === 0 &&
+          r.reconcile?.status === 'CLEAN';
         process.exitCode = r.status !== 'COMPLETE' ? 2 : clean ? 0 : 1;
       },
     );
@@ -122,50 +125,66 @@ export function registerVisual(program: Command, rootOf: () => string, say: Say)
     .requiredOption('--by <name>', 'who approves (recorded in .qa-memory/approvals.jsonl and the audit trail)')
     .option('--only <names>', 'comma-separated snapshot names to approve (default: all candidates)')
     .option('--a11y', 'also accept the new Salesforce-owned a11y rules of the run')
+    .option('--layout', 'also accept the new Salesforce-owned layout findings of the run')
     .option('--note <text>', 'note stored with the approval')
     .option('--dry-run', 'show what would be approved, change nothing')
-    .action((o: { run: string; by: string; only?: string; a11y?: boolean; note?: string; dryRun?: boolean }) =>
-      (async () => {
-        const root = rootOf();
-        const s = loadVisualSummary(runPaths(root, o.run).dir);
-        const org = await orgOf(root, s.org);
-        const exec = await executionConfig(root);
-        const only = list(o.only);
-        if (o.dryRun) {
-          const { take, skipped } = approvable(s, runPaths(root, o.run).dir, only);
-          say(`Would approve ${take.length} baseline(s) on ${s.org} (${s.environment}):`);
-          for (const c of take) say(`  ${c.status.padEnd(12)} ${c.name}`);
-          for (const k of skipped) say(`  skipped ${k.name}: ${k.reason}`);
-          if (o.a11y)
-            for (const f of s.a11y.filter((x) => x.status === 'NEW_STANDARD'))
-              say(`  a11y ${f.region}/${f.viewport}: ${f.ruleId}`);
-          return;
-        }
-        const r = approveBaselines({
-          root,
-          runId: o.run,
-          org,
-          baselineDir: exec.visual.baselineDir,
-          approvedBy: o.by,
-          ...(only ? { only } : {}),
-          ...(o.a11y ? { a11y: true } : {}),
-          ...(o.note ? { note: o.note } : {}),
-          approvalsFile: approvalsFile(root),
-        });
-        if (!r.approval) {
-          say(`Nothing to approve in ${o.run}.`);
+    .action(
+      (o: {
+        run: string;
+        by: string;
+        only?: string;
+        a11y?: boolean;
+        layout?: boolean;
+        note?: string;
+        dryRun?: boolean;
+      }) =>
+        (async () => {
+          const root = rootOf();
+          const s = loadVisualSummary(runPaths(root, o.run).dir);
+          const org = await orgOf(root, s.org);
+          const exec = await executionConfig(root);
+          const only = list(o.only);
+          if (o.dryRun) {
+            const { take, skipped } = approvable(s, runPaths(root, o.run).dir, only);
+            say(`Would approve ${take.length} baseline(s) on ${s.org} (${s.environment}):`);
+            for (const c of take) say(`  ${c.status.padEnd(12)} ${c.name}`);
+            for (const k of skipped) say(`  skipped ${k.name}: ${k.reason}`);
+            if (o.a11y)
+              for (const f of s.a11y.filter((x) => x.status === 'NEW_STANDARD'))
+                say(`  a11y ${f.region}/${f.viewport}: ${f.ruleId}`);
+            if (o.layout)
+              for (const f of s.layout.filter((x) => x.status === 'NEW_STANDARD'))
+                say(`  layout ${f.region}/${f.viewport}: ${f.kind} ${f.elements.join(' / ')}`);
+            return;
+          }
+          const r = approveBaselines({
+            root,
+            runId: o.run,
+            org,
+            baselineDir: exec.visual.baselineDir,
+            approvedBy: o.by,
+            ...(only ? { only } : {}),
+            ...(o.a11y ? { a11y: true } : {}),
+            ...(o.layout ? { layout: true } : {}),
+            ...(o.note ? { note: o.note } : {}),
+            approvalsFile: approvalsFile(root),
+          });
+          if (!r.approval) {
+            say(`Nothing to approve in ${o.run}.`);
+            for (const k of r.skipped) say(`  skipped ${k.name}: ${k.reason}`);
+            return;
+          }
+          say(
+            `Approved ${r.approval.id} by ${r.approval.approvedBy} (${r.approval.approvedAt}) on ${s.org} (${s.environment}):`,
+          );
+          for (const b of r.approved)
+            say(`  baseline ${b.name}  sha256 ${b.sha256.slice(0, 12)}…  release ${b.release}`);
+          for (const a of r.a11yAccepted) say(`  a11y ${a.region}/${a.viewport}: ${a.ruleIds.join(', ')}`);
+          for (const a of r.layoutAccepted) say(`  layout ${a.region}/${a.viewport}: ${a.keys.join(', ')}`);
           for (const k of r.skipped) say(`  skipped ${k.name}: ${k.reason}`);
-          return;
-        }
-        say(
-          `Approved ${r.approval.id} by ${r.approval.approvedBy} (${r.approval.approvedAt}) on ${s.org} (${s.environment}):`,
-        );
-        for (const b of r.approved) say(`  baseline ${b.name}  sha256 ${b.sha256.slice(0, 12)}…  release ${b.release}`);
-        for (const a of r.a11yAccepted) say(`  a11y ${a.region}/${a.viewport}: ${a.ruleIds.join(', ')}`);
-        for (const k of r.skipped) say(`  skipped ${k.name}: ${k.reason}`);
-        say(`  manifest: ${r.manifestFile ?? '-'} · audit: ${runPaths(root, o.run).auditLog}`);
-        say('  Re-run `qa visual run` to confirm the candidates are cleared.');
-      })(),
+          say(`  manifest: ${r.manifestFile ?? '-'} · audit: ${runPaths(root, o.run).auditLog}`);
+          say('  Re-run `qa visual run` to confirm the candidates are cleared.');
+        })(),
     );
 
   visual

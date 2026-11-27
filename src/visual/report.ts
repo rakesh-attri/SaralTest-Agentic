@@ -25,7 +25,7 @@ export function renderVisualDiffMd(s: VisualRunSummary, rec?: ReconcileReport): 
   L.push(
     `- Environment: **${environmentLabel(s.environment)}** · org ${s.org} (${s.orgId}) · release ${s.release}`,
     `- Persona ${s.persona} · viewports ${s.viewports.join(', ')} · browser ${s.browser} · ${s.createdAt}`,
-    `- Screenshots: **${s.counts.match} MATCH · ${s.counts.candidates} candidate(s)** · layout findings ${s.counts.layout} · a11y FAIL ${s.counts.a11yFail} · new Salesforce-owned a11y rules ${s.counts.a11yNewStandard}`,
+    `- Screenshots: **${s.counts.match} MATCH · ${s.counts.candidates} candidate(s)** · layout findings ${s.counts.layout} (FAIL ${s.counts.layoutFail} · new Salesforce-owned ${s.counts.layoutNewStandard}) · a11y FAIL ${s.counts.a11yFail} · new Salesforce-owned a11y rules ${s.counts.a11yNewStandard}`,
     `- Test data: ${rec?.status ?? 'NONE'}${rec ? ` (${rec.subRuns.length} sub-run(s), ${rec.remaining.length} remaining)` : ''}`,
     '- A candidate is not a defect: a human decides (checkpoint `approve-visual-baseline`). Images were not sent to any model.',
     '',
@@ -61,7 +61,8 @@ export function renderVisualDiffMd(s: VisualRunSummary, rec?: ReconcileReport): 
     );
   else {
     L.push('| Region | Viewport | Kind | Detail |', '|---|---|---|---|');
-    for (const f of s.layout) L.push(`| ${f.region} | ${f.viewport} | ${f.kind} | ${md(f.detail)} |`);
+    for (const f of s.layout)
+      L.push(`| ${f.status ?? '-'} | ${f.owner} | ${f.region} | ${f.viewport} | ${f.kind} | ${md(f.detail)} |`);
   }
   L.push('', '## Accessibility', '');
   if (s.a11yChecks.length) {
@@ -105,7 +106,7 @@ export function renderVisualDiffHtml(s: VisualRunSummary, rec?: ReconcileReport)
     })
     .join('\n');
   const layout = s.layout.length
-    ? `<table><tr><th>Region</th><th>Viewport</th><th>Kind</th><th>Detail</th></tr>${s.layout.map((f) => `<tr><td>${esc(f.region)}</td><td>${esc(f.viewport)}</td><td>${esc(f.kind)}</td><td>${esc(f.detail)}</td></tr>`).join('')}</table>`
+    ? `<table><tr><th>Status</th><th>Owner</th><th>Region</th><th>Viewport</th><th>Kind</th><th>Detail</th></tr>${s.layout.map((f) => `<tr><td>${esc(f.status ?? '-')}</td><td>${esc(f.owner)}</td><td>${esc(f.region)}</td><td>${esc(f.viewport)}</td><td>${esc(f.kind)}</td><td>${esc(f.detail)}</td></tr>`).join('')}</table>`
     : '<p>No layout findings.</p>';
   const a11y = s.a11y.length
     ? `<table><tr><th>Status</th><th>Region</th><th>Viewport</th><th>Rule</th><th>Impact</th><th>Nodes</th><th>Help</th></tr>${s.a11y.map((f) => `<tr><td>${esc(f.status)}</td><td>${esc(f.region)}</td><td>${esc(f.viewport)}</td><td>${esc(f.ruleId)}</td><td>${esc(f.impact ?? '-')}</td><td>${String(f.targets)}</td><td>${esc(f.help)}</td></tr>`).join('')}</table>`
@@ -126,7 +127,7 @@ img{max-width:420px;border:1px solid #999}.banner{background:#fde7c8;padding:8px
 </style></head><body>
 <h1>Visual-diff report — ${esc(s.runId)}</h1>${banner}
 <p>${esc(environmentLabel(s.environment))} · org ${esc(s.org)} (${esc(s.orgId)}) · release ${esc(s.release)} · persona ${esc(s.persona)} · viewports ${esc(s.viewports.join(', '))} · ${esc(s.browser)}</p>
-<p><b>${String(s.counts.match)} MATCH · ${String(s.counts.candidates)} candidate(s)</b> · layout findings ${String(s.counts.layout)} · a11y FAIL ${String(s.counts.a11yFail)} · new Salesforce-owned a11y rules ${String(s.counts.a11yNewStandard)} · test data ${esc(rec?.status ?? 'NONE')}</p>
+<p><b>${String(s.counts.match)} MATCH · ${String(s.counts.candidates)} candidate(s)</b> · layout findings ${String(s.counts.layout)} (FAIL ${String(s.counts.layoutFail)} · new Salesforce-owned ${String(s.counts.layoutNewStandard)}) · a11y FAIL ${String(s.counts.a11yFail)} · new Salesforce-owned a11y rules ${String(s.counts.a11yNewStandard)} · test data ${esc(rec?.status ?? 'NONE')}</p>
 <p>A candidate is not a defect: a human decides (checkpoint approve-visual-baseline). Images were not sent to any model.</p>
 <h2>Screenshots</h2><table><tr><th>Status</th><th>Baseline</th><th>Actual</th><th>Diff</th></tr>${rows}</table>
 <h2>Layout checks</h2>${layout}

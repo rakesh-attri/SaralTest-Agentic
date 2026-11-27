@@ -14,7 +14,7 @@ import { parse } from 'yaml';
 import { z } from 'zod';
 import { OrgsConfig } from '../src/config/schemas.js';
 import { Approval, AuditEntry } from '../src/core/schemas/data.js';
-import { BaselineManifest, VisualRunSummary } from '../src/core/schemas/visual.js';
+import { BaselineManifest, layoutFindingFails, VisualRunSummary } from '../src/core/schemas/visual.js';
 
 const root = resolve(import.meta.dirname, '..');
 const runIds = process.argv.slice(2).filter((a) => !a.startsWith('--'));
@@ -163,11 +163,22 @@ for (const runId of runIds) {
         oks.push(`${String(fromRun.length)} baseline(s) approved from this run: bound to approval + image hash`);
     }
 
+    // layout status: FAIL exactly for our components / field overlaps / page state; the rest is Salesforce-owned
+    const wrongStatus = s.layout.filter((f) => (f.status === 'FAIL') !== layoutFindingFails(f));
+    if (wrongStatus.length)
+      bad.push(`layout status wrong for ${String(wrongStatus.length)} finding(s): ${wrongStatus[0]?.detail ?? ''}`);
+    else
+      oks.push(
+        `layout: ${String(s.layout.filter((f) => f.status === 'FAIL').length)} FAIL, the rest Salesforce-owned (BASELINE / NEW_STANDARD)`,
+      );
+
     // counts
     const cnt = {
       match: matches.length,
       candidates: s.candidates.length - matches.length,
       layout: s.layout.length,
+      layoutFail: s.layout.filter((f) => f.status === 'FAIL').length,
+      layoutNewStandard: s.layout.filter((f) => f.status === 'NEW_STANDARD').length,
       a11yFail: s.a11y.filter((f) => f.status === 'FAIL').length,
       a11yNewStandard: s.a11y.filter((f) => f.status === 'NEW_STANDARD').length,
     };

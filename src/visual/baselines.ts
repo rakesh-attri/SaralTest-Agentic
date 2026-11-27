@@ -18,7 +18,7 @@ export const sha256Buffer = (b: Buffer): string => createHash('sha256').update(b
 export function loadBaselines(folder: string, org: OrgEntry): BaselineManifest {
   const f = baselineManifestFile(folder);
   if (!existsSync(f))
-    return { org: org.alias, orgId: org.orgId, environment: org.environment, baselines: [], a11y: [] };
+    return { org: org.alias, orgId: org.orgId, environment: org.environment, baselines: [], a11y: [], layout: [] };
   const m = BaselineManifest.parse(JSON.parse(readFileSync(f, 'utf8')));
   if (m.orgId !== org.orgId) {
     throw new Error(`baselines in ${folder} belong to org ${m.orgId}, not ${org.alias} (${org.orgId})`);
