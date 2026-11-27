@@ -54,6 +54,14 @@ export const PAGE_DEFS: readonly PageDef[] = [
     kind: 'edit',
     title: 'Contact edit form (record page › Edit)',
   },
+  {
+    id: 'contact-delete',
+    className: 'DeleteContactDialog',
+    object: 'Contact',
+    rootExpr: "getByRole('dialog', { name: 'Delete Contact' })",
+    kind: 'dialog',
+    title: 'Delete Contact confirmation (record page › Delete)',
+  },
 ];
 
 export const CatalogMember = z.object({

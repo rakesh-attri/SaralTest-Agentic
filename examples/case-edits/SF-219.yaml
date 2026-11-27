@@ -56,3 +56,53 @@ dropSteps:
   - caseId: TC-SF-219-050
     step: 5
     reason: confirms manual test MTC-009 passed (its RE_VERIFY status) — a human check of an execution record, like TC-051/052
+
+# ---- Phase 7 (operator decision 2026-11-27, Phase 7 plan): BR-08 — a Contact with open Cases cannot be deleted.
+# BR-08 is intentionally NOT implemented in qa-prod (decision Q3): TC-031 is expected to fail and becomes the real-defect
+# demo (investigate → Defect Judge → JIRA bug draft shown to the operator before anything is posted).
+# RF-004 (judge, pass 1) asked for the positive counterpart: TC-SF-219-054 below. Both cases bind a run-tagged Case recipe.
+decisions:
+  - id: P7-BR08-POS
+    text: >-
+      Positive counterpart of BR-08 (operator 2026-11-27): a Contact that has no open Cases — its only Case is Closed —
+      can be deleted; deleting it succeeds and the Contact no longer exists.
+dataRecipe:
+  - caseId: TC-SF-219-031
+    recipe: contact-open-case
+    reason: the precondition needs a Contact with an open Case (Account → Contact → Case Status New)
+  - caseId: TC-SF-219-054
+    recipe: contact-closed-case
+    reason: the positive counterpart needs a Contact whose only Case is Closed
+approve:
+  - caseId: TC-SF-219-031
+    findingIds: [RF-004]
+    resolution: the positive counterpart TC-SF-219-054 is added (operator decision P7-BR08-POS); all expectations are APPROVED_REQUIREMENT
+addCases:
+  - id: TC-SF-219-054
+    title: Contact whose only Case is Closed can be deleted
+    requirementIds: [SF-219-R22]
+    riskIds: [RISK-11]
+    technique: equivalence partitioning (complement of TC-SF-219-031)
+    persona: system-admin
+    type: functional
+    priority: P1
+    severity: MAJOR
+    preconditions:
+      - A Contact exists whose only Case is Closed
+      - User is logged in as System Administrator
+    steps:
+      - action: Navigate to the Contact record page, click Delete and confirm the deletion in the dialog
+        expected:
+          text: The Contact is deleted
+          evidenceLevel: APPROVED_REQUIREMENT
+          evidenceIds: [SF-219-CASE-EDITS#P7-BR08-POS]
+      - action: Verify via SOQL that the Contact no longer exists
+        expected:
+          text: No Contact with that record Id is found
+          evidenceLevel: APPROVED_REQUIREMENT
+          evidenceIds: [SF-219-CASE-EDITS#P7-BR08-POS]
+    tags: ['@functional', '@P1', '@SF-219', '@persona:system-admin', '@mandatory']
+    reviewStatus: APPROVED
+    snapshotId: snap-00DdN00000uQ5dK-20261125122127-93cc
+    refs: [BR-08]
+    regressionTier: mandatory

@@ -1,0 +1,29 @@
+# Recipe for BR-08 (SF-219-R22, TC-SF-219-031): Account -> Contact -> an OPEN Case on that Contact.
+# Proposed in the Phase 7 plan the operator approved on 2026-11-27 (decision: Case records are run-tagged — the admin
+# adds QA_Run_Id__c on Case). A live run still needs the recipe checkpoint: pnpm qa data approve --recipe contact-open-case.
+# Values marked {synthetic} are generated; Status/Origin must be active picklist values in the org snapshot.
+recipe: contact-open-case
+approvedBy: "Rakesh Sharma (Phase 7 plan, 2026-11-27)"
+objects:
+  - object: Account
+    recordType: null
+    fields:
+      Name: "QA-{runId}-Acme {synthetic}"
+      Industry: Technology
+      BillingStreet: "12 MG Road"
+      BillingCity: Bengaluru
+      BillingPostalCode: "560001"
+      BillingCountry: India
+  - object: Contact
+    parent: { field: AccountId, ref: Account }
+    fields:
+      FirstName: "{synthetic}"
+      LastName: "QA-{runId}-{synthetic}"
+      Email: "qa+{runId}-{synthetic}@example.invalid"   # never a real mailbox
+  - object: Case
+    parent: { field: ContactId, ref: Contact }
+    fields:
+      Subject: "QA-{runId} open case {synthetic}"
+      Status: New                 # open (IsClosed = false)
+      Origin: Phone
+cleanup: reverse-dependency

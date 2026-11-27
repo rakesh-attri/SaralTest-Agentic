@@ -20,6 +20,7 @@ import { LocatorRegistry } from '../knowledge/locatorRegistry.js';
 import { SnapshotStore } from '../knowledge/snapshotStore.js';
 import { createSfContext } from '../sf/context.js';
 import { applyCaseEdits, loadCaseEdits } from '../inputs/caseEdits.js';
+import { TestCaseIdStore } from '../agents/test-planner/index.js';
 import { refreshCaseWording } from '../inputs/caseRefresh.js';
 import {
   refreshStaleMarks,
@@ -74,6 +75,33 @@ export function loadDesignRun(root: string, runId: string): DesignRunSeed {
   const info = DesignRunInfo.parse(JSON.parse(readFileSync(join(dir, 'design-run.json'), 'utf8')));
   const storyKey = info.storyKey ?? testCases[0]?.tags.find((t) => /^@[A-Z][A-Z0-9]+-\d+$/.test(t))?.slice(1) ?? runId;
   return { runId, storyKey, testCases, info };
+}
+
+/**
+ * Evidence ids a design run can cite: source sections (`<docId>#<ref>`), design evidence ids and every id those
+ * entries cite. Operator-added cases (case edits `addCases`) may cite only these (CLAUDE.md rule 12).
+ */
+export function designEvidenceIds(root: string, runId: string): Set<string> {
+  const out = new Set<string>();
+  const dir = runPaths(root, runId).dir;
+  const sources = join(dir, 'analysis', 'sources');
+  if (existsSync(sources)) {
+    for (const f of readdirSync(sources).filter((x) => x.endsWith('.json'))) {
+      const doc = JSON.parse(readFileSync(join(sources, f), 'utf8')) as {
+        docId?: string;
+        sections?: { ref?: string }[];
+      };
+      for (const sec of doc.sections ?? []) if (doc.docId && sec.ref) out.add(`${doc.docId}#${sec.ref}`);
+    }
+  }
+  const ev = join(dir, 'design', 'evidence.json');
+  if (existsSync(ev)) {
+    for (const e of JSON.parse(readFileSync(ev, 'utf8')) as { id?: string; sources?: string[] }[]) {
+      if (e.id) out.add(e.id);
+      for (const x of e.sources ?? []) out.add(x);
+    }
+  }
+  return out;
 }
 
 export interface BuildRuntimeOptions {
@@ -240,9 +268,19 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
           const edits = loadCaseEdits(resolve(o.caseEdits));
           if (edits.storyKey !== seed.storyKey)
             throw new QAError('DATA', `case edits are for ${edits.storyKey}, the design run is ${seed.storyKey}`);
-          const r = applyCaseEdits(seed.testCases, edits);
+          const r = applyCaseEdits(seed.testCases, edits, designEvidenceIds(root, o.fromRun));
           seed.testCases = r.cases;
           editChanges = r.changes.map((c) => `${c} — ${edits.decidedBy}, ${edits.decidedOn}`);
+          // Operator-added case ids are reserved in the story's id store, so a later design never reuses them.
+          if (edits.addCases.length) {
+            const ids = new TestCaseIdStore(seed.storyKey, join(root, '.qa-memory'));
+            for (const c of r.cases.filter((x) => x.origin === 'operator')) {
+              const got = ids.idFor(`operator|${c.id}`);
+              if (got !== c.id)
+                say(`  note: id store allocated ${got} for operator case ${c.id} (ids stay unique in this design run)`);
+            }
+            ids.save();
+          }
           say(`Applied ${String(editChanges.length)} operator case edit(s) from ${o.caseEdits}:`);
           for (const c of editChanges) say(`  ${c}`);
         }

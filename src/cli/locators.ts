@@ -14,7 +14,7 @@ import { registerObserve } from './observe.js';
 
 type Say = (msg: string) => void;
 
-export const DEFAULT_PAGES = ['account-record', 'contact-record', 'contact-new', 'contact-edit'];
+export const DEFAULT_PAGES = ['account-record', 'contact-record', 'contact-new', 'contact-edit', 'contact-delete'];
 
 export const registryFile = (root: string): string => join(root, '.qa-memory', 'locators.db');
 
