@@ -142,15 +142,18 @@ export function buildCli(): Command {
     .description('Serve the offline fixture (mock REST/SOQL + Lightning-like pages)')
     .option('--port <n>', 'port', '4545')
     .option('--metadata <file>', 'setup metadata file (e.g. examples/fixture/metadata.changed-vr.json)')
-    .action(async (o: { port: string; metadata?: string }) => {
+    .option('--layout <file>', 'Contact page layout (e.g. examples/fixture/layouts/contact-moved-field.json)')
+    .action(async (o: { port: string; metadata?: string; layout?: string }) => {
       const root = rootOf();
       const fx = await startFixtureServer({
         fixtureDir: join(root, 'examples', 'fixture'),
         port: Number(o.port),
         ...(o.metadata ? { metadataFile: resolve(root, o.metadata) } : {}),
+        ...(o.layout ? { layoutFile: resolve(root, o.layout) } : {}),
       });
       say(`OFFLINE FIXTURE serving at ${fx.url} (not Salesforce; everything is labelled FIXTURE)`);
       if (o.metadata) say(`  setup metadata: ${o.metadata}`);
+      if (o.layout) say(`  Contact page layout: ${o.layout} (FIXTURE seeded layout)`);
       say(
         `  record page: ${fx.url}/secur/frontdoor.jsp?sid=fixture-admin-token&retURL=/lightning/r/Account/001FX0000000001AAA/view`,
       );
