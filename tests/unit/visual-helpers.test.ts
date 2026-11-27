@@ -286,6 +286,21 @@ describe('visual + layout helpers on the offline fixture (real Chromium, FIXTURE
         el.remove();
       });
     await waitForRegionReady(page, main);
+    // an unnamed spinner or a stencil row (Activity panel, run-p6-live-10) also keeps the capture waiting
+    for (const tag of ['lightning-spinner', 'div']) {
+      await main.evaluate((el, t) => {
+        const ph = document.createElement(t);
+        if (t === 'div') ph.className = 'stencilRow';
+        ph.style.cssText = 'display:block;height:20px';
+        ph.setAttribute('data-test', 'loading');
+        el.appendChild(ph);
+      }, tag);
+      await expect(waitForRegionReady(page, main, 1500)).rejects.toThrow();
+      await main.locator('[data-test="loading"]').evaluate((el) => {
+        el.remove();
+      });
+    }
+    await waitForRegionReady(page, main);
     const dialog = await openDialog();
     await page.getByRole('main').evaluate((el) => {
       el.setAttribute('aria-hidden', 'true');

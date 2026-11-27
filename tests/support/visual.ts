@@ -153,7 +153,16 @@ export async function markVolatile(locators: readonly Locator[]): Promise<number
  * was captured while `force-placeholder2` was still shown (tablet), and the real fields replaced the marked nodes
  * after masking, so their values showed unmasked. CSS selectors pierce open shadow roots.
  */
-export const LOADING_PLACEHOLDERS = 'force-placeholder2, force-placeholder, lightning-skeleton, [aria-busy="true"]';
+export const LOADING_PLACEHOLDERS = [
+  'force-placeholder2',
+  'force-placeholder',
+  'lightning-skeleton',
+  '[aria-busy="true"]',
+  // run-p6-live-10: the Activity panel was captured with its spinner and grey stencil rows (an unnamed
+  // lightning-spinner is not role=status "Loading…"). Cleared within 5 s on Account and Contact (read-only check).
+  'lightning-spinner',
+  '[class*="stencil"]',
+].join(', ');
 
 /**
  * The region is ready: no spinner, no loading placeholder, and its text and size are the same on two reads in a row
