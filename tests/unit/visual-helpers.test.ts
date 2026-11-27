@@ -25,6 +25,7 @@ import {
   maskLocators,
   maskPlan,
   pageClip,
+  panelMask,
   regionShot,
   settle,
   unmarkedVolatile,
@@ -306,6 +307,32 @@ describe('visual + layout helpers on the offline fixture (real Chromium, FIXTURE
       el.setAttribute('aria-hidden', 'true');
     }); // as Lightning does
     expect((await checkLayout(page, dialog, where)).map((f) => f.kind)).not.toContain('blank-page');
+  });
+
+  it('panelMask: a fixed rectangle from the card top-left to the region bottom, whatever the card height', async () => {
+    const main = await openRecord(page, 'Account', ACCOUNT);
+    await main.evaluate((el) => {
+      const card = document.createElement('div');
+      card.className = 'slds-tabs_card';
+      card.style.cssText = 'position:absolute;left:900px;top:300px;width:400px;height:80px';
+      card.innerHTML = '<div role="tablist" style="width:120px"><button role="tab">Activity</button></div>';
+      el.appendChild(card);
+    });
+    const anchor = main.getByRole('tab', { name: 'Activity' });
+    const regionBottom = await main.evaluate((el) => el.getBoundingClientRect().bottom + window.scrollY);
+    const first = await panelMask(page, anchor, main, 't');
+    const box = await first.mask.boundingBox();
+    expect(box).toMatchObject({ x: 900, width: 400 });
+    expect(Math.round((box?.y ?? 0) + (box?.height ?? 0))).toBe(Math.round(regionBottom));
+    await first.remove();
+    expect(await first.mask.count()).toBe(0);
+    // the card grows (loading → loaded): the mask rectangle stays the same
+    await main.getByRole('tab', { name: 'Activity' }).evaluate((el) => {
+      (el.closest('.slds-tabs_card') as HTMLElement).style.height = '380px';
+    });
+    const second = await panelMask(page, anchor, main, 't');
+    expect(await second.mask.boundingBox()).toEqual(box);
+    await second.remove();
   });
 
   it("the fixture serves its Contact form layout (describe/layouts) with the section's Tab direction", async () => {

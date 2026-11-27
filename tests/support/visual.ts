@@ -458,3 +458,56 @@ export async function regionShot(
   if (o.clip) return page.screenshot({ ...opts, clip: o.clip, ...(o.fullPage ? { fullPage: true } : {}) });
   return region.screenshot(opts);
 }
+
+/**
+ * Mask a dynamic Salesforce panel by a rectangle that does not depend on its content: from the top-left of the
+ * panel's card (found from `anchor`, e.g. its "Activity" tab) to the bottom of `region`, the card's width. The card
+ * itself grows while it loads (79 → 374 px, more with stencil rows), so masking its box would differ per run
+ * (qa-prod run-p6-live-10/11). An absolutely positioned overlay is added for the capture; returns its locator and a
+ * remove function. The overlay does not affect layout.
+ */
+export async function panelMask(
+  page: Page,
+  anchor: Locator,
+  region: Locator,
+  name: string,
+): Promise<{ mask: Locator; remove: () => Promise<void> }> {
+  const regionBox = await region.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { bottom: r.bottom + window.scrollY };
+  });
+  await anchor.evaluate(
+    (el, a) => {
+      const up = (x: Element): Element | null => {
+        if (x.parentElement) return x.parentElement;
+        const root = x.getRootNode();
+        return root instanceof ShadowRoot ? root.host : null;
+      };
+      // the card: the first ancestor clearly wider than the tab bar (tabset card in a Lightning page column)
+      const start = el.getBoundingClientRect();
+      let card: Element = el;
+      for (let p = up(el); p; p = up(p)) {
+        card = p;
+        if (p.getBoundingClientRect().width > start.width * 2 + 20 || /tabs_card/.test(p.getAttribute('class') ?? ''))
+          break;
+      }
+      const r = card.getBoundingClientRect();
+      const o = document.createElement('div');
+      o.setAttribute('data-qa-panel-mask', a.name);
+      o.style.cssText = `position:absolute;pointer-events:none;left:${String(r.x + window.scrollX)}px;top:${String(
+        r.y + window.scrollY,
+      )}px;width:${String(r.width)}px;height:${String(Math.max(0, a.bottom - (r.y + window.scrollY)))}px;z-index:2147483647`;
+      document.body.appendChild(o);
+    },
+    { name, bottom: regionBox.bottom },
+  );
+  const mask = page.locator(`[data-qa-panel-mask="${name}"]`);
+  return {
+    mask,
+    remove: async () => {
+      await mask.evaluateAll((els) => {
+        for (const e of els) e.remove();
+      });
+    },
+  };
+}
