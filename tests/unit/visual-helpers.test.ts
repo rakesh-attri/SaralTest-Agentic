@@ -236,6 +236,23 @@ describe('visual + layout helpers on the offline fixture (real Chromium, FIXTURE
     expect(await details.getByText('Account Name').last().getAttribute(VOLATILE_ATTR)).toBeNull();
     expect(await details.getByText('QA-run-x Acme').getAttribute(VOLATILE_ATTR)).toBe('');
     expect(await unmarkedVolatile(tagged.hide)).toBe(0);
+    // the same tagged name split over two text nodes: the value element is hidden, never the item with the label
+    await details.evaluate((el) => {
+      const item = document.createElement('div');
+      item.setAttribute('data-test', 'split');
+      const host = document.createElement('lightning-formatted-name');
+      const value = document.createElement('span');
+      value.append(document.createTextNode('QA-run'), document.createTextNode('-y Beta'));
+      host.attachShadow({ mode: 'open' }).append(value);
+      item.innerHTML = '<span>Contact Name</span>';
+      item.append(host);
+      el.appendChild(item);
+    });
+    const split = maskLocators(page, details, maskPlan(['names'], 'QA-run-y'));
+    await markVolatile(split.hide);
+    expect(await details.locator('[data-test="split"]').getAttribute(VOLATILE_ATTR)).toBeNull();
+    expect(await details.getByText('Contact Name').getAttribute(VOLATILE_ATTR)).toBeNull();
+    expect(await unmarkedVolatile(split.hide)).toBe(0);
     // a re-rendered (fresh) node is detected as not hidden
     const plan = maskLocators(page, details, maskPlan(['dates'], 'QA-'));
     await markVolatile(plan.hide);

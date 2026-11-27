@@ -118,10 +118,24 @@ export async function markVolatile(locators: readonly Locator[]): Promise<number
           walk(e);
           return out;
         };
+        const kids = (x: Element): Element[] => [
+          ...Array.from(x.shadowRoot?.children ?? []),
+          ...Array.from(x.children),
+        ];
+        const text = (x: Element): string =>
+          Array.from(x.childNodes)
+            .filter((c) => c.nodeType === Node.TEXT_NODE)
+            .map((c) => c.textContent ?? '')
+            .join('') + kids(x).map(text).join('');
+        /** Text split over several nodes: the smallest element (across shadow roots) whose text still matches. */
+        const deepest = (x: Element): Element => {
+          const k = kids(x).find((c) => re?.test(text(c)));
+          return k ? deepest(k) : x;
+        };
         let count = 0;
         for (const e of els) {
           const targets = re ? textParents(e) : [];
-          for (const t of targets.length ? targets : [e]) {
+          for (const t of targets.length ? targets : [re ? deepest(e) : e]) {
             t.setAttribute(a.attr, '');
             count++;
           }
@@ -270,10 +284,24 @@ export async function unmarkedVolatile(locators: readonly Locator[]): Promise<nu
           walk(e);
           return out;
         };
+        const kids = (x: Element): Element[] => [
+          ...Array.from(x.shadowRoot?.children ?? []),
+          ...Array.from(x.children),
+        ];
+        const text = (x: Element): string =>
+          Array.from(x.childNodes)
+            .filter((c) => c.nodeType === Node.TEXT_NODE)
+            .map((c) => c.textContent ?? '')
+            .join('') + kids(x).map(text).join('');
+        const deepest = (x: Element): Element => {
+          const k = kids(x).find((c) => re?.test(text(c)));
+          return k ? deepest(k) : x;
+        };
         return els.filter((e) => {
           if (hidden(e)) return false;
           const parts = re ? textParents(e) : [];
-          return parts.length === 0 || !parts.every(hidden);
+          if (parts.length) return !parts.every(hidden);
+          return !(re && hidden(deepest(e)));
         }).length;
       },
       { attr: VOLATILE_ATTR, pattern: patternArg(l) },
