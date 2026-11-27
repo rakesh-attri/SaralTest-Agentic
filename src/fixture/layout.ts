@@ -13,6 +13,8 @@ export const FixtureLayout = z.object({
       details: z.array(z.string().min(1)).optional(),
       /** Field blocks of the Contact form (New Contact / Edit dialogs), in order. */
       form: z.array(z.string().min(1)).optional(),
+      /** Tab direction of the form section, as a Salesforce page layout section sets it (default LeftToRight). */
+      formTabOrder: z.enum(['LeftToRight', 'TopToBottom']).optional(),
     })
     .default({}),
 });
@@ -51,4 +53,37 @@ export function applyLayout(html: string, section: string, order: readonly strin
   }
   const body = order.map((n) => blocks.get(n) ?? '').join('\n');
   return html.replace(re, `<!--fields:${section}-->\n${body}\n<!--/fields-->`);
+}
+
+/** Field API names of each fixture form block (a compound block lists its parts). */
+const FORM_FIELDS: Record<string, { value: string; parts?: string[] }> = {
+  AccountName: { value: 'AccountId' },
+  MailingAddress: {
+    value: 'MailingAddress',
+    parts: ['MailingStreet', 'MailingCity', 'MailingPostalCode', 'MailingCountry'],
+  },
+};
+
+/**
+ * `GET /sobjects/Contact/describe/layouts` of the fixture: one edit section holding the form blocks in their served
+ * order, two per row (the form is a two-column grid), with the layout file's Tab direction. FIXTURE metadata only.
+ */
+export function fixtureContactLayouts(
+  formHtml: string,
+  tabOrder: 'LeftToRight' | 'TopToBottom' = 'LeftToRight',
+): Record<string, unknown> {
+  const blocks = sectionFields(formHtml, 'form');
+  const rows: { layoutItems: unknown[] }[] = [];
+  blocks.forEach((b, i) => {
+    const f = FORM_FIELDS[b] ?? { value: b };
+    const item = {
+      layoutComponents: [
+        { type: 'Field', value: f.value, components: (f.parts ?? []).map((v) => ({ type: 'Field', value: v })) },
+      ],
+    };
+    if (i % 2 === 0) rows.push({ layoutItems: [item] });
+    else rows[rows.length - 1]?.layoutItems.push(item);
+  });
+  const section = { heading: 'Contact Information', tabOrder, layoutRows: rows };
+  return { layouts: [{ editLayoutSections: [section], detailLayoutSections: [section] }] };
 }

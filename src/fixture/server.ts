@@ -13,7 +13,7 @@ import {
   type FixtureMetadata,
   enforcedRules,
 } from './metadata.js';
-import { applyLayout, loadFixtureLayout } from './layout.js';
+import { applyLayout, fixtureContactLayouts, loadFixtureLayout } from './layout.js';
 import { FixtureError, FixtureStore, loadSeed, type SObject } from './store.js';
 
 /**
@@ -321,6 +321,10 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
       return;
     }
 
+    if (api === '/sobjects/Contact/describe/layouts' && method === 'GET') {
+      send(res, 200, fixtureContactLayouts(contactForm, layout?.contact.formTabOrder));
+      return;
+    }
     const m = /^\/sobjects\/([A-Za-z_]+)(?:\/([A-Za-z0-9]{15,18}|describe))?\/?$/.exec(api);
     if (!m?.[1]) {
       send(res, 404, [{ errorCode: 'NOT_FOUND', message: 'The requested resource does not exist' }]);

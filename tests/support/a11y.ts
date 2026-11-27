@@ -8,6 +8,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Locator, Page, TestInfo } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
+import { expectedTabOrder, type LayoutSection, type PlacedElement } from '../../src/visual/tabOrder.js';
 
 export interface A11yNamespaces {
   customNamespaces: string[];
@@ -123,8 +124,10 @@ export interface TabOrderResult {
   missing: string[];
   /** Focus left the scope (no focus trap) before every element was reached. */
   leftScope: boolean;
-  /** Element names sorted by visual reading order (rows top→bottom, then left→right within a row). */
+  /** Expected order: from the layout sections' Tab direction when given, else visual reading order. */
   expectedOrder: string[];
+  /** Where each element's expected position came from ("Contact Information (TopToBottom)" / "visual order"). */
+  basis: Record<string, string>;
   /** The visited order follows the visual reading order. */
   inOrder: boolean;
 }
@@ -133,22 +136,29 @@ export interface TabOrderResult {
  * Keyboard check. Focus starts on the element that is first in document order; Tab is pressed until every element
  * was reached, focus leaves the scope, or a bound is hit. Order is measured against the elements' on-screen boxes at runtime (no stored order is asserted).
  */
+export interface TabOrderOptions {
+  rowTolerancePx?: number;
+  /** Page layout sections of the org (src/visual/tabOrder.ts `layoutSections`): their Tab direction is expected. */
+  sections?: readonly LayoutSection[];
+  /** Element name → field API name it edits (FirstName, MailingStreet, AccountId …). */
+  fields?: Record<string, string>;
+}
+
 export async function checkTabOrder(
   page: Page,
   scope: Locator,
   elements: Record<string, Locator>,
-  rowTolerancePx = 12,
+  o: TabOrderOptions = {},
 ): Promise<TabOrderResult> {
   const names = Object.keys(elements);
-  const boxes: { name: string; x: number; y: number }[] = [];
+  const boxes: PlacedElement[] = [];
   for (const name of names) {
     const el = elements[name];
     const box = el ? await el.boundingBox() : null;
-    if (box) boxes.push({ name, x: box.x, y: box.y });
+    const field = o.fields?.[name];
+    if (box) boxes.push({ name, x: box.x, y: box.y, ...(field ? { field } : {}) });
   }
-  const expectedOrder = [...boxes]
-    .sort((a, b) => (Math.abs(a.y - b.y) <= rowTolerancePx ? a.x - b.x : a.y - b.y))
-    .map((b) => b.name);
+  const { order: expectedOrder, basis } = expectedTabOrder(boxes, o.sections ?? [], o.rowTolerancePx ?? 12);
 
   const isFocused = (loc: Locator): Promise<boolean> =>
     loc.evaluate((el) => {
@@ -198,7 +208,7 @@ export async function checkTabOrder(
   }
   const missing = names.filter((n) => !visited.includes(n));
   const inOrder = expectedOrder.filter((n) => visited.includes(n)).every((n, i) => visited[i] === n);
-  return { visited, missing, leftScope, expectedOrder, inOrder };
+  return { visited, missing, leftScope, expectedOrder, basis, inOrder };
 }
 
 const NAMED_ROLES = 'button|textbox|combobox|checkbox|radio|link|tab|searchbox|spinbutton|switch|menuitem|listbox';

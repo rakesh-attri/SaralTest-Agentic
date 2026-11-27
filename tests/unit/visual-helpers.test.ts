@@ -11,6 +11,7 @@ import {
   analyzePageState,
   checkLayout,
   collectLayout,
+  layoutFails,
   observeLayoutShift,
   readLayoutShift,
   type ElementBox,
@@ -19,14 +20,22 @@ import {
   DATE_PATTERNS,
   RECORD_ID_PATTERN,
   VOLATILE_ATTR,
+  markFieldValues,
   markVolatile,
   maskLocators,
   maskPlan,
+  pageClip,
   regionShot,
   settle,
+  unmarkedVolatile,
+  VOLATILE_FIELD_LABELS,
+  waitForRegionReady,
 } from '../support/visual.js';
+import { layoutFindingKey } from '../../src/core/schemas/visual.js';
+import { layoutSections } from '../../src/visual/tabOrder.js';
 
 const ACCOUNT = '001FX0000000001AAA';
+const CONTACT = '003FX0000000001AAA';
 
 const box = (o: Partial<ElementBox> & { index: number }): ElementBox => ({
   parent: -1,
@@ -96,6 +105,36 @@ describe('layout analysis (pure)', () => {
     expect(f.map((x) => x.kind).sort()).toEqual(['clipped-text', 'hidden-required', 'layout-shift', 'off-screen']);
   });
 
+  it('owner: Salesforce-owned findings are baseline candidates; ours and real field overlaps fail (run-p6-live-1)', () => {
+    const sf = { owner: 'salesforce' as const };
+    const f = analyzeLayout(
+      {
+        viewport: { width: 1440, height: 900 },
+        pageOwner: 'salesforce',
+        boxes: [
+          // the modal's sticky footer over a scrolled textbox (Salesforce chrome)
+          box({ index: 0, name: 'Mailing Street', role: 'textbox', field: true, ...sf }),
+          box({ index: 1, name: 'Cancel', x: 10, pinned: true, ...sf }),
+          // a Preview button on a lookup link
+          box({ index: 2, name: 'link', role: 'link', y: 100, ...sf }),
+          box({ index: 3, name: 'Preview', y: 100, x: 50, ...sf }),
+          // two field controls on top of each other: real, always FAIL
+          box({ index: 4, name: 'Email', role: 'textbox', field: true, y: 300, ...sf }),
+          box({ index: 5, name: 'Phone', role: 'textbox', field: true, y: 310, ...sf }),
+          // our own component overlapping a Salesforce one: FAIL
+          box({ index: 6, name: 'Our Button', y: 500, owner: 'ours' }),
+          box({ index: 7, name: 'Save', y: 500, x: 50, ...sf }),
+        ],
+      },
+      { ...where, layoutShift: 0.9, layoutShiftThreshold: 0.1 },
+    );
+    const fails = layoutFails(f).map((x) => x.elements.join('×'));
+    expect(fails.sort()).toEqual(['Email×Phone', 'Our Button×Save']);
+    const shift = f.find((x) => x.kind === 'layout-shift');
+    expect(shift?.owner).toBe('salesforce'); // load-time shift on a Lightning page
+    expect(layoutFindingKey({ kind: 'overlap', elements: ['Preview', 'link'] })).toBe('overlap:Preview|link');
+  });
+
   it('page state: blank, loading and error banner', () => {
     expect(
       analyzePageState(
@@ -161,6 +200,55 @@ describe('visual + layout helpers on the offline fixture (real Chromium, FIXTURE
     });
     const kinds = (await checkLayout(page, dialog, where)).map((f) => f.kind);
     expect(kinds).toContain('hidden-required');
+  });
+
+  it('record pages: name, owner and system field values are hidden by label; capture waits for the region', async () => {
+    await openRecord(page, 'Contact', CONTACT);
+    const details = page.getByRole('main').getByRole('tabpanel', { name: 'Details', exact: true });
+    await selectTab(page.getByRole('main').getByRole('tab', { name: 'Details', exact: true }));
+    await waitForRegionReady(page, details);
+    expect(await markFieldValues(details, VOLATILE_FIELD_LABELS)).toBeGreaterThanOrEqual(2); // Name, Created By
+    const hidden = await details.locator(`[${VOLATILE_ATTR}]`).allInnerTexts();
+    expect(hidden.join(' ')).toMatch(/QA-|Admin/); // the values, never the labels
+    expect(hidden.join(' ')).not.toMatch(/^Name$|Created By/);
+    // a re-rendered (fresh) node is detected as not hidden
+    const plan = maskLocators(page, details, maskPlan(['dates'], 'QA-'));
+    await markVolatile(plan.hide);
+    expect(await unmarkedVolatile(plan.hide)).toBe(0);
+    await details.evaluate((el) => {
+      const fresh = document.createElement('span');
+      fresh.textContent = '11/27/2026';
+      el.appendChild(fresh);
+    });
+    expect(await unmarkedVolatile(plan.hide)).toBe(1);
+    // page clip: document coordinates at the top of the page
+    const clip = await pageClip(page, details);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    expect(clip.width).toBeGreaterThan(0);
+  });
+
+  it('a placeholder in the region keeps the capture waiting; an open dialog is not a blank page', async () => {
+    const main = await openRecord(page, 'Account', ACCOUNT);
+    await main.evaluate((el) => el.appendChild(document.createElement('force-placeholder2')));
+    await expect(waitForRegionReady(page, main, 1500)).rejects.toThrow();
+    await main.locator('force-placeholder2').evaluate((el) => {
+      el.remove();
+    });
+    await waitForRegionReady(page, main);
+    const dialog = await openDialog();
+    await page.getByRole('main').evaluate((el) => {
+      el.setAttribute('aria-hidden', 'true');
+    }); // as Lightning does
+    expect((await checkLayout(page, dialog, where)).map((f) => f.kind)).not.toContain('blank-page');
+  });
+
+  it("the fixture serves its Contact form layout (describe/layouts) with the section's Tab direction", async () => {
+    const r = await page.request.get('/services/data/v62.0/sobjects/Contact/describe/layouts', {
+      headers: { Authorization: 'Bearer fixture-admin-token' },
+    });
+    const sections = layoutSections(await r.json(), 'edit');
+    expect(sections[0]?.tabOrder).toBe('LeftToRight');
+    expect(sections[0]?.cells.find((c) => c.fields.includes('MailingCity'))?.fields[0]).toBe('MailingAddress');
   });
 
   it('volatile values are hidden at their own size; the masked region screenshot is stable', async () => {

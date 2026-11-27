@@ -17,6 +17,7 @@ import {
   type TabOrderResult,
 } from '../support/a11y.js';
 import { selectTab, showRelatedList, waitForSpinners } from '../support/lightning.js';
+import { layoutSections } from '../../src/visual/tabOrder.js';
 import { visualProject } from './support.js';
 
 async function scanRegion(
@@ -49,7 +50,14 @@ async function scanRegion(
         })),
         unnamed,
         tabOrder: tabOrder
-          ? { inOrder: tabOrder.inOrder, missing: tabOrder.missing, leftScope: tabOrder.leftScope }
+          ? {
+              inOrder: tabOrder.inOrder,
+              missing: tabOrder.missing,
+              leftScope: tabOrder.leftScope,
+              visited: tabOrder.visited,
+              expected: tabOrder.expectedOrder,
+              basis: tabOrder.basis,
+            }
           : null,
       },
       null,
@@ -61,7 +69,12 @@ async function scanRegion(
   if (tabOrder) {
     expect.soft(tabOrder.missing, `${region}: every control reachable by Tab`).toEqual([]);
     expect.soft(tabOrder.leftScope, `${region}: focus stays inside the region`).toBe(false);
-    expect.soft(tabOrder.inOrder, `${region}: Tab follows the visual reading order`).toBe(true);
+    expect
+      .soft(
+        tabOrder.visited,
+        `${region}: Tab follows the page layout's section order (${Object.values(tabOrder.basis).join(', ')})`,
+      )
+      .toEqual(tabOrder.expectedOrder.filter((n) => tabOrder.visited.includes(n)));
   }
 }
 
@@ -69,7 +82,7 @@ test.describe('Accessibility: Account → Contact pages', () => {
   test(
     'A11Y-001 Account record page, New Contact dialog and Contact Details panel',
     { tag: ['@a11y'] },
-    async ({ page, a11y, data }, testInfo) => {
+    async ({ page, a11y, data, sf }, testInfo) => {
       await data.create('account-contact', ['Account', 'Contact']);
       const account = new AccountRecordPage(page);
       const contact = new ContactRecordPage(page);
@@ -91,21 +104,43 @@ test.describe('Accessibility: Account → Contact pages', () => {
         await account.contactsNewButton.click();
         await expect(dialog.root).toBeVisible();
         await waitForSpinners(dialog.root);
-        const keys = await checkTabOrder(page, dialog.root, {
-          firstName: dialog.firstName,
-          lastName: dialog.lastName,
-          title: dialog.title,
-          email: dialog.email,
-          phone: dialog.phone,
-          leadSource: dialog.leadSource,
-          mailingStreet: dialog.mailingStreet,
-          mailingCity: dialog.mailingCity,
-          mailingPostalCode: dialog.mailingPostalCode,
-          mailingCountry: dialog.mailingCountry,
-          accountId: dialog.accountId,
-          cancelButton: dialog.cancelButton,
-          saveButton: dialog.saveButton,
-        });
+        // Expected order from the org's Contact page layout (each section's Tab direction), not an assumption.
+        const sections = layoutSections(await sf.get('/sobjects/Contact/describe/layouts'), 'edit');
+        const keys = await checkTabOrder(
+          page,
+          dialog.root,
+          {
+            firstName: dialog.firstName,
+            lastName: dialog.lastName,
+            title: dialog.title,
+            email: dialog.email,
+            phone: dialog.phone,
+            leadSource: dialog.leadSource,
+            mailingStreet: dialog.mailingStreet,
+            mailingCity: dialog.mailingCity,
+            mailingPostalCode: dialog.mailingPostalCode,
+            mailingCountry: dialog.mailingCountry,
+            accountId: dialog.accountId,
+            cancelButton: dialog.cancelButton,
+            saveButton: dialog.saveButton,
+          },
+          {
+            sections,
+            fields: {
+              firstName: 'FirstName',
+              lastName: 'LastName',
+              title: 'Title',
+              email: 'Email',
+              phone: 'Phone',
+              leadSource: 'LeadSource',
+              mailingStreet: 'MailingStreet',
+              mailingCity: 'MailingCity',
+              mailingPostalCode: 'MailingPostalCode',
+              mailingCountry: 'MailingCountry',
+              accountId: 'AccountId',
+            },
+          },
+        );
         await scanRegion(page, testInfo, a11y, 'new-contact-dialog', dialog.root, keys);
         await dialog.cancelButton.click(); // nothing is saved
         await expect(dialog.root).toBeHidden();
