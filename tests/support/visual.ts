@@ -483,13 +483,19 @@ export async function panelMask(
         const root = x.getRootNode();
         return root instanceof ShadowRoot ? root.host : null;
       };
-      // the card: the first ancestor clearly wider than the tab bar (tabset card in a Lightning page column)
+      // the card: the tabset card (slds-tabs_card) holding the anchor; else the first ancestor clearly wider than
+      // the tab bar. run-p6-live-12: stopping at the wider tab bar left the card's edges unmasked.
       const start = el.getBoundingClientRect();
-      let card: Element = el;
-      for (let p = up(el); p; p = up(p)) {
-        card = p;
-        if (p.getBoundingClientRect().width > start.width * 2 + 20 || /tabs_card/.test(p.getAttribute('class') ?? ''))
-          break;
+      let card: Element | null = null;
+      for (let p = up(el), d = 0; p && d < 12 && !card; p = up(p), d++) {
+        if (/(^|\s)slds-tabs_card(\s|$)/.test(p.getAttribute('class') ?? '')) card = p;
+      }
+      if (!card) {
+        card = el;
+        for (let p = up(el); p; p = up(p)) {
+          card = p;
+          if (p.getBoundingClientRect().width > start.width * 2 + 20) break;
+        }
       }
       const r = card.getBoundingClientRect();
       const o = document.createElement('div');
