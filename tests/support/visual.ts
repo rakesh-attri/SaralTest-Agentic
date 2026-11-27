@@ -171,9 +171,16 @@ export async function markFieldValues(region: Locator, labels: readonly string[]
           let value: Element | null = null;
           if (n.tagName === 'DT') value = n.nextElementSibling;
           else {
-            // climb to the layout item that holds both the label and the value
+            // Climb to the layout item that holds both the label and the value, never past it, and never mark an
+            // element that contains the label: qa-prod run-p6-live-5 hid the "Account Name" label with its value.
+            const holdsLabel = (v: Element): boolean => {
+              for (let x: Element | null = n; x; x = parentOf(x)) if (x === v) return true;
+              return false;
+            };
             for (let p = parentOf(n), d = 0; p && d < 8 && !value; p = parentOf(p), d++) {
-              value = find(p, '.slds-form-element__control, [class*="field-value"]');
+              const found = find(p, '.slds-form-element__control, [class*="field-value"]');
+              if (found && !holdsLabel(found)) value = found;
+              if (/^records-record-layout-item$|^lightning-input-field$/i.test(p.tagName)) break;
             }
           }
           if (value) {

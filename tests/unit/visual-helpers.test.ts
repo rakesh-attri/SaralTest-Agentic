@@ -211,6 +211,15 @@ describe('visual + layout helpers on the offline fixture (real Chromium, FIXTURE
     const hidden = await details.locator(`[${VOLATILE_ATTR}]`).allInnerTexts();
     expect(hidden.join(' ')).toMatch(/QA-|Admin/); // the values, never the labels
     expect(hidden.join(' ')).not.toMatch(/^Name$|Created By/);
+    // a value container that also holds the label is never marked (qa-prod run-p6-live-5: label hidden)
+    await details.evaluate((el) => {
+      const item = document.createElement('records-record-layout-item');
+      item.className = 'test-id__field-value-wrapper';
+      item.innerHTML = '<div><span>Account Owner</span></div><div class="other">Someone</div>';
+      el.appendChild(item);
+    });
+    await markFieldValues(details, ['Account Owner']);
+    expect(await details.locator('records-record-layout-item').getAttribute(VOLATILE_ATTR)).toBeNull();
     // a re-rendered (fresh) node is detected as not hidden
     const plan = maskLocators(page, details, maskPlan(['dates'], 'QA-'));
     await markVolatile(plan.hide);
