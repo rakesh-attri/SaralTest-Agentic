@@ -4,8 +4,9 @@ Branch `claude/phase-6-visual-qa` (from `claude/phase-5-execution-reporting` at 
 plus one commit per fix found in the fixture runs.
 
 **Exit criterion (PLAN.md §11):** a seeded visual change is reported as a candidate, and approving the baseline clears it.
-**Status (2026-11-27):** met on the **offline fixture** (FIXTURE). The live qa-prod proof has **not run yet**: the
-operator chose "not yet" for the live start. The steps are listed under *Live proof (pending)*.
+**Status (2026-11-27):** met on the **offline fixture** (FIXTURE). Live qa-prod: R1 baselines approved
+(AP-ad178d5f7b56) and R2 is **3 MATCH, desktop only** (run-p6-live-9). The **tablet viewport is deferred** (see
+*Deferred: tablet viewport*). Next: the seeded Phone move in Setup.
 
 **Scope (operator, 2026-11-27):**
 - Baselines for the New Contact dialog, the Contact record page (Details) and the Account record page.
@@ -98,66 +99,74 @@ pnpm validate:visual <runIds>
   and report banner.
 - `qa visual status --org fixture`: 6 baselines, all OK.
 
-## ▶ Resume here: live R1 on qa-prod
+## Live qa-prod (LIVE, org 00DdN00000uQ5dKUAS, Winter '27)
 
-State on 2026-11-27, branch `claude/phase-6-visual-qa` at the commit that added this section:
-- The fixture proof is complete; fixture baselines are approved and committed (`tests/visual-baselines/fixture/`, 6, all OK).
-- **No qa-prod run has started.** `tests/visual-baselines/qa-prod/` does not exist yet.
-- Next step: **live R1**. The operator has to say go first (they answered "not yet" on 2026-11-27).
+Pre-R1 checks (2026-11-27): identity verified; Contact Layout unchanged (Phone in Contact Information, row 1,
+right column); recipe approval AP-fc20bc1739d9 accepted by preflight.
 
-Before R1, check these preconditions:
-1. qa-prod's Contact Layout is unchanged (Phone in its original position).
-2. `pnpm qa doctor --live` or `pnpm qa auth status --org qa-prod` is green: identity `00DdN00000uQ5dKUAS`.
-3. The recipe approval still matches. Preflight checks `recipe:account-contact@136f8241a8ee3c57` (`AP-fc20bc1739d9`).
-   If the recipe hash changed, the run stops BLOCKED and prints the `qa data approve` line, which needs the operator's
-   approval.
+| Run | Viewports | Result | What it showed / changed |
+|---|---|---|---|
+| run-p6-live-1 | desktop + tablet | 6 NO_BASELINE, not approved | Contact Name (run tag) and Created/Modified dates visible; pinned record header covered the Contact Owner / Phone row; tablet Account page captured mid-load; Tab order "FAIL"; 40 layout findings |
+| run-p6-live-2 | desktop + tablet | 6 NOT_CAPTURED | An empty 0×0 `force-placeholder2` stays in the Account highlights panel: the readiness wait timed out |
+| run-p6-live-3 | desktop + tablet | **6 NO_BASELINE → approved AP-ad178d5f7b56** (`--a11y --layout`, operator in chat) | Images clean. A11Y-001: desktop dialog did not open in 15 s; tablet second Tab pass not recorded |
+| run-p6-live-4 | desktop + tablet | 4 MATCH, 2 NOT_CAPTURED | Locker blocks `ShadowRoot.getElementById`; Contact Details axe scope inside shadow DOM not found |
+| run-p6-live-5…8 | desktop + tablet | 5 MATCH, 1 DIFF (account-record-tablet, 503 px) | A11Y-001 passes from live-8. Open "Account Name" label issue (below). live-5: final reconciliation hit a transient `fetch failed`; `qa cleanup --run run-p6-live-5` → CLEAN, 0 left |
+| **run-p6-live-9** | **desktop** | **3 MATCH** (R2), all tests pass, exit 0 | layout 21 (all BASELINE), a11y FAIL 0; 2 Salesforce-owned dialog rules NEW_STANDARD (`aria-prohibited-attr`, `sf-section-tab-order-not-applied`) — the desktop dialog was not scanned in R1 |
 
-Run R1 (the run id below is the one to use):
+Every live run: data CLEAN (re-query 0), `pnpm validate:visual` valid. Fixture regression after each fix:
+run-p6-fixture-13…19, all 6 MATCH.
 
-```powershell
-pnpm qa visual run --org qa-prod --run-id run-p6-live-1
-pnpm validate:visual run-p6-live-1
-```
+### Fixes from the live runs
 
-What to expect, and what to do next:
-- **Expected:** 6 NO_BASELINE candidates, plus any Salesforce-owned axe rules as NEW_STANDARD. The run creates 4
-  Accounts and 4 Contacts in total (one of each per test) and cleans them up.
-- **Before asking for approval:** open `runs/run-p6-live-1/report/visual-diff.html` and check every actual image:
-  - no visible record names, emails, dates or IDs;
-  - the dialog is captured by its content box (`contentClip` on the real Lightning DOM);
-  - layout findings and Tab-order results make sense.
-  If something leaks or the dialog capture is wrong, fix it before asking for approval.
-- **Approval:** the operator approves in chat, then
-  `pnpm qa visual approve --run run-p6-live-1 --by "Rakesh Sharma" [--a11y]`.
-- **R2:** `run-p6-live-2` must be 6 MATCH. If Lightning's own rendering noise is above 0.05 %, tighten the masks; any
-  ratio change goes into `regionRatio` and is reported.
-- **Seeded change:** then follow steps 3–5 below. Tell the operator when to move Phone in Setup, and use run ids
-  `run-p6-live-3`, `run-p6-live-4` and so on.
-- **When the live exit passes:** update this file, the capability-matrix row "Exit — live qa-prod" and PLAN.md
-  Phase 6 status.
+| Finding | Fix |
+|---|---|
+| Values re-rendered after masking (live-1) | `waitForRegionReady`: no visible spinner / `force-placeholder2` / skeleton / `aria-busy`, text and size stable; re-mark until every match is hidden; a value re-rendered during capture fails the region |
+| Record name, owners, system fields (operator rule) | `markFieldValues` hides the values of Name, Account Name, Contact/Account Owner, Owner, Created By, Last Modified By by label; never the label |
+| Pinned record header over the top row | Record regions are captured at page top with `fullPage` + clip |
+| Placeholder never cleared (live-2) | Only visible placeholders count |
+| Layout findings in Lightning's own components (operator rule) | Owner + status per finding: Salesforce-owned → NEW_STANDARD / BASELINE (`qa visual approve --layout`); ours, a real field overlap, or a broken page state → FAIL |
+| Tab order (operator rule) | Expected order from `describe/layouts` section `tabOrder`. qa-prod Contact Information is TopToBottom; Lightning moves row by row. A second pass on the same layout rows read left to right: when it holds → Salesforce-owned `sf-section-tab-order-not-applied`; anything else → FAIL. Start point = first expected control (compareDocumentPosition is arbitrary across shadow roots) |
+| Dialog form slow to load (live-3 desktop) | `openNewContactDialog` waits 60 s |
+| axe scope in shadow DOM; Locker (live-4) | `fromShadowDom` path; querySelector inside shadow roots |
 
-## Live proof on qa-prod (pending — not run)
+## Deferred: tablet viewport (operator, 2026-11-27)
 
-The operator answered "not yet" to the live start on 2026-11-27. Steps when approved:
+`visual.viewports: [desktop]` in `config/execution.yaml` (local) and `execution.example.yaml`. Visual and a11y
+projects both follow it. Kept: tablet in `viewports`, the approved tablet baselines in
+`tests/visual-baselines/qa-prod/`, all code. Switch back on: `visual.viewports: [desktop, tablet]`.
 
-1. `pnpm qa visual run --org qa-prod` (L2; recipe approval `AP-fc20bc1739d9` if the recipe version is unchanged) → 6
-   NO_BASELINE plus any Salesforce-owned a11y rules. The operator approves them (`--a11y` if wanted).
-2. Re-run → must be 6 MATCH. If live noise exceeds 0.05 %, tighten the masks first; any ratio change goes into
-   `regionRatio` and shows in the report.
-3. **Operator, in Setup:** Object Manager → Contact → Page Layouts → Contact Layout → drag **Phone** to another row or
-   column → Save. Do not run `qa discover` while the layout is moved.
-4. Re-run → expect DIFF on contact-details and new-contact-dialog for both viewports. The operator approves → re-run
-   must be 6 MATCH.
-5. Operator reverts the layout → re-run → approve → MATCH.
+**Open issue — account-record-tablet "Account Name" label.** From run-p6-live-5 to -8 the tablet Account page
+image has the "Account Name" label and its divider hidden (503 px, 0.072 % > 0.05 %). The R1 tablet baseline shows
+them. Desktop hides them in every run, baseline included, so desktop matches; the desktop baseline therefore also
+hides a label. Cause **not found**. Tried:
+1. Field-value masking stops at the layout item and never marks an element holding the label (commit "Field-value
+   masking never hides the label") — no change live.
+2. Run-tag masking marks only the parents of matching text nodes (commit "Run-tag masking hides only the matching
+   text") — no change live.
+3. Split text falls back to the smallest matching element (commit "split text falls back") — no change live.
+4. Read-only check on an existing, untagged Account (tablet size, same helpers): the label stays visible. A
+   browser-only rename to a run-tagged name did not reach the Details value, so it was inconclusive.
+5. Trace DOM snapshots of live-7: back-referenced nodes, not resolved.
+Next step when resumed: capture the marked elements of a run-tagged Account in a real run (attach the list of
+`data-qa-volatile` elements per region), then re-approve both account-record baselines with the label visible.
+
+## Resume here: seeded change on qa-prod (desktop)
+
+1. **Operator, in Setup:** Object Manager → Contact → Page Layouts → Contact Layout → drag **Phone** to another row
+   or column → Save. Do not run `qa discover` while the layout is moved.
+2. `pnpm qa visual run --org qa-prod --run-id run-p6-live-10` → expect DIFF on contact-details and
+   new-contact-dialog (desktop), account-record MATCH.
+3. Operator approves → `run-p6-live-11` must be 3 MATCH.
+4. Operator reverts the layout → `run-p6-live-12` (DIFF back) → approve → `run-p6-live-13` 3 MATCH.
+5. Then: capability-matrix row "Exit — live qa-prod", PLAN.md Phase 6 status.
 
 ## Not verified / known limits
 
-- **Live qa-prod**: not run, so nothing above is a Salesforce result. Lightning's real rendering noise is unknown, and
-  0.05 % may be too tight live.
-- Both dialog markups were fixed full-viewport overlays: the fixture's and Lightning's `slds-modal`, which the fixture
-  copies. `contentClip` on the real Lightning DOM (shadow roots) is unverified.
-- Tab-order check on Lightning: page layouts can be set to top-down Tab order, so the row-order expectation may not
-  hold on qa-prod.
+- **Live qa-prod**: R1 + R2 (desktop) done; the seeded-change part of the exit is not run yet. Lightning noise at
+  0.05 % held on desktop in live-6…9 (no regionRatio change).
+- `contentClip` works on the real Lightning dialog (live-3 images).
+- Tablet viewport deferred, with the open "Account Name" label issue above.
+- Lightning ignoring the TopToBottom setting is observed on qa-prod only; not checked against Salesforce documentation.
 - Unnamed controls are recorded as candidates only; they cannot be split into Salesforce-owned and ours.
 - No LLM classification of candidates (`allowExternalUpload: false`). Experience Cloud pages are blocked, as in Phase 2.
 - Only one smaller viewport (tablet). `laptop` is configured but not in `visual.viewports`.

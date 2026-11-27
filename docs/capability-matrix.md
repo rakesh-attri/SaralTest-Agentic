@@ -174,19 +174,20 @@ _Last updated: Phase 6 visual QA — 2026-11-27 (branch `claude/phase-6-visual-q
 | Capability | Status | Where | Notes / blocker |
 |---|---|---|---|
 | Contracts: baselines + manifest, candidates (MATCH / NO_BASELINE / DIFF / RE_APPROVE / NOT_CAPTURED), layout + a11y findings, run summary | implemented | `src/core/schemas/visual.ts` | No new IssueKind; one new checkpoint `approve-visual-baseline` (L1/L2/L3) |
-| Visual config: viewports desktop + tablet, per-org baseline folder, region ratio overrides, layout-shift threshold | implemented | `config/execution*.yaml`, `src/config/schemas.ts` | Default `maxDiffPixelRatio` 0.0005, calibrated on the fixture (noise 0 px; moved field 409 px = 0.135 %). Not calibrated on Lightning yet |
+| Visual config: viewports, per-org baseline folder, region ratio overrides, layout-shift threshold | implemented | `config/execution*.yaml`, `src/config/schemas.ts` | `maxDiffPixelRatio` 0.0005 (fixture-calibrated) held on Lightning desktop (live-6…9) |
+| Tablet viewport (visual + a11y) | **deferred** (operator 2026-11-27) | `visual.viewports: [desktop]`; tablet baselines + code kept | Open: account-record-tablet "Account Name" label hidden in live-5…8 (503 px), cause not found after 3 masking fixes; details in `docs/phase-6-notes.md`. Re-enable: `[desktop, tablet]` |
 | Masks: run-unique values hidden at their own size (names, links, record title, dates, IDs, emails, phones, counters); spinners and pre-filled lookups painted | implemented | `tests/support/visual.ts`, `visual-volatile.css` | Labels stay visible so moved fields show. Values are hidden only in the screenshot (`stylePath` / `style`) |
-| Stable capture; modal dialogs by content box | implemented (fixture) | `settle`, `contentClip` | `contentClip` on the real Lightning shadow DOM is unverified (live pending) |
-| Local layout checks: overlap, clipped fixed text, off-screen, hidden required control, layout shift, blank / loading / error state | implemented | `tests/support/layout.ts` | Deterministic, no AI. Findings are candidates and do not fail the test. Fixture: 0 findings; seeded overlap / hidden field caught in unit tests |
-| Visual suite VIS-001 (Account record, New Contact dialog, Contact Details × persona × viewport) | implemented (fixture) | `tests/visual/regions.spec.ts`, `playwright.visual.config.ts` | Hand-written framework suite. Generated `@visual` cases from the planner come later |
-| Accessibility suite A11Y-001 (scoped axe per region, Tab order, unnamed controls), building on TC-053 (which replaced TC-022) | implemented (fixture) | `tests/visual/a11y.spec.ts`, `tests/support/a11y.ts` | Custom-namespace violations and Tab-order breaks fail. Salesforce-owned rules are compared with the accepted list. Unnamed controls are candidates only |
+| Stable capture; modal dialogs by content box | implemented | `waitForRegionReady`, `contentClip`, `pageClip` | Live: waits for visible placeholders, re-marks re-rendered values, page-top capture (no pinned header); `contentClip` verified on Lightning |
+| Local layout checks: overlap, clipped fixed text, off-screen, hidden required control, layout shift, blank / loading / error state | implemented | `tests/support/layout.ts` | Owner per finding: Salesforce-owned → NEW_STANDARD / BASELINE (`approve --layout`); ours, real field overlap, page state → FAIL. qa-prod desktop: 21 findings, all BASELINE |
+| Visual suite VIS-001 (Account record, New Contact dialog, Contact Details × persona × viewport) | implemented (fixture + live desktop) | `tests/visual/regions.spec.ts`, `playwright.visual.config.ts` | Hand-written framework suite. Generated `@visual` cases from the planner come later |
+| Accessibility suite A11Y-001 (scoped axe per region incl. shadow DOM, Tab order from layout metadata, unnamed controls), building on TC-053 (which replaced TC-022) | implemented (fixture + live desktop) | `tests/visual/a11y.spec.ts`, `tests/support/a11y.ts`, `src/visual/tabOrder.ts` | Custom-namespace violations and Tab-order breaks fail. Lightning ignoring the section's TopToBottom setting → Salesforce-owned `sf-section-tab-order-not-applied`. TC-053 itself still uses row order (unchanged) |
 | `qa visual run` (shared preflight, candidates, data reconciliation) | implemented | `src/visual/run.ts`, `src/runner/preflight.ts`, `src/cli/visual.ts` | Fixture runs fixture-7…12 valid. Exit codes 0 / 1 / 2 / 3 |
-| `qa visual approve` (human, bound to image hashes, audited, tamper check, `--only`, `--a11y`, `--dry-run`) and `qa visual status` (trust: hash + release) | implemented | `src/visual/approve.ts`, `baselines.ts` | A Salesforce release change marks every baseline RE_APPROVE |
+| `qa visual approve` (human, bound to image hashes, audited, tamper check, `--only`, `--a11y`, `--layout`, `--dry-run`) and `qa visual status` (trust: hash + release) | implemented | `src/visual/approve.ts`, `baselines.ts` | A Salesforce release change marks every baseline RE_APPROVE |
 | Visual-diff report (md + html: baseline / actual / diff, layout, a11y, FIXTURE banner); index; `qa report --run` rebuild | implemented | `src/visual/report.ts` | Images are never sent to a model (`allowExternalUpload: false`) |
 | Independent validator | implemented | `scripts/validate-visual.ts` (`pnpm validate:visual`) | |
 | Fixture page layout (`qa fixture serve --layout`) for the offline seeded change | implemented | `src/fixture/layout.ts`, `examples/fixture/layouts/` | FIXTURE only |
 | Exit: seeded change reported as candidate, approval clears it — **fixture** | implemented | `runs/run-p6-fixture-9` → `-10` | 4 DIFF → approved AP-74584af9d3b7 → 6 MATCH |
-| Exit — **live qa-prod** | partial (not run) | — | Operator chose "not yet" on 2026-11-27. Needs the go-ahead, baseline approvals and the Setup layout move (steps in `docs/phase-6-notes.md`) |
+| Exit — **live qa-prod** | partial | `runs/run-p6-live-3` (R1, AP-ad178d5f7b56), `run-p6-live-9` (R2: 3 MATCH, desktop) | Seeded Phone move in Setup not done yet (operator step, `docs/phase-6-notes.md`). Tablet deferred |
 | AI classification of candidates (redacted text + ARIA snapshot) | planned | — | Not built in Phase 6; candidates go to a human |
 | Visual QA on Experience Cloud | blocked | — | Digital Experiences not enabled in qa-prod (unchanged) |
 
@@ -205,7 +206,7 @@ _Last updated: Phase 6 visual QA — 2026-11-27 (branch `claude/phase-6-visual-q
 | Azure DevOps organisation + PAT | ADO work items as input (optional) | Rakesh | Set `ADO_ORG_URL` and `ADO_PAT` (Credential Manager preferred) |
 | Small reasoning model on the Gemini free tier | stable cross-source conflict detection | Rakesh | Enable billing, move `reasoning` + `judge` to a Pro model, re-run the Phase 1 demo — or use NVIDIA NIM (below) |
 | Gemini Pro judge returns 429 (free-tier quota 0) | a real Pro-class Test Reviewer (Phase 3), later Defect Judge | Rakesh | Enable billing; `judge: gemini-3.1-pro-preview` is already configured with a flash-lite fallback |
-| Live Phase 6 proof on qa-prod | Phase 6 exit on a real org | Rakesh | Say go; approve the live baselines; move Phone on the Contact Layout in Setup when asked, then revert it |
+| Live Phase 6 proof on qa-prod (seeded change) | Phase 6 exit on a real org | Rakesh | Move Phone on the Contact Layout in Setup now (R1 + R2 done), approve the DIFFs, then revert it |
 | Q1–Q3 assumed; 4 org conflicts (Email / Phone required, duplicate rule inactive, Title list) | assertable cases for AC3–AC5, BR-03/04/06/08/10 | product owner + SF admin | Answer the questions (`qa resume` / new analyze) and fix or confirm the org config, then `qa design` again |
 
 ## Later phases
@@ -213,7 +214,7 @@ _Last updated: Phase 6 visual QA — 2026-11-27 (branch `claude/phase-6-visual-q
 | Capability | Status | Phase |
 |---|---|---|
 | Runner, reporting-labs + Playwright HTML, JIRA comment, Account→Contact demo | implemented (Phase 5) | 5 |
-| Visual QA | implemented on the fixture; live proof pending (Phase 6) | 6 |
+| Visual QA | fixture exit met; live R1 + R2 done on desktop, seeded change pending; tablet deferred (Phase 6) | 6 |
 | Investigation, healing, exploration, fault injection | planned | 7 |
 | DeepEval judge model over the judge chain (OpenAI-compatible, failover on 429) | partial (pre-Phase-4) | `src/eval/judgeEndpoint.ts`, `eval/qa_eval/judge_model.py` |
 | DeepEval sidecar runner, metrics/gates, golden set, learning lifecycle | planned | 8 |
