@@ -177,3 +177,20 @@ describe('visual + layout helpers on the offline fixture (real Chromium, FIXTURE
     expect(a.equals(b)).toBe(true);
   });
 });
+
+describe('unnamed controls from an ARIA snapshot (pure)', () => {
+  it('lists controls without a name by role and position, never values', async () => {
+    const { unnamedControls } = await import('../support/a11y.js');
+    const snap = [
+      '- dialog "New Contact":',
+      '  - textbox "Last Name": QA-run-x-1',
+      '  - textbox',
+      '  - button "Save"',
+      '  - button',
+      '  - combobox "Lead Source": --None--',
+      '  - link "Acme \\"Q\\" Ltd"',
+      '  - textbox [disabled]',
+    ].join('\n');
+    expect(unnamedControls(snap)).toEqual(['textbox #2', 'button #2', 'textbox #3']);
+  });
+});

@@ -200,3 +200,23 @@ export async function checkTabOrder(
   const inOrder = expectedOrder.filter((n) => visited.includes(n)).every((n, i) => visited[i] === n);
   return { visited, missing, leftScope, expectedOrder, inOrder };
 }
+
+const NAMED_ROLES = 'button|textbox|combobox|checkbox|radio|link|tab|searchbox|spinbutton|switch|menuitem|listbox';
+const ARIA_LINE = new RegExp(String.raw`^\s*- (${NAMED_ROLES})(?: "((?:[^"\\]|\\.)*)")?(?=[\s:[]|$)`);
+
+/**
+ * Controls without an accessible name, from a Playwright ARIA snapshot (`locator.ariaSnapshot()`, the browser's own
+ * accessible-name computation). Returns `<role> #<n>` (n = position among controls of that role); values are never read.
+ */
+export function unnamedControls(ariaSnapshot: string): string[] {
+  const seen = new Map<string, number>();
+  const out: string[] = [];
+  for (const line of ariaSnapshot.split(/\r?\n/)) {
+    const m = ARIA_LINE.exec(line);
+    if (!m?.[1]) continue;
+    const n = (seen.get(m[1]) ?? 0) + 1;
+    seen.set(m[1], n);
+    if (!m[2]?.trim()) out.push(`${m[1]} #${String(n)}`);
+  }
+  return out;
+}
