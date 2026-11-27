@@ -1,5 +1,8 @@
 # sf-qa-agent — Claude Code starter kit
 
+> **Continuing with another coding agent (Codex, OpenCode, …)?** Start with [`AGENTS.md`](AGENTS.md) (rules,
+> commands, repo map) and [`docs/HANDOFF.md`](docs/HANDOFF.md) (current state, branches, open items, how to resume).
+
 Plan + rules + skills for building an Autonomous Salesforce AI QA Engineer with Claude Code.
 
 ## What's inside
