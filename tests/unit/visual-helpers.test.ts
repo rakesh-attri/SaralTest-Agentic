@@ -220,6 +220,22 @@ describe('visual + layout helpers on the offline fixture (real Chromium, FIXTURE
     });
     await markFieldValues(details, ['Account Owner']);
     expect(await details.locator('records-record-layout-item').getAttribute(VOLATILE_ATTR)).toBeNull();
+    // a run-tagged value whose matched container also holds the label: only the value is hidden (run-p6-live-5/6)
+    await details.evaluate((el) => {
+      const item = document.createElement('div');
+      item.setAttribute('data-test', 'item');
+      const host = document.createElement('lightning-formatted-text');
+      host.attachShadow({ mode: 'open' }).innerHTML = '<span>QA-run-x Acme</span>';
+      item.innerHTML = '<span>Account Name</span>';
+      item.append(host);
+      el.appendChild(item);
+    });
+    const tagged = maskLocators(page, details, maskPlan(['names'], 'QA-run-x'));
+    await markVolatile(tagged.hide);
+    expect(await details.locator('[data-test="item"]').getAttribute(VOLATILE_ATTR)).toBeNull();
+    expect(await details.getByText('Account Name').last().getAttribute(VOLATILE_ATTR)).toBeNull();
+    expect(await details.getByText('QA-run-x Acme').getAttribute(VOLATILE_ATTR)).toBe('');
+    expect(await unmarkedVolatile(tagged.hide)).toBe(0);
     // a re-rendered (fresh) node is detected as not hidden
     const plan = maskLocators(page, details, maskPlan(['dates'], 'QA-'));
     await markVolatile(plan.hide);

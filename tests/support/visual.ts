@@ -66,8 +66,19 @@ export interface RegionMasks {
  * run-unique text (run-p6-fixture-6: 85 px of noise per region from mask widths), a hidden one leaves the same blank
  * space every run while labels and layout stay visible.
  */
+/**
+ * Text pattern of a `getByText` hide locator. Only the elements whose OWN text matches are hidden, not the matched
+ * element: on Lightning `getByText` can return the whole field item (label + value) when the value sits in a nested
+ * shadow root — qa-prod run-p6-live-5/6 hid the "Account Name" label with the run-tagged record name.
+ */
+const TEXT_PATTERN = new WeakMap<Locator, RegExp>();
+
 export function maskLocators(page: Page, region: Locator, plan: MaskPlan): RegionMasks {
-  const hide: Locator[] = plan.text.map((re) => region.getByText(re));
+  const hide: Locator[] = plan.text.map((re) => {
+    const l = region.getByText(re);
+    TEXT_PATTERN.set(l, re);
+    return l;
+  });
   if (plan.links) hide.push(region.getByRole('link'));
   if (plan.title) hide.push(page.getByRole('main').getByRole('heading', { level: 1 }));
   return { hide, mask: plan.status ? [page.getByRole('status')] : [] };
@@ -79,14 +90,46 @@ export const VOLATILE_STYLE = `[${VOLATILE_ATTR}] { visibility: hidden !importan
 /** The same rule as a file: `toHaveScreenshot` takes `stylePath` (only `locator.screenshot` takes `style`). */
 export const VOLATILE_STYLE_PATH = join(import.meta.dirname, 'visual-volatile.css');
 
-/** Mark the elements of `locators` as volatile; returns how many were marked. */
+/** Serializable form of a text pattern (passed into the page). */
+const patternArg = (l: Locator): { source: string; flags: string } | null => {
+  const re = TEXT_PATTERN.get(l);
+  return re ? { source: re.source, flags: re.flags.replace('g', '') } : null;
+};
+
+/**
+ * Mark the elements of `locators` as volatile; returns how many were marked. For a text pattern, the parent element
+ * of every matching text node inside the match is marked (open shadow roots included); when the text is split over
+ * several nodes, the matched element itself.
+ */
 export async function markVolatile(locators: readonly Locator[]): Promise<number> {
   let n = 0;
   for (const l of locators) {
-    n += await l.evaluateAll((els, attr) => {
-      for (const e of els) e.setAttribute(attr, '');
-      return els.length;
-    }, VOLATILE_ATTR);
+    n += await l.evaluateAll(
+      (els, a) => {
+        const re = a.pattern ? new RegExp(a.pattern.source, a.pattern.flags) : null;
+        const textParents = (e: Element): Element[] => {
+          const out: Element[] = [];
+          const walk = (x: Element): void => {
+            for (const c of Array.from(x.childNodes)) {
+              if (c.nodeType === Node.TEXT_NODE && re?.test(c.textContent ?? '')) out.push(x);
+            }
+            for (const k of [...Array.from(x.shadowRoot?.children ?? []), ...Array.from(x.children)]) walk(k);
+          };
+          walk(e);
+          return out;
+        };
+        let count = 0;
+        for (const e of els) {
+          const targets = re ? textParents(e) : [];
+          for (const t of targets.length ? targets : [e]) {
+            t.setAttribute(a.attr, '');
+            count++;
+          }
+        }
+        return count;
+      },
+      { attr: VOLATILE_ATTR, pattern: patternArg(l) },
+    );
   }
   return n;
 }
@@ -197,13 +240,43 @@ export async function markFieldValues(region: Locator, labels: readonly string[]
   );
 }
 
-/** How many elements matched by `locators` are NOT marked volatile (0 = every volatile value is hidden). */
+/**
+ * How many elements matched by `locators` are NOT hidden (0 = every volatile value is hidden). An element counts as
+ * hidden when it or a (shadow-crossing) ancestor is marked, or — for a text pattern — every matching text inside it is.
+ */
 export async function unmarkedVolatile(locators: readonly Locator[]): Promise<number> {
   let n = 0;
   for (const l of locators) {
     n += await l.evaluateAll(
-      (els, attr) => els.filter((e) => !e.closest(`[${attr}]`) && !e.hasAttribute(attr)).length,
-      VOLATILE_ATTR,
+      (els, a) => {
+        const re = a.pattern ? new RegExp(a.pattern.source, a.pattern.flags) : null;
+        const up = (x: Element): Element | null => {
+          if (x.parentElement) return x.parentElement;
+          const r = x.getRootNode();
+          return r instanceof ShadowRoot ? r.host : null;
+        };
+        const hidden = (x: Element): boolean => {
+          for (let p: Element | null = x; p; p = up(p)) if (p.hasAttribute(a.attr)) return true;
+          return false;
+        };
+        const textParents = (e: Element): Element[] => {
+          const out: Element[] = [];
+          const walk = (x: Element): void => {
+            for (const c of Array.from(x.childNodes)) {
+              if (c.nodeType === Node.TEXT_NODE && re?.test(c.textContent ?? '')) out.push(x);
+            }
+            for (const k of [...Array.from(x.shadowRoot?.children ?? []), ...Array.from(x.children)]) walk(k);
+          };
+          walk(e);
+          return out;
+        };
+        return els.filter((e) => {
+          if (hidden(e)) return false;
+          const parts = re ? textParents(e) : [];
+          return parts.length === 0 || !parts.every(hidden);
+        }).length;
+      },
+      { attr: VOLATILE_ATTR, pattern: patternArg(l) },
     );
   }
   return n;
