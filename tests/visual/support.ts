@@ -89,8 +89,10 @@ export async function captureRegion(
     .toBe(0);
   const clip = c.clipToContent ? await contentClip(locator) : await pageClip(page, locator);
   const panels = [];
-  for (const [i, anchor] of (c.panelAnchors ?? []).entries())
-    panels.push(await panelMask(page, anchor, locator, `p${String(i)}`));
+  for (const [i, anchor] of (c.panelAnchors ?? []).entries()) {
+    // a page without the panel (the offline fixture has no Activity timeline) has nothing to mask
+    if ((await anchor.count()) > 0) panels.push(await panelMask(page, anchor, locator, `p${String(i)}`));
+  }
   const o = {
     mask: [...mask, ...panels.map((x) => x.mask)],
     maxDiffPixelRatio: ratioFor(region),
