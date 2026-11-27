@@ -1,0 +1,191 @@
+{
+  "org": "qa-prod",
+  "orgId": "00DdN00000uQ5dKUAS",
+  "environment": "LIVE",
+  "baselines": [
+    {
+      "name": "account-record-system-admin-desktop",
+      "region": "account-record",
+      "persona": "system-admin",
+      "viewport": "desktop",
+      "sha256": "d24b594fd19ecb60a2a2bdff928cb5e8d7be62a201d7ea8fdc90d2139328224c",
+      "release": "Winter '27",
+      "approvedBy": "Rakesh Sharma",
+      "approvalId": "AP-ad178d5f7b56",
+      "approvedAt": "2026-11-27T11:04:39.846Z",
+      "sourceRun": "run-p6-live-3"
+    },
+    {
+      "name": "account-record-system-admin-tablet",
+      "region": "account-record",
+      "persona": "system-admin",
+      "viewport": "tablet",
+      "sha256": "2cd99c6adcbaf627656df54078c00ea385d2907933546fea3d75f4d53d736945",
+      "release": "Winter '27",
+      "approvedBy": "Rakesh Sharma",
+      "approvalId": "AP-ad178d5f7b56",
+      "approvedAt": "2026-11-27T11:04:39.846Z",
+      "sourceRun": "run-p6-live-3"
+    },
+    {
+      "name": "contact-details-system-admin-desktop",
+      "region": "contact-details",
+      "persona": "system-admin",
+      "viewport": "desktop",
+      "sha256": "fcaecd352de8ace0b081a0b9c9994b3abf049acf746d2aa5fd1b084a4f5e0109",
+      "release": "Winter '27",
+      "approvedBy": "Rakesh Sharma",
+      "approvalId": "AP-ad178d5f7b56",
+      "approvedAt": "2026-11-27T11:04:39.846Z",
+      "sourceRun": "run-p6-live-3"
+    },
+    {
+      "name": "contact-details-system-admin-tablet",
+      "region": "contact-details",
+      "persona": "system-admin",
+      "viewport": "tablet",
+      "sha256": "ec3dabc9017d69cf306b4fefbf6e05106b2703e2bff4128fa97435eb799d4728",
+      "release": "Winter '27",
+      "approvedBy": "Rakesh Sharma",
+      "approvalId": "AP-ad178d5f7b56",
+      "approvedAt": "2026-11-27T11:04:39.846Z",
+      "sourceRun": "run-p6-live-3"
+    },
+    {
+      "name": "new-contact-dialog-system-admin-desktop",
+      "region": "new-contact-dialog",
+      "persona": "system-admin",
+      "viewport": "desktop",
+      "sha256": "ae27dc49c7834f98cda47407f27c3fda65846b3ca4ac89c0f48ae03b1cc2f1ec",
+      "release": "Winter '27",
+      "approvedBy": "Rakesh Sharma",
+      "approvalId": "AP-ad178d5f7b56",
+      "approvedAt": "2026-11-27T11:04:39.846Z",
+      "sourceRun": "run-p6-live-3"
+    },
+    {
+      "name": "new-contact-dialog-system-admin-tablet",
+      "region": "new-contact-dialog",
+      "persona": "system-admin",
+      "viewport": "tablet",
+      "sha256": "94f10f4d710a232968227b24b299b21f1138ebb439ee304a381d6efe9d8e1fa2",
+      "release": "Winter '27",
+      "approvedBy": "Rakesh Sharma",
+      "approvalId": "AP-ad178d5f7b56",
+      "approvedAt": "2026-11-27T11:04:39.846Z",
+      "sourceRun": "run-p6-live-3"
+    }
+  ],
+  "a11y": [
+    {
+      "region": "account-record",
+      "viewport": "desktop",
+      "ruleIds": [
+        "label-content-name-mismatch"
+      ],
+      "approvalId": "AP-ad178d5f7b56",
+      "approvedAt": "2026-11-27T11:04:39.846Z",
+      "sourceRun": "run-p6-live-3"
+    },
+    {
+      "region": "account-record",
+      "viewport": "tablet",
+      "ruleIds": [
+        "label-content-name-mismatch"
+      ],
+      "approvalId": "AP-ad178d5f7b56",
+      "approvedAt": "2026-11-27T11:04:39.846Z",
+      "sourceRun": "run-p6-live-3"
+    },
+    {
+      "region": "new-contact-dialog",
+      "viewport": "tablet",
+      "ruleIds": [
+        "aria-prohibited-attr"
+      ],
+      "approvalId": "AP-ad178d5f7b56",
+      "approvedAt": "2026-11-27T11:04:39.846Z",
+      "sourceRun": "run-p6-live-3"
+    }
+  ],
+  "layout": [
+    {
+      "region": "new-contact-dialog",
+      "viewport": "desktop",
+      "keys": [
+        "layout-shift:",
+        "overlap:Account Name|Clear Account Name Selection",
+        "overlap:Birthdate|Select a date for Birthdate",
+        "overlap:Cancel|Mailing Street",
+        "overlap:Mailing Street|Save & New",
+        "overlap:Other Street|Save",
+        "overlap:Other Street|Save & New"
+      ],
+      "approvalId": "AP-ad178d5f7b56",
+      "approvedAt": "2026-11-27T11:04:39.846Z",
+      "sourceRun": "run-p6-live-3"
+    },
+    {
+      "region": "contact-details",
+      "viewport": "desktop",
+      "keys": [
+        "layout-shift:",
+        "overlap:Preview|link"
+      ],
+      "approvalId": "AP-ad178d5f7b56",
+      "approvedAt": "2026-11-27T11:04:39.846Z",
+      "sourceRun": "run-p6-live-3"
+    },
+    {
+      "region": "account-record",
+      "viewport": "desktop",
+      "keys": [
+        "clipped-text:Activity Publisher",
+        "clipped-text:Activity Timeline",
+        "clipped-text:Tabs",
+        "layout-shift:",
+        "overlap:Preview|link"
+      ],
+      "approvalId": "AP-ad178d5f7b56",
+      "approvedAt": "2026-11-27T11:04:39.846Z",
+      "sourceRun": "run-p6-live-3"
+    },
+    {
+      "region": "new-contact-dialog",
+      "viewport": "tablet",
+      "keys": [
+        "layout-shift:",
+        "overlap:Account Name|Clear Account Name Selection",
+        "overlap:Birthdate|Select a date for Birthdate"
+      ],
+      "approvalId": "AP-ad178d5f7b56",
+      "approvedAt": "2026-11-27T11:04:39.846Z",
+      "sourceRun": "run-p6-live-3"
+    },
+    {
+      "region": "contact-details",
+      "viewport": "tablet",
+      "keys": [
+        "layout-shift:",
+        "overlap:Preview|link"
+      ],
+      "approvalId": "AP-ad178d5f7b56",
+      "approvedAt": "2026-11-27T11:04:39.846Z",
+      "sourceRun": "run-p6-live-3"
+    },
+    {
+      "region": "account-record",
+      "viewport": "tablet",
+      "keys": [
+        "clipped-text:Activity Publisher",
+        "clipped-text:Activity Timeline",
+        "clipped-text:Tabs",
+        "layout-shift:",
+        "overlap:Preview|link"
+      ],
+      "approvalId": "AP-ad178d5f7b56",
+      "approvedAt": "2026-11-27T11:04:39.846Z",
+      "sourceRun": "run-p6-live-3"
+    }
+  ]
+}
