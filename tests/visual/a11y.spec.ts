@@ -18,7 +18,7 @@ import {
 } from '../support/a11y.js';
 import { selectTab, showRelatedList, waitForSpinners } from '../support/lightning.js';
 import { layoutSections, SECTION_TAB_ORDER_RULE } from '../../src/visual/tabOrder.js';
-import { visualProject } from './support.js';
+import { openNewContactDialog, visualProject } from './support.js';
 
 async function scanRegion(
   page: Page,
@@ -27,9 +27,13 @@ async function scanRegion(
   region: VisualRegion,
   scope: Locator,
   tabOrder?: TabOrderResult,
-  /** Focus follows the on-screen row order instead of the layout section's Tab-key setting (Salesforce-owned). */
-  sectionSettingIgnored = false,
+  /**
+   * Second pass when the layout order did not hold: the same layout rows read left to right. When it holds, the
+   * section's Tab-key setting is not applied by Lightning (Salesforce-owned candidate).
+   */
+  rowPass?: TabOrderResult,
 ): Promise<void> {
+  const sectionSettingIgnored = Boolean(rowPass && rowPass.inOrder && !rowPass.missing.length && !rowPass.leftScope);
   const { viewport } = visualProject(testInfo);
   const scan = await scanScoped(page, scope, ns);
   const unnamed = unnamedControls(await scope.ariaSnapshot());
@@ -68,6 +72,15 @@ async function scanRegion(
           ? {
               inOrder: tabOrder.inOrder || sectionSettingIgnored,
               sectionSettingIgnored,
+              rowPass: rowPass
+                ? {
+                    inOrder: rowPass.inOrder,
+                    missing: rowPass.missing,
+                    leftScope: rowPass.leftScope,
+                    visited: rowPass.visited,
+                    expected: rowPass.expectedOrder,
+                  }
+                : null,
               missing: tabOrder.missing,
               leftScope: tabOrder.leftScope,
               visited: tabOrder.visited,
@@ -118,8 +131,7 @@ test.describe('Accessibility: Account → Contact pages', () => {
 
       await test.step('New Contact dialog: scan, keyboard order of the fields both pages share', async () => {
         await showRelatedList(account.contactsRelatedList, account.relatedTab);
-        await account.contactsNewButton.click();
-        await expect(dialog.root).toBeVisible();
+        await openNewContactDialog(account.contactsNewButton, dialog.root);
         await waitForSpinners(dialog.root);
         // Expected order from the org's Contact page layout (each section's Tab direction), not an assumption.
         const sections = layoutSections(await sf.get('/sobjects/Contact/describe/layouts'), 'edit');
@@ -138,30 +150,33 @@ test.describe('Accessibility: Account → Contact pages', () => {
           cancelButton: dialog.cancelButton,
           saveButton: dialog.saveButton,
         };
+        const dialogFields: Record<string, string> = {
+          firstName: 'FirstName',
+          lastName: 'LastName',
+          title: 'Title',
+          email: 'Email',
+          phone: 'Phone',
+          leadSource: 'LeadSource',
+          mailingStreet: 'MailingStreet',
+          mailingCity: 'MailingCity',
+          mailingPostalCode: 'MailingPostalCode',
+          mailingCountry: 'MailingCountry',
+          accountId: 'AccountId',
+        };
         const keys = await checkTabOrder(page, dialog.root, dialogControls, {
           sections,
-          fields: {
-            firstName: 'FirstName',
-            lastName: 'LastName',
-            title: 'Title',
-            email: 'Email',
-            phone: 'Phone',
-            leadSource: 'LeadSource',
-            mailingStreet: 'MailingStreet',
-            mailingCity: 'MailingCity',
-            mailingPostalCode: 'MailingPostalCode',
-            mailingCountry: 'MailingCountry',
-            accountId: 'AccountId',
-          },
+          fields: dialogFields,
         });
-        // Differs from the layout setting: Salesforce-owned only if focus follows the on-screen row order instead
-        // (a second pass from the visually first control). Any other order, a missed control or focus leaving: FAIL.
-        let ignored = false;
-        if (!keys.inOrder && !keys.missing.length && !keys.leftScope) {
-          const rows = await checkTabOrder(page, dialog.root, dialogControls);
-          ignored = rows.inOrder && !rows.missing.length && !rows.leftScope;
-        }
-        await scanRegion(page, testInfo, a11y, 'new-contact-dialog', dialog.root, keys, ignored);
+        // Layout order did not hold: second pass over the same layout rows read left to right (buttons last). The
+        // on-screen order cannot be used here: the sticky footer (Cancel / Save) sits above fields below the fold.
+        const rowPass =
+          !keys.inOrder && !keys.missing.length && !keys.leftScope
+            ? await checkTabOrder(page, dialog.root, dialogControls, {
+                sections: sections.map((sec) => ({ ...sec, tabOrder: 'LeftToRight' as const })),
+                fields: dialogFields,
+              })
+            : undefined;
+        await scanRegion(page, testInfo, a11y, 'new-contact-dialog', dialog.root, keys, rowPass);
         await dialog.cancelButton.click(); // nothing is saved
         await expect(dialog.root).toBeHidden();
       });

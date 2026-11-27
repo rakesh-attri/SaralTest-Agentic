@@ -9,7 +9,7 @@ import { NewContactDialog } from '../pages/NewContactDialog.js';
 import { selectTab, showRelatedList, waitForSpinners } from '../support/lightning.js';
 import { observeLayoutShift } from '../support/layout.js';
 import { expect } from '@playwright/test';
-import { captureRegion, runPrefix } from './support.js';
+import { captureRegion, openNewContactDialog, runPrefix } from './support.js';
 
 test.describe('Visual baselines: Account → Contact pages', () => {
   test(
@@ -31,8 +31,7 @@ test.describe('Visual baselines: Account → Contact pages', () => {
 
       await test.step('New Contact dialog from the Contacts related list', async () => {
         await showRelatedList(account.contactsRelatedList, account.relatedTab);
-        await account.contactsNewButton.click();
-        await expect(dialog.root).toBeVisible();
+        await openNewContactDialog(account.contactsNewButton, dialog.root);
         await waitForSpinners(dialog.root);
         await captureRegion(page, testInfo, 'new-contact-dialog', dialog.root, runPrefix(), {
           extraMasks: [dialog.accountId], // the pre-filled Account lookup shows this run's Account name

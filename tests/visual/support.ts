@@ -115,3 +115,15 @@ export async function captureRegion(
 
 /** The run prefix every synthetic value of this run carries (masked wherever it appears). */
 export const runPrefix = (): string => settings.runId;
+
+/**
+ * Open the New Contact dialog from the Contacts related list. Lightning shows the modal shell (Cancel and close +
+ * spinner) at once and names the dialog only when the form has loaded: qa-prod run-p6-live-3 (A11Y-001 desktop) took
+ * longer than the default 15 s. Same 60 s as a record page load; the error names the state it stopped in.
+ */
+export async function openNewContactDialog(newButton: Locator, dialog: Locator, timeout = 60_000): Promise<void> {
+  await newButton.click();
+  await expect(dialog, 'New Contact dialog: the form did not load (modal shell / spinner only)').toBeVisible({
+    timeout,
+  });
+}
