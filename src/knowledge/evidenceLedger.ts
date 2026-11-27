@@ -22,6 +22,7 @@ export const SourceType = z.enum([
   'requirement', // requirement / decision / evidence id from design
   'result', // a TestResult (runId/testId)
   'model', // a model answer (name), never a source of truth on its own
+  'evidence', // another ledger row (a verdict citing its experiments)
 ]);
 export type SourceType = z.infer<typeof SourceType>;
 

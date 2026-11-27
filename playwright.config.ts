@@ -5,8 +5,11 @@ import { defineConfig, devices, type PlaywrightTestConfig } from '@playwright/te
 import type { ReportingLabsOptions } from 'reporting-labs';
 import { join } from 'node:path';
 import { runSettings, storageStatePath } from './tests/support/runConfig.js';
+import { waitFactor as runWaitFactor } from './tests/support/waits.js';
 
 const s = runSettings();
+// QA_WAIT_FACTOR scales timeouts only (Investigator rerun-extended-waits); assertions are unchanged.
+const waitFactor = runWaitFactor();
 const desktop = s.execution.viewports[0] ?? { width: 1440, height: 900 };
 
 const environment = process.env['QA_ENVIRONMENT'] ?? 'UNKNOWN';
@@ -63,9 +66,10 @@ const projects: NonNullable<PlaywrightTestConfig['projects']> = s.personas.perso
 export default defineConfig({
   testDir: './tests/generated',
   testMatch: '**/*.spec.ts',
-  timeout: 120_000,
-  expect: { timeout: 15_000 },
-  retries: 1, // a pass on retry = flaky, reported as such
+  timeout: 120_000 * waitFactor,
+  expect: { timeout: 15_000 * waitFactor },
+  // a pass on retry = flaky, reported as such. Investigator reruns set QA_RETRIES=0 (one attempt = one reproduction).
+  retries: process.env['QA_RETRIES'] === '0' ? 0 : 1,
   workers: 4,
   outputDir: join(s.runDir, 'test-results'),
   use: {
@@ -75,8 +79,8 @@ export default defineConfig({
     trace: 'retain-on-failure',
     video: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    actionTimeout: 20_000,
-    navigationTimeout: 60_000,
+    actionTimeout: 20_000 * waitFactor,
+    navigationTimeout: 60_000 * waitFactor,
   },
   reporter: [
     ['list'],

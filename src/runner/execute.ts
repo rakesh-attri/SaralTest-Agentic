@@ -109,6 +109,8 @@ export interface ExecuteOptions {
   echo?: boolean;
   timeoutMs?: number;
   redact?: (s: string) => string;
+  /** Extra Playwright env (Phase 7 reruns: QA_RETRIES, QA_WAIT_FACTOR). Never secrets. */
+  extraEnv?: Record<string, string>;
 }
 
 export interface ExecuteDeps {
@@ -286,6 +288,7 @@ export async function executeStory(o: ExecuteOptions, d: ExecuteDeps = {}): Prom
       : {}),
     SF_BASE_URL: baseURL,
     ...(o.keepData ? { QA_KEEP_DATA: '1' } : {}),
+    ...(o.extraEnv ?? {}),
   };
   say(`Running ${toRun.length} spec(s) as ${projects.join(', ')} on ${baseURL} …`);
   appendFileSync(paths.runLog, `\n# npx ${args.join(' ')}\n`);
