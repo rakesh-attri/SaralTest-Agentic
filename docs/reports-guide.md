@@ -59,3 +59,40 @@ pnpm qa report comment publish --run <runId>
   `commentId`), and falls back to JIRA REST (`POST /rest/api/3/issue/{key}/comment`, ADF) when MCP is unavailable.
   Both paths are audited; `.qa-memory/publications.jsonl` prevents posting the same text twice. Nothing is attached
   (`allowExternalUpload: false`).
+
+## Visual-diff report (Phase 6)
+
+`qa visual run` writes its own run folder:
+
+| File | What it holds |
+|---|---|
+| `report/visual-diff.md` / `.html` | One row per region × viewport: status, exact diff ratio vs the allowed ratio, reason and next step. Each non-MATCH candidate shows baseline / actual / diff. Then layout findings, a11y checks (Tab order, unnamed controls) and axe findings (FAIL / BASELINE / NEW_STANDARD). Non-LIVE runs carry the FIXTURE banner |
+| `report/index.md` | Links to the visual-diff report, the Playwright HTML, the summary JSON and the data reconciliation |
+| `visual/visual-summary.json` | `VisualRunSummary` (`src/core/schemas/visual.ts`) |
+| `visual/images/<name>-{baseline,actual,diff}.png` | Copies used by the report and by `qa visual approve` |
+| `visual/data-reconciliation.json` | Sub-runs cleaned, re-query by tag |
+
+Candidate statuses:
+
+| Status | Meaning |
+|---|---|
+| `MATCH` | Within the allowed ratio of an approved, unedited baseline on the same release |
+| `NO_BASELINE` | Nothing approved yet; the actual image is the proposal |
+| `DIFF` | Differs from the approved baseline |
+| `RE_APPROVE` | The baseline was edited after approval, or was approved on another Salesforce release |
+| `NOT_CAPTURED` | The test failed before the screenshot |
+
+A candidate is never a defect by itself. A human decides with:
+
+```powershell
+pnpm qa visual approve --run <id> --by "<name>"
+```
+
+`--only <names>` approves a subset, `--a11y` accepts new Salesforce-owned rules, and `--dry-run` previews. The approval
+is checkpoint `approve-visual-baseline`, bound to the image hashes and audited. Baselines live in
+`tests/visual-baselines/<org>/`; check them with `pnpm qa visual status --org <alias>`. To verify a run independently:
+
+```powershell
+pnpm validate:visual <runId>
+```
+
