@@ -8,12 +8,12 @@
       "region": "account-record",
       "persona": "system-admin",
       "viewport": "desktop",
-      "sha256": "d24b594fd19ecb60a2a2bdff928cb5e8d7be62a201d7ea8fdc90d2139328224c",
+      "sha256": "bdfd56cb1f57bc6ea877f80c496bb68adccdf8f2118868828aa8b2f899ad692c",
       "release": "Winter '27",
       "approvedBy": "Rakesh Sharma",
-      "approvalId": "AP-ad178d5f7b56",
-      "approvedAt": "2026-11-27T11:04:39.846Z",
-      "sourceRun": "run-p6-live-3"
+      "approvalId": "AP-c4cadc1d966c",
+      "approvedAt": "2026-11-27T13:05:03.180Z",
+      "sourceRun": "run-p6-live-13"
     },
     {
       "name": "account-record-system-admin-tablet",
