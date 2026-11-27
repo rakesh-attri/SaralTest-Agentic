@@ -15,6 +15,7 @@ import { DataEngine, soqlString } from '../../src/sf/data/engine.js';
 import { dataDir, planData, recipeApproval, writeDataOutputs } from '../../src/sf/dataFactory.js';
 import { fitUnique } from '../../src/sf/data/unique.js';
 import { runSettings, type RunSettings } from '../support/runConfig.js';
+import { waitFactor, waitFactorFor } from '../support/waits.js';
 
 export { expect };
 
@@ -73,6 +74,18 @@ const personaId = (meta: Record<string, unknown>): string =>
   typeof meta['persona'] === 'string' ? meta['persona'] : 'system-admin';
 
 export const test = base.extend<TestFixtures, WorkerFixtures>({
+  // Phase 7: a Self-Healer SCRIPT_TIMING repair (tests/support/wait-overrides.json) lengthens this case's action /
+  // navigation / test timeouts. Assertions and expected values are never touched (rule 7).
+  page: async ({ page, settings }, use, testInfo) => {
+    const f = waitFactorFor(settings.root, testInfo.file);
+    const run = waitFactor();
+    if (f > run) {
+      page.setDefaultTimeout(20_000 * f);
+      page.setDefaultNavigationTimeout(60_000 * f);
+      testInfo.setTimeout(Math.round((testInfo.timeout * f) / run));
+    }
+    await use(page);
+  },
   settings: [
     // eslint-disable-next-line no-empty-pattern -- Playwright fixture signature
     async ({}, use) => {

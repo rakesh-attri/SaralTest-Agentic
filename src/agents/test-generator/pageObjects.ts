@@ -126,6 +126,7 @@ export function camel(text: string): string {
 
 /** Name for a registry row: field → camel(field); otherwise camel(scope + name) + role suffix. */
 function memberName(e: LocatorEntry, scopeName: string | undefined, isRoot: (s: string) => boolean): string {
+  if (e.memberName) return e.memberName; // pinned by a heal (Phase 7): the spec keeps using the same member
   const role = e.role ?? 'element';
   if (e.fieldApiName && (role === 'textbox' || role === 'combobox' || role === 'checkbox' || role === 'spinbutton')) {
     return camel((e.fieldApiName.split('.')[1] ?? e.fieldApiName).replace(/__c$/, ''));
