@@ -91,9 +91,140 @@ export async function markVolatile(locators: readonly Locator[]): Promise<number
   return n;
 }
 
-/** Make the page still before a screenshot: spinners gone, fonts loaded, no hover or focus ring. */
-export async function settle(page: Page): Promise<void> {
-  await waitForSpinners(page);
+/**
+ * Lightning's loading placeholders (grey bars drawn before a record layout arrives). run-p6-live-1: the Details panel
+ * was captured while `force-placeholder2` was still shown (tablet), and the real fields replaced the marked nodes
+ * after masking, so their values showed unmasked. CSS selectors pierce open shadow roots.
+ */
+export const LOADING_PLACEHOLDERS = 'force-placeholder2, force-placeholder, lightning-skeleton, [aria-busy="true"]';
+
+/**
+ * The region is ready: no spinner, no loading placeholder, and its text and size are the same on two reads in a row
+ * (Lightning renders fields in several passes). Same check on every viewport.
+ */
+export async function waitForRegionReady(page: Page, region: Locator, timeout = 30_000): Promise<void> {
+  await waitForSpinners(page, timeout);
+  await expect(region.locator(LOADING_PLACEHOLDERS)).toHaveCount(0, { timeout });
+  let previous = '';
+  await expect
+    .poll(
+      async () => {
+        const now = await region.evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return `${(el as HTMLElement).innerText.length}:${Math.round(r.width)}x${Math.round(r.height)}`;
+        });
+        const stable = now === previous && !now.startsWith('0:');
+        previous = now;
+        return stable;
+      },
+      { timeout, intervals: [250, 250, 500, 500, 1000] },
+    )
+    .toBe(true);
+}
+
+/**
+ * Record-page fields whose value is always hidden (operator, Phase 6 live): the record name, owners and the system
+ * fields. Matched by the field label (exact), so the label and the field position stay in the image.
+ */
+export const VOLATILE_FIELD_LABELS: readonly string[] = [
+  'Name',
+  'Account Name',
+  'Contact Owner',
+  'Account Owner',
+  'Owner',
+  'Created By',
+  'Last Modified By',
+];
+
+/**
+ * Mark the value part of the fields with these labels as volatile (Lightning record layout items and the fixture's
+ * dt/dd pairs; open shadow roots included). Returns how many values were marked.
+ */
+export async function markFieldValues(region: Locator, labels: readonly string[]): Promise<number> {
+  return region.evaluate(
+    (root, a) => {
+      const wanted = new Set(a.labels);
+      const kids = (n: Element): Element[] => [...Array.from(n.shadowRoot?.children ?? []), ...Array.from(n.children)];
+      const parentOf = (n: Element): Element | null =>
+        n.parentElement ??
+        ((n.getRootNode() as ShadowRoot | Document) instanceof ShadowRoot
+          ? (n.getRootNode() as ShadowRoot).host
+          : null);
+      const find = (n: Element, sel: string): Element | null => {
+        if (n.matches(sel)) return n;
+        for (const k of kids(n)) {
+          const f = find(k, sel);
+          if (f) return f;
+        }
+        return null;
+      };
+      const ownText = (n: Element): string =>
+        Array.from(n.childNodes)
+          .filter((x) => x.nodeType === Node.TEXT_NODE)
+          .map((x) => x.textContent ?? '')
+          .join('')
+          .trim();
+      let marked = 0;
+      const visit = (n: Element): void => {
+        if (wanted.has(ownText(n))) {
+          let value: Element | null = null;
+          if (n.tagName === 'DT') value = n.nextElementSibling;
+          else {
+            // climb to the layout item that holds both the label and the value
+            for (let p = parentOf(n), d = 0; p && d < 8 && !value; p = parentOf(p), d++) {
+              value = find(p, '.slds-form-element__control, [class*="field-value"]');
+            }
+          }
+          if (value) {
+            value.setAttribute(a.attr, '');
+            marked++;
+          }
+        }
+        for (const k of kids(n)) visit(k);
+      };
+      visit(root);
+      return marked;
+    },
+    { labels: [...labels], attr: VOLATILE_ATTR },
+  );
+}
+
+/** How many elements matched by `locators` are NOT marked volatile (0 = every volatile value is hidden). */
+export async function unmarkedVolatile(locators: readonly Locator[]): Promise<number> {
+  let n = 0;
+  for (const l of locators) {
+    n += await l.evaluateAll(
+      (els, attr) => els.filter((e) => !e.closest(`[${attr}]`) && !e.hasAttribute(attr)).length,
+      VOLATILE_ATTR,
+    );
+  }
+  return n;
+}
+
+/**
+ * Clip of a page region in document coordinates, taken at the top of the page. A region taller than the viewport is
+ * captured with `fullPage` + this clip instead of an element screenshot: an element screenshot scrolls the page,
+ * Lightning then pins the record header (fixed, 80 px) over the top row of the Details panel (run-p6-live-1).
+ */
+export async function pageClip(page: Page, region: Locator): Promise<Clip> {
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+  });
+  return region.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return {
+      x: Math.round(r.x + window.scrollX),
+      y: Math.round(r.y + window.scrollY),
+      width: Math.round(r.width),
+      height: Math.round(r.height),
+    };
+  });
+}
+
+/** Make the page still before a screenshot: region ready, fonts loaded, no hover or focus ring. */
+export async function settle(page: Page, region?: Locator): Promise<void> {
+  if (region) await waitForRegionReady(page, region);
+  else await waitForSpinners(page);
   await page.evaluate(async () => {
     await document.fonts.ready;
     let a: Element | null = document.activeElement;
@@ -183,15 +314,20 @@ export async function expectRegionScreenshot(
   page: Page,
   region: Locator,
   name: string,
-  o: RegionShotOptions & { clip?: Clip },
+  o: RegionShotOptions & { clip?: Clip; fullPage?: boolean },
 ): Promise<void> {
-  await settle(page);
-  if (o.clip) await expect.soft(page).toHaveScreenshot(`${name}.png`, { ...shotOptions(o), clip: o.clip });
-  else await expect.soft(region).toHaveScreenshot(`${name}.png`, shotOptions(o));
+  if (o.clip) {
+    const full = o.fullPage ? { fullPage: true } : {};
+    await expect.soft(page).toHaveScreenshot(`${name}.png`, { ...shotOptions(o), clip: o.clip, ...full });
+  } else await expect.soft(region).toHaveScreenshot(`${name}.png`, shotOptions(o));
 }
 
 /** The same masked image, as bytes (attached to the run so a matching region can still be re-approved). */
-export async function regionShot(page: Page, region: Locator, o: RegionShotOptions & { clip?: Clip }): Promise<Buffer> {
+export async function regionShot(
+  page: Page,
+  region: Locator,
+  o: RegionShotOptions & { clip?: Clip; fullPage?: boolean },
+): Promise<Buffer> {
   const x = shotOptions(o);
   const opts = {
     mask: x.mask,
@@ -201,5 +337,6 @@ export async function regionShot(page: Page, region: Locator, o: RegionShotOptio
     scale: x.scale,
     style: VOLATILE_STYLE,
   };
-  return o.clip ? page.screenshot({ ...opts, clip: o.clip }) : region.screenshot(opts);
+  if (o.clip) return page.screenshot({ ...opts, clip: o.clip, ...(o.fullPage ? { fullPage: true } : {}) });
+  return region.screenshot(opts);
 }
