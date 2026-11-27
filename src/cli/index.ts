@@ -24,6 +24,7 @@ import { registerInvestigate } from './investigate.js';
 import { registerHeal } from './heal.js';
 import { registerFaults } from './faults.js';
 import { registerDefects } from './defects.js';
+import { registerExplore } from './explore.js';
 import { registerRun } from './run.js';
 import { registerReport } from './report.js';
 import { registerJiraComment } from './jiraComment.js';
@@ -104,6 +105,7 @@ export function buildCli(): Command {
   registerHeal(program, rootOf, say);
   registerFaults(program, rootOf, say);
   registerDefects(program, rootOf, say);
+  registerExplore(program, rootOf, say);
   registerJiraComment(registerReport(program, rootOf, say), rootOf, say);
 
   const mcp = program.command('mcp').description('MCP server utilities');
@@ -331,7 +333,6 @@ export function buildCli(): Command {
 
   // Commands from CLAUDE.md that later phases implement. They say so instead of failing obscurely.
   const later: [string, string, number][] = [
-    ['explore', 'Goal-directed exploration', 7],
     ['history', 'Past runs and trends', 9],
     ['learnings', 'Inspect learnings', 8],
   ];

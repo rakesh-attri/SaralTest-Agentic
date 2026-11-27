@@ -265,21 +265,29 @@ export function registerBuild(program: Command, rootOf: () => string, say: Say):
         const seed = loadDesignRun(root, o.fromRun);
         let editChanges: string[] = [];
         if (o.caseEdits) {
-          const edits = loadCaseEdits(resolve(o.caseEdits));
-          if (edits.storyKey !== seed.storyKey)
-            throw new QAError('DATA', `case edits are for ${edits.storyKey}, the design run is ${seed.storyKey}`);
-          const r = applyCaseEdits(seed.testCases, edits, designEvidenceIds(root, o.fromRun));
-          seed.testCases = r.cases;
-          editChanges = r.changes.map((c) => `${c} — ${edits.decidedBy}, ${edits.decidedOn}`);
-          // Operator-added case ids are reserved in the story's id store, so a later design never reuses them.
-          if (edits.addCases.length) {
-            const ids = new TestCaseIdStore(seed.storyKey, join(root, '.qa-memory'));
-            for (const c of r.cases.filter((x) => x.origin === 'operator')) {
-              const got = ids.idFor(`operator|${c.id}`);
-              if (got !== c.id)
-                say(`  note: id store allocated ${got} for operator case ${c.id} (ids stay unique in this design run)`);
+          const known = designEvidenceIds(root, o.fromRun);
+          for (const file of o.caseEdits
+            .split(',')
+            .map((x) => x.trim())
+            .filter(Boolean)) {
+            const edits = loadCaseEdits(resolve(file));
+            if (edits.storyKey !== seed.storyKey)
+              throw new QAError('DATA', `case edits are for ${edits.storyKey}, the design run is ${seed.storyKey}`);
+            const r = applyCaseEdits(seed.testCases, edits, known);
+            seed.testCases = r.cases;
+            editChanges.push(...r.changes.map((c) => `${c} — ${edits.decidedBy}, ${edits.decidedOn}`));
+            // Operator-added case ids are reserved in the story's id store, so a later design never reuses them.
+            if (edits.addCases.length) {
+              const ids = new TestCaseIdStore(seed.storyKey, join(root, '.qa-memory'));
+              for (const c of r.cases.filter((x) => x.origin === 'operator')) {
+                const got = ids.idFor(`operator|${c.id}`);
+                if (got !== c.id)
+                  say(
+                    `  note: id store allocated ${got} for operator case ${c.id} (ids stay unique in this design run)`,
+                  );
+              }
+              ids.save();
             }
-            ids.save();
           }
           say(`Applied ${String(editChanges.length)} operator case edit(s) from ${o.caseEdits}:`);
           for (const c of editChanges) say(`  ${c}`);

@@ -30,6 +30,7 @@ export const ActionKind = z.enum([
   'open-dialog',
   'open-tab',
   'fill',
+  'select',
   'clear',
   'tab-key',
   'cancel',

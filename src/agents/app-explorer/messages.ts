@@ -70,7 +70,7 @@ const MAX_TEXT = 400;
  * are resolved in the input's own root (Lightning components keep the message in the same shadow root), then in the
  * document; a form-element help text next to the input is the fallback.
  */
-async function describedText(field: Locator): Promise<string> {
+export async function describedText(field: Locator): Promise<string> {
   // After a save popover closes, the record form re-enters the accessibility tree a moment later.
   await field.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
   if ((await field.count()) !== 1) return '';
@@ -143,7 +143,7 @@ export function messageFromAriaSnapshot(yaml: string, label: string): string {
  * form is hidden from the accessibility tree); the fixture renders an alert inside the form. Read by heading only —
  * never page-wide text (the record page behind the modal has its own duplicate widget).
  */
-async function popoverTexts(page: Page, form: Locator, heading: RegExp): Promise<string[]> {
+export async function popoverTexts(page: Page, form: Locator, heading: RegExp): Promise<string[]> {
   const out: string[] = [];
   const add = (t: string): void => {
     const clean = t
@@ -185,7 +185,7 @@ async function popoverTexts(page: Page, form: Locator, heading: RegExp): Promise
 }
 
 /** Close Lightning's save popovers so the record form is back in the accessibility tree (nothing is saved). */
-async function closePopovers(page: Page): Promise<void> {
+export async function closePopovers(page: Page): Promise<void> {
   for (const d of await page.getByRole('dialog', { name: POPOVER }).all()) {
     const close = d.getByRole('button', { name: 'Close error dialog' });
     if ((await close.count()) === 1 && (await close.isVisible().catch(() => false))) {
@@ -195,7 +195,7 @@ async function closePopovers(page: Page): Promise<void> {
 }
 
 /** Headings of Lightning's save popovers: errors / duplicate alert. */
-const POPOVER = /^\s*(We hit a snag|Similar Records Exist)/;
+export const POPOVER = /^\s*(We hit a snag|Similar Records Exist)/;
 const DUPLICATE = /^\s*Similar Records Exist/;
 const field = (dialog: Locator, name: string): Locator => dialog.getByRole('textbox', { name, exact: true });
 

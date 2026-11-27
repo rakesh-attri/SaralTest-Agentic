@@ -88,9 +88,12 @@ export function applyCaseEdits(
   for (const raw of f.addCases) {
     const r0 = raw as { origin?: unknown };
     const tc = TestCase.parse({ ...r0, origin: r0.origin ?? 'operator' });
-    if (tc.origin !== 'operator') throw new Error(`added case ${tc.id}: origin must be operator`);
+    if (tc.origin !== 'operator' && tc.origin !== 'exploratory')
+      throw new Error(`added case ${tc.id}: origin must be operator or exploratory (a promoted finding)`);
     if (out.some((c) => c.id === tc.id)) throw new Error(`added case ${tc.id} already exists in the design run`);
-    const unknown = tc.steps.flatMap((st) => st.expected.evidenceIds).filter((id) => !known.has(id));
+    const unknown = tc.steps
+      .flatMap((st) => st.expected.evidenceIds)
+      .filter((id) => !known.has(id) && !/^(Field|ValidationRule|DuplicateRule|SObject):[A-Za-z0-9_.]+$/.test(id));
     if (unknown.length)
       throw new Error(
         `added case ${tc.id} cites evidence the design run does not have: ${[...new Set(unknown)].join(', ')}`,
