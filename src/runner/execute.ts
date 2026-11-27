@@ -315,6 +315,7 @@ export async function executeStory(o: ExecuteOptions, d: ExecuteDeps = {}): Prom
       runDir,
       testDirRel: 'tests/generated',
       gate: plan.items,
+      repoRoot: o.root,
       ...(o.redact ? { redact: o.redact } : {}),
     });
   } else {

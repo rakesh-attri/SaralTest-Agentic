@@ -35,8 +35,34 @@ export const TestResult = z.object({
   /** Trace / screenshot / video / data-cleanup paths, relative to the run folder. */
   attachments: z.array(z.object({ name: z.string(), path: z.string() })).default([]),
   dataCleanup: ResultCleanup.optional(),
+  // ---- Phase 7: failure detail for the Failure Investigator (redacted; FAIL / UNCERTAIN rows only)
+  failure: z
+    .object({
+      /** One entry per attempt: first error of that attempt (ANSI stripped, ≤ 25 lines, redacted). */
+      attempts: z.array(
+        z.object({
+          attempt: z.number().int().nonnegative(),
+          status: z.string(),
+          message: z.string(),
+          /** Repo-relative file:line where Playwright located the error (helper or spec). */
+          location: z.string().optional(),
+          /** First stack frame inside the spec file (spec:line). */
+          specLine: z.string().optional(),
+          /** test.step title that failed (innermost). */
+          failedStep: z.string().optional(),
+        }),
+      ),
+      /** Top-level test.step titles of the last attempt with their outcome. */
+      steps: z.array(z.object({ title: z.string(), ok: z.boolean() })).default([]),
+      /** Run-relative paths of the last attempt's artifacts. */
+      errorContext: z.string().optional(),
+      trace: z.string().optional(),
+      screenshot: z.string().optional(),
+    })
+    .optional(),
 });
 export type TestResult = z.infer<typeof TestResult>;
+export type FailureDetail = NonNullable<TestResult['failure']>;
 
 export const EvidenceEntry = z.object({
   id: z.string(),
