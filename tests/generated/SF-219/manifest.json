@@ -9,9 +9,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-004-create-contact-with-last-name-boundary-values-79-8.spec.ts",
       "hash": "c19d631018748cc8",
-      "testCaseIds": [
-        "TC-SF-219-004"
-      ],
+      "testCaseIds": ["TC-SF-219-004"],
       "caseHash": "43403159cec09c17",
       "irHash": "7644a86bddd76af1",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
@@ -25,9 +23,7 @@
         "contact-new.root",
         "contact-new.saveButton"
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [
         "RF-002 message-unevidenced: step 9 expects an error message, but the org has no evidence for its text (no validation rule shows it on that field; the standard Salesforce message is not captured) — the test asserts only that the field is invalid"
@@ -82,9 +78,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-007-create-contact-with-valid-10-digit-phone-and-non-w.spec.ts",
       "hash": "8a9077ed56a1408c",
-      "testCaseIds": [
-        "TC-SF-219-007"
-      ],
+      "testCaseIds": ["TC-SF-219-007"],
       "caseHash": "624d82503c46ba33",
       "irHash": "ba3c3d8ec02135f3",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
@@ -144,9 +138,7 @@
           "hash": "388393889e843b68"
         }
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
@@ -157,9 +149,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-008-create-contact-with-lead-source-web-and-blank-phon.spec.ts",
       "hash": "aa75a4272e1afa5d",
-      "testCaseIds": [
-        "TC-SF-219-008"
-      ],
+      "testCaseIds": ["TC-SF-219-008"],
       "caseHash": "add925ad4aa92798",
       "irHash": "197f82116a0da91a",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
@@ -219,9 +209,7 @@
           "hash": "388393889e843b68"
         }
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
@@ -231,9 +219,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-009-create-contact-with-invalid-phone-format-not-10-di.spec.ts",
       "hash": "d282589a79064b41",
-      "testCaseIds": [
-        "TC-SF-219-009"
-      ],
+      "testCaseIds": ["TC-SF-219-009"],
       "caseHash": "688a947e697adf52",
       "irHash": "629e147e3f70750b",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
@@ -293,9 +279,7 @@
           "hash": "388393889e843b68"
         }
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
@@ -305,9 +289,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-010-boundary-value-test-for-phone-field-9-10-and-11-di.spec.ts",
       "hash": "cc91cf142d63b397",
-      "testCaseIds": [
-        "TC-SF-219-010"
-      ],
+      "testCaseIds": ["TC-SF-219-010"],
       "caseHash": "8dd2248aed59c6d0",
       "irHash": "b1a7e778eba93381",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
@@ -367,9 +349,7 @@
           "hash": "388393889e843b68"
         }
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
@@ -380,9 +360,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-012-system-administrator-can-create-and-edit-contacts.spec.ts",
       "hash": "f69a4c324180235a",
-      "testCaseIds": [
-        "TC-SF-219-012"
-      ],
+      "testCaseIds": ["TC-SF-219-012"],
       "caseHash": "cf6654e68fbadafb",
       "irHash": "a28e835ff45c6e3b",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
@@ -395,9 +373,7 @@
         "contact-new.saveButton",
         "contact-record.accountNameField"
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [
         "RF-005 judge: Step action differs from test case - API update used instead of UI edit: Step 3 of the test case specifies 'On the created Contact record, click Edit, change Last Name to AdminTestEdited, and click Save' but the test uses `await data.update('Contact', { LastName: 'AdminTestEdited' });` which is an API update, not a UI edit action. The step's action differs from the case."
@@ -443,9 +419,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-015-create-contact-with-invalid-title-value-is-rejecte.spec.ts",
       "hash": "0b79c95c812fda74",
-      "testCaseIds": [
-        "TC-SF-219-015"
-      ],
+      "testCaseIds": ["TC-SF-219-015"],
       "caseHash": "17210f39ed88b398",
       "irHash": "8efc9ba641fcec00",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
@@ -458,9 +432,7 @@
         "contact-new.saveButton",
         "contact-new.title"
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
@@ -504,18 +476,12 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-023-field-history-tracking-for-email-and-phone-changes.spec.ts",
       "hash": "2dd21895f71c15de",
-      "testCaseIds": [
-        "TC-SF-219-023"
-      ],
+      "testCaseIds": ["TC-SF-219-023"],
       "caseHash": "0420c9e04c8f0956",
       "irHash": "085043808f983e33",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
-      "locatorsUsed": [
-        "contact-record.emailField"
-      ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "locatorsUsed": ["contact-record.emailField"],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [
         "RF-006 judge: Multiple expected results not asserted or assertions weaker than expected: Step 1: Expected result states 'Contact detail page shows the initial Email and Phone values' but test only asserts emailField, not phoneField. Step 3: Expected result specifies detailed SOQL query checking Field, OldValue, NewValue, CreatedById, CreatedDate for both Email and Phone changes, but test only asserts `historyFields` array contains 'Email' and 'Phone'. Step 4: Expected result states 'Field History related list shows two entries with old/new values, timestamp, and user' but test only opens the page with no assertions on the related list."
@@ -537,9 +503,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-026-create-contact-with-valid-last-name-positive.spec.ts",
       "hash": "60ffc3fbe9d68a41",
-      "testCaseIds": [
-        "TC-SF-219-026"
-      ],
+      "testCaseIds": ["TC-SF-219-026"],
       "caseHash": "752fd47a3b76454e",
       "irHash": "7956579afb96f698",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
@@ -595,9 +559,7 @@
           "hash": "388393889e843b68"
         }
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
@@ -607,9 +569,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-032-create-contact-from-account-related-list-contact-l.spec.ts",
       "hash": "35637ccfb7464fc3",
-      "testCaseIds": [
-        "TC-SF-219-032"
-      ],
+      "testCaseIds": ["TC-SF-219-032"],
       "caseHash": "d768593bb35038a0",
       "irHash": "2c8ee311427f8ddc",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
@@ -709,9 +669,7 @@
           "hash": "26d6215ad3c83cf2"
         }
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [
         "RF-001 locator-unresolved: account-record.contactsNewButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
@@ -737,9 +695,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-036-create-contact-with-each-approved-title-value.spec.ts",
       "hash": "7779cdaa46fbded5",
-      "testCaseIds": [
-        "TC-SF-219-036"
-      ],
+      "testCaseIds": ["TC-SF-219-036"],
       "caseHash": "cb659d2594451546",
       "irHash": "ebd6cdcfb743a676",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
@@ -791,9 +747,7 @@
           "hash": "8fc510bf67bd9044"
         }
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
@@ -803,9 +757,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-044-create-contact-with-valid-data-from-account-regres.spec.ts",
       "hash": "db0c0f6ded9543bf",
-      "testCaseIds": [
-        "TC-SF-219-044"
-      ],
+      "testCaseIds": ["TC-SF-219-044"],
       "caseHash": "9f38bfa3d259aad2",
       "irHash": "5a9b81977c5128d1",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
@@ -915,9 +867,7 @@
           "hash": "8fc510bf67bd9044"
         }
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [
         "RF-001 locator-unresolved: account-record.contactsNewButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
@@ -944,9 +894,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-045-mailing-address-defaults-from-account-billing-addr.spec.ts",
       "hash": "64a0d3cea9bf17a8",
-      "testCaseIds": [
-        "TC-SF-219-045"
-      ],
+      "testCaseIds": ["TC-SF-219-045"],
       "caseHash": "c0f1d65cdcc8fa45",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
       "locatorsUsed": [],
@@ -964,9 +912,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-046-create-contact-with-empty-last-name-negative.spec.ts",
       "hash": "0fc6431bfe111b76",
-      "testCaseIds": [
-        "TC-SF-219-046"
-      ],
+      "testCaseIds": ["TC-SF-219-046"],
       "caseHash": "3fa9bcc72b1f1fd8",
       "irHash": "29ac4e8eea0ff199",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
@@ -1022,9 +968,7 @@
           "hash": "388393889e843b68"
         }
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
@@ -1035,9 +979,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-047-sales-rep-creates-contact-with-valid-email-contact.spec.ts",
       "hash": "9119cf6276541454",
-      "testCaseIds": [
-        "TC-SF-219-047"
-      ],
+      "testCaseIds": ["TC-SF-219-047"],
       "caseHash": "9ebd8502c3691689",
       "irHash": "35063c8c2bf73366",
       "snapshotId": "snap-00DdN00000uQ5dK-20261125122127-93cc",
@@ -1050,9 +992,7 @@
         "contact-new.root",
         "contact-new.saveButton"
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [
         "RF-003 locator-unresolved: account-record.contactsNewButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
@@ -1102,9 +1042,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-048-sales-rep-enters-syntactically-invalid-email-save.spec.ts",
       "hash": "7274655279f3c427",
-      "testCaseIds": [
-        "TC-SF-219-048"
-      ],
+      "testCaseIds": ["TC-SF-219-048"],
       "caseHash": "1816b6e234b04be4",
       "irHash": "f81f0e8d20a19d87",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
@@ -1147,9 +1085,7 @@
           "hash": "388393889e843b68"
         }
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [
         "RF-001 locator-unresolved: account-record.contactsNewButton did not resolve in the dry-run as sales-rep (not checked: *: sObject type 'Contact' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.)",
@@ -1168,9 +1104,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-050-duplicate-contact-warning-shown-when-saving-contac.spec.ts",
       "hash": "664c82c65857a661",
-      "testCaseIds": [
-        "TC-SF-219-050"
-      ],
+      "testCaseIds": ["TC-SF-219-050"],
       "caseHash": "7d38047f0fdcc1b9",
       "irHash": "0025616b93e43b7c",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
@@ -1240,9 +1174,7 @@
           "hash": "c0bafb6c095839d0"
         }
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
@@ -1252,9 +1184,7 @@
       "kind": "spec",
       "path": "tests/generated/SF-219/TC-SF-219-053-contact-pages-accessibility-wcag-2-1-aa-keyboard-n.spec.ts",
       "hash": "1458d3ab4b74714d",
-      "testCaseIds": [
-        "TC-SF-219-053"
-      ],
+      "testCaseIds": ["TC-SF-219-053"],
       "caseHash": "9da99fc66ed302a5",
       "irHash": "8077158ff5f3c2c8",
       "snapshotId": "snap-00DdN00000uQ5dK-20261126044403-adbb",
@@ -1585,9 +1515,7 @@
           "hash": "e327cfbcc3f048de"
         }
       ],
-      "dataBindings": [
-        "account-contact"
-      ],
+      "dataBindings": ["account-contact"],
       "origin": "generated",
       "reviewReasons": [
         "RF-005 judge: Step 5 tests Contact detail page instead of Contact list view: Case step 5: 'Tab through Contact list view and verify row actions are keyboard accessible'. The test calls `contactRecordPage.open(viewed['Contact'])` which opens the detail page, then runs the same tab-order check as step 4. No list view is visited and no row actions (Edit, Delete) are verified."

@@ -1,0 +1,7 @@
+{
+  "description": "FIXTURE Contact layout as shipped (template order). Same as serving without --layout.",
+  "contact": {
+    "details": ["Name", "AccountName", "Email", "Phone", "Title", "LeadSource", "MailingAddress", "CreatedBy"],
+    "form": ["FirstName", "LastName", "Title", "Email", "Phone", "LeadSource", "MailingAddress", "AccountName"]
+  }
+}

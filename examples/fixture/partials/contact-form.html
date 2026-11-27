@@ -2,31 +2,43 @@
           <p>We hit a snag.</p>
           <p class="page-error-detail"></p>
         </div>
+        <!--fields:form-->
+        <!--field:FirstName-->
         <div class="form-element">
           <label for="input-{{rand}}-1">First Name</label>
           <input id="input-{{rand}}-1" data-field="FirstName" type="text" maxlength="40" />
           <div class="field-error" id="err-{{rand}}-1" hidden></div>
         </div>
+        <!--/field-->
+        <!--field:LastName-->
         <div class="form-element">
           <label for="input-{{rand}}-2"><abbr title="required" aria-hidden="true">*</abbr>Last Name</label>
           <input id="input-{{rand}}-2" data-field="LastName" type="text" maxlength="80" aria-required="true" />
           <div class="field-error" id="err-{{rand}}-2" hidden></div>
         </div>
+        <!--/field-->
+        <!--field:Title-->
         <div class="form-element">
           <label for="input-{{rand}}-7">Title</label>
           <input id="input-{{rand}}-7" data-field="Title" type="text" maxlength="128" />
           <div class="field-error" id="err-{{rand}}-7" hidden></div>
         </div>
+        <!--/field-->
+        <!--field:Email-->
         <div class="form-element">
           <label for="input-{{rand}}-3">Email</label>
           <input id="input-{{rand}}-3" data-field="Email" type="email" maxlength="80" />
           <div class="field-error" id="err-{{rand}}-3" hidden></div>
         </div>
+        <!--/field-->
+        <!--field:Phone-->
         <div class="form-element">
           <label for="input-{{rand}}-5">Phone</label>
           <input id="input-{{rand}}-5" data-field="Phone" type="tel" maxlength="40" />
           <div class="field-error" id="err-{{rand}}-5" hidden></div>
         </div>
+        <!--/field-->
+        <!--field:LeadSource-->
         <div class="form-element picklist">
           <span class="label" id="label-{{rand}}-8">Lead Source</span>
           <button type="button" role="combobox" id="input-{{rand}}-8" data-field="LeadSource" data-value=""
@@ -38,6 +50,8 @@
           </div>
           <div class="field-error" id="err-{{rand}}-8" hidden></div>
         </div>
+        <!--/field-->
+        <!--field:MailingAddress-->
         <fieldset class="form-element" aria-label="Mailing Address">
           <legend>Mailing Address</legend>
           <label for="input-{{rand}}-9">Mailing Street</label>
@@ -49,11 +63,15 @@
           <label for="input-{{rand}}-6">Mailing Country</label>
           <input id="input-{{rand}}-6" data-field="MailingCountry" type="text" maxlength="80" />
         </fieldset>
+        <!--/field-->
+        <!--field:AccountName-->
         <div class="form-element">
           <label for="input-{{rand}}-4">Account Name</label>
           <input id="input-{{rand}}-4" role="combobox" aria-expanded="false" aria-autocomplete="list" data-field="AccountName"
             value="{{Account.Name}}" readonly />
         </div>
+        <!--/field-->
+        <!--/fields-->
         <footer>
           <button type="button" name="CancelEdit">Cancel</button>
           <button type="submit" name="SaveEdit" class="brand">Save</button>

@@ -1,0 +1,7 @@
+{
+  "description": "FIXTURE seeded visual change (Phase 6): Phone moved below Lead Source on the Contact layout, as an admin would drag it in Setup. Affects the Details panel and the Contact form (New Contact / Edit dialogs).",
+  "contact": {
+    "details": ["Name", "AccountName", "Email", "Title", "LeadSource", "Phone", "MailingAddress", "CreatedBy"],
+    "form": ["FirstName", "LastName", "Title", "Email", "LeadSource", "Phone", "MailingAddress", "AccountName"]
+  }
+}

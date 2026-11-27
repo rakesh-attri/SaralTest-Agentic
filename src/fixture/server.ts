@@ -13,6 +13,7 @@ import {
   type FixtureMetadata,
   enforcedRules,
 } from './metadata.js';
+import { applyLayout, fixtureContactLayouts, loadFixtureLayout } from './layout.js';
 import { FixtureError, FixtureStore, loadSeed, type SObject } from './store.js';
 
 /**
@@ -29,6 +30,8 @@ export interface FixtureServerOptions {
   host?: string;
   /** Setup metadata for discovery (default `<fixtureDir>/metadata.json`). */
   metadataFile?: string;
+  /** Page layout of the Contact Details panel / Contact form (Phase 6 seeded visual change); default: template order. */
+  layoutFile?: string;
 }
 
 export interface FixtureServer {
@@ -51,6 +54,15 @@ const esc = (s: unknown): string =>
     /[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
   );
+
+/** `11/27/2026, 10:05 AM` (en_US, UTC) — how Lightning shows a datetime; changes per record, so visual tests mask it. */
+export function salesforceDateTime(v: unknown): string {
+  const d = typeof v === 'string' ? new Date(v) : new Date();
+  if (Number.isNaN(d.getTime())) return '';
+  const h = d.getUTCHours();
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${String(d.getUTCMonth() + 1)}/${String(d.getUTCDate())}/${String(d.getUTCFullYear())}, ${String(h % 12 || 12)}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
+}
 
 function send(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {
   const isText = typeof body === 'string';
@@ -100,9 +112,18 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
   let metadata = loadFixtureMetadata(opts.metadataFile ?? join(fixtureDir, 'metadata.json'));
   store.setValidationRules(enforcedRules(metadata));
   const template = await readFile(join(fixtureDir, 'pages', 'account-record.html'), 'utf8');
-  const contactTemplate = await readFile(join(fixtureDir, 'pages', 'contact-record.html'), 'utf8');
+  const layout = opts.layoutFile ? loadFixtureLayout(opts.layoutFile) : undefined;
+  const contactTemplate = applyLayout(
+    await readFile(join(fixtureDir, 'pages', 'contact-record.html'), 'utf8'),
+    'details',
+    layout?.contact.details,
+  );
   // One Contact form for both dialogs (New Contact on the Account page, Edit on the Contact page), as in Lightning.
-  const contactForm = await readFile(join(fixtureDir, 'partials', 'contact-form.html'), 'utf8');
+  const contactForm = applyLayout(
+    await readFile(join(fixtureDir, 'partials', 'contact-form.html'), 'utf8'),
+    'form',
+    layout?.contact.form,
+  );
   const leadSourceOptions = (
     store.describe('Contact').fields.find((f) => f.name === 'LeadSource')?.picklistValues ?? []
   )
@@ -171,6 +192,8 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
       'Account.Id': esc(account?.Id),
       'Account.Name': esc(account?.['Name']),
       'User.Name': esc(user['Name']),
+      'User.Id': esc(user['Id']),
+      'Contact.CreatedDate': esc(salesforceDateTime(contact['CreatedDate'])),
       rand: randomBytes(3).toString('hex'),
       writeDisabled: user['canWrite'] === true ? '' : 'disabled',
     };
@@ -298,6 +321,10 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
       return;
     }
 
+    if (api === '/sobjects/Contact/describe/layouts' && method === 'GET') {
+      send(res, 200, fixtureContactLayouts(contactForm, layout?.contact.formTabOrder));
+      return;
+    }
     const m = /^\/sobjects\/([A-Za-z_]+)(?:\/([A-Za-z0-9]{15,18}|describe))?\/?$/.exec(api);
     if (!m?.[1]) {
       send(res, 404, [{ errorCode: 'NOT_FOUND', message: 'The requested resource does not exist' }]);

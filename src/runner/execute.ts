@@ -22,12 +22,11 @@ import type { Autonomy } from '../core/state.js';
 import { storyManifestFile } from '../agents/test-generator/staleness.js';
 import { markStaleSpecs } from '../cli/discover.js';
 import { SnapshotStore } from '../knowledge/snapshotStore.js';
-import { ensureStorageState } from '../sf/auth/browserState.js';
-import { createSfContext, type SfContext } from '../sf/context.js';
-import { planData, recipeApproval } from '../sf/dataFactory.js';
+import type { SfContext } from '../sf/context.js';
 import { SnapshotFacts } from '../sf/data/plan.js';
 import { run as defaultSpawn, type Runner } from '../util/exec.js';
-import { playwrightProbe, resolveBrowser, type BrowserChoice, type BrowserProbe } from './browser.js';
+import type { BrowserChoice, BrowserProbe } from './browser.js';
+import { preflight } from './preflight.js';
 import { executionPlan, type GateItem } from './gate.js';
 import { reconcileRun, type ReconcileReport } from './reconcile.js';
 import { PlaywrightJson, toTestResults } from './results.js';
@@ -241,88 +240,31 @@ export async function executeStory(o: ExecuteOptions, d: ExecuteDeps = {}): Prom
     return outcome('PARTIAL', notRunRows('not executed'), {});
   }
 
-  // 2. identity (HARD_STOP propagates: the run ends BLOCKED)
-  const mk = d.createContext ?? ((x) => createSfContext(x));
-  const ctx = await mk({ root: o.root, runId: o.runId, orgAlias: o.orgAlias });
-  const sf = await ctx.connect();
-  say(`Identity verified: ${sf.identity.orgId} as ${sf.identity.username} (${environment}).`);
-
-  // 3. browser
-  const browser = await resolveBrowser({
-    ...(o.browser ? { option: o.browser } : {}),
-    ...(process.env['QA_BROWSER'] ? { env: process.env['QA_BROWSER'] } : {}),
-    configured: ctx.execution.browser,
-    ...(ctx.execution.fallbackBrowser ? { fallback: ctx.execution.fallbackBrowser } : {}),
-    probe: d.probe ?? playwrightProbe,
-  });
-  say(
-    browser.fallbackReason
-      ? `WARNING: browser fallback — ${browser.fallbackReason}. Every result records ${browser.browser}.`
-      : `Browser: ${browser.browser} (from ${browser.source}).`,
-  );
-
-  // 4. persona sessions → base URL (the host the frontdoor landed on)
+  // 2–5. identity → browser → persona sessions → recipe approvals (src/runner/preflight.ts)
   const personas = [...new Set(toRun.flatMap((t) => personasOf(o.root, t.path ?? '')))];
   if (!personas.length) throw new QAError('DATA', 'approved specs carry no @persona:<id> tag');
-  const ensure =
-    d.ensureSession ??
-    (async (c: SfContext, b: Browser) =>
-      ensureStorageState({
-        provider: c.provider,
-        request: { persona: c.persona, org: c.org },
-        authDir: c.authDir,
-        ttlMinutes: c.personas.sessionTtlMinutes,
-        browser: b,
-        headless: c.execution.headless,
-      }));
-  let landedHost = '';
-  const sessionErrors: string[] = [];
-  for (const p of personas) {
-    try {
-      const pctx =
-        p === ctx.persona.id ? ctx : await mk({ root: o.root, runId: o.runId, orgAlias: o.orgAlias, personaId: p });
-      if (p !== ctx.persona.id) await pctx.connect();
-      const st = await ensure(pctx, browser.browser);
-      landedHost ||= st.landedHost;
-      say(`  session ${p}: ${st.reused ? 'reused' : 'new'} (landed on ${st.landedHost})`);
-    } catch (err) {
-      sessionErrors.push(`${p}: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-  if (sessionErrors.length && sessionErrors.length === personas.length) {
-    const why = `no persona session: ${sessionErrors.join('; ')}`;
-    say(`BLOCKED: ${why}`);
-    return outcome('BLOCKED', notRunRows(why), { browser, blockedReason: why });
-  }
-  for (const e of sessionErrors) say(`WARNING: persona session failed — ${e} (its tests will be BLOCKED)`);
-  const instanceHost = new URL(ctx.org.instanceUrl).hostname;
-  const baseURL =
-    !landedHost || landedHost === instanceHost
-      ? ctx.org.instanceUrl.replace(/\/+$/, '')
-      : `${new URL(ctx.org.instanceUrl).protocol}//${landedHost}`;
-
-  // 5. recipe approvals (human checkpoint for new recipe versions; never asked from inside a test)
-  const autonomy = o.autonomy ?? ctx.policy.autonomy;
   const recipes = [...new Set(toRun.flatMap((t) => byPath.get(t.path ?? '')?.dataBindings ?? []))];
-  const missing: string[] = [];
-  for (const r of recipes) {
-    const { plan: dp } = planData({ ctx, recipe: r, runId: `${o.runId}-preflight` });
-    if (!dp.valid) {
-      missing.push(`${r}: data plan invalid (${dp.issues.map((i) => i.code).join(', ')})`);
-      continue;
-    }
-    const st = recipeApproval(ctx, dp, autonomy);
-    if (st.required && !st.approval) missing.push(`${r}: not approved for ${ctx.org.alias} — ${st.command}`);
-    else say(`  recipe ${r}: ${st.approval ? `approved (${st.approval.id})` : `no approval needed at ${autonomy}`}`);
-  }
-  if (missing.length) {
-    const why = `data approval needed before execution: ${missing.join('; ')}`;
-    say(`BLOCKED: ${why}`);
-    return outcome('BLOCKED', notRunRows(why), { browser, blockedReason: why });
-  }
+  const pre = await preflight(
+    {
+      root: o.root,
+      runId: o.runId,
+      orgAlias: o.orgAlias,
+      personas,
+      recipes,
+      ...(o.browser ? { browser: o.browser } : {}),
+      ...(o.autonomy ? { autonomy: o.autonomy } : {}),
+      say,
+    },
+    d,
+  );
+  if (!pre.ok)
+    return outcome('BLOCKED', notRunRows(pre.why), {
+      ...(pre.browser ? { browser: pre.browser } : {}),
+      blockedReason: pre.why,
+    });
+  const { ctx, sf, browser, baseURL, autonomy, projects } = pre;
 
   // 6. Playwright Test runner
-  const projects = personas.filter((p) => !sessionErrors.some((e) => e.startsWith(`${p}:`)));
   // Spec file filters first: `--project` takes a variadic list and would swallow anything after it.
   const args = [
     'playwright',

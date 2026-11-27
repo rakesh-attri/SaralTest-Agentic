@@ -1,11 +1,15 @@
 // `qa report --run <id> [--analysis-run <id>]`: rebuild the Phase 5 reports of an execution run from its run folder
 // (no org, no model). The JIRA comment draft / publication is `qa report comment` (src/cli/jiraComment.ts).
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Command } from 'commander';
 import { loadEnv } from '../config/env.js';
 import { QAError } from '../core/errors.js';
 import { runPaths } from '../core/runFolder.js';
 import { loadReportData, releaseConfidence, writeExecutionReports } from '../report/execution.js';
+import type { ReconcileReport } from '../runner/reconcile.js';
+import { writeVisualReport } from '../visual/report.js';
+import { loadVisualSummary, visualSummaryFile } from '../visual/run.js';
 
 type Say = (msg: string) => void;
 
@@ -26,6 +30,15 @@ export function registerReport(program: Command, rootOf: () => string, say: Say)
     .action(async (o: { run?: string; analysisRun?: string }) => {
       if (!o.run) throw new QAError('DATA', 'qa report needs --run <id> (a `qa run` run id)');
       const root = rootOf();
+      const dir = runPaths(root, o.run).dir;
+      if (existsSync(visualSummaryFile(dir)) && !existsSync(join(dir, 'run', 'execution-summary.json'))) {
+        const s = loadVisualSummary(dir);
+        const recFile = join(dir, 'visual', 'data-reconciliation.json');
+        const rec = existsSync(recFile) ? (JSON.parse(readFileSync(recFile, 'utf8')) as ReconcileReport) : undefined;
+        for (const f of writeVisualReport(dir, s, rec)) say(`  ${f}`);
+        say(`Visual run ${o.run} (${s.environment}, ${s.org}): ${String(s.counts.candidates)} candidate(s).`);
+        return;
+      }
       const jira = await jiraBaseUrl(root);
       const d = loadReportData({
         root,

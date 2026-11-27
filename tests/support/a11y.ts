@@ -8,6 +8,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Locator, Page, TestInfo } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
+import { expectedTabOrder, type LayoutSection, type PlacedElement } from '../../src/visual/tabOrder.js';
 
 export interface A11yNamespaces {
   customNamespaces: string[];
@@ -85,19 +86,35 @@ export function classifyViolations(results: AxeLikeResults, ns: A11yNamespaces):
 /** Run axe on exactly one region. The region is marked with a one-off attribute so `include` cannot over-match. */
 export async function scanScoped(page: Page, scope: Locator, ns: A11yNamespaces): Promise<A11yScanResult> {
   const token = randomBytes(6).toString('hex');
-  await scope.evaluate((el, t) => {
-    el.setAttribute('data-qa-a11y-scope', t);
+  // The scope and every shadow host above it are marked; axe gets the path (outermost host first). A plain selector
+  // cannot reach an element inside a shadow root: the Contact Details tabpanel on Lightning (qa-prod run-p6-live-4).
+  const path = await scope.evaluate((el, t) => {
+    const out: string[] = [];
+    let cur: Element | null = el;
+    for (let i = 0; cur; i++) {
+      cur.setAttribute('data-qa-a11y-scope', `${t}-${String(i)}`);
+      out.unshift(`[data-qa-a11y-scope="${t}-${String(i)}"]`);
+      const root = cur.getRootNode();
+      cur = root instanceof ShadowRoot ? root.host : null;
+    }
+    return out;
   }, token);
   try {
+    const [outer = '', next, ...rest] = path;
     const results = await new AxeBuilder({ page })
-      .include(`[data-qa-a11y-scope="${token}"]`)
+      .include(next === undefined ? outer : { fromShadowDom: [outer, next, ...rest] })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .options({ ancestry: true })
       .analyze();
     return classifyViolations(results, ns);
   } finally {
     await scope.evaluate((el) => {
-      el.removeAttribute('data-qa-a11y-scope');
+      let cur: Element | null = el;
+      while (cur) {
+        cur.removeAttribute('data-qa-a11y-scope');
+        const root = cur.getRootNode();
+        cur = root instanceof ShadowRoot ? root.host : null;
+      }
     });
   }
 }
@@ -123,8 +140,10 @@ export interface TabOrderResult {
   missing: string[];
   /** Focus left the scope (no focus trap) before every element was reached. */
   leftScope: boolean;
-  /** Element names sorted by visual reading order (rows top→bottom, then left→right within a row). */
+  /** Expected order: from the layout sections' Tab direction when given, else visual reading order. */
   expectedOrder: string[];
+  /** Where each element's expected position came from ("Contact Information (TopToBottom)" / "visual order"). */
+  basis: Record<string, string>;
   /** The visited order follows the visual reading order. */
   inOrder: boolean;
 }
@@ -133,22 +152,29 @@ export interface TabOrderResult {
  * Keyboard check. Focus starts on the element that is first in document order; Tab is pressed until every element
  * was reached, focus leaves the scope, or a bound is hit. Order is measured against the elements' on-screen boxes at runtime (no stored order is asserted).
  */
+export interface TabOrderOptions {
+  rowTolerancePx?: number;
+  /** Page layout sections of the org (src/visual/tabOrder.ts `layoutSections`): their Tab direction is expected. */
+  sections?: readonly LayoutSection[];
+  /** Element name → field API name it edits (FirstName, MailingStreet, AccountId …). */
+  fields?: Record<string, string>;
+}
+
 export async function checkTabOrder(
   page: Page,
   scope: Locator,
   elements: Record<string, Locator>,
-  rowTolerancePx = 12,
+  o: TabOrderOptions = {},
 ): Promise<TabOrderResult> {
   const names = Object.keys(elements);
-  const boxes: { name: string; x: number; y: number }[] = [];
+  const boxes: PlacedElement[] = [];
   for (const name of names) {
     const el = elements[name];
     const box = el ? await el.boundingBox() : null;
-    if (box) boxes.push({ name, x: box.x, y: box.y });
+    const field = o.fields?.[name];
+    if (box) boxes.push({ name, x: box.x, y: box.y, ...(field ? { field } : {}) });
   }
-  const expectedOrder = [...boxes]
-    .sort((a, b) => (Math.abs(a.y - b.y) <= rowTolerancePx ? a.x - b.x : a.y - b.y))
-    .map((b) => b.name);
+  const { order: expectedOrder, basis } = expectedTabOrder(boxes, o.sections ?? [], o.rowTolerancePx ?? 12);
 
   const isFocused = (loc: Locator): Promise<boolean> =>
     loc.evaluate((el) => {
@@ -168,18 +194,9 @@ export async function checkTabOrder(
       return false;
     });
 
-  // Start at the element that comes first in document order (where keyboard users enter the region).
-  let first: string | undefined;
-  for (const name of names) {
-    const el = elements[name];
-    if (!el || !boxes.some((b) => b.name === name)) continue;
-    const cur = first ? elements[first] : undefined;
-    const handle = cur ? await cur.elementHandle() : null;
-    const before = handle
-      ? await el.evaluate((a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING), handle)
-      : true;
-    if (before) first = name;
-  }
+  // Start where the expected order starts. compareDocumentPosition is arbitrary across shadow roots (Lightning),
+  // so "first in document order" started the dialog at First Name and Phone was only reached after wrapping (R1/R2).
+  const first = expectedOrder[0];
   if (first) await elements[first]?.focus();
   const visited: string[] = [];
   let leftScope = false;
@@ -198,5 +215,25 @@ export async function checkTabOrder(
   }
   const missing = names.filter((n) => !visited.includes(n));
   const inOrder = expectedOrder.filter((n) => visited.includes(n)).every((n, i) => visited[i] === n);
-  return { visited, missing, leftScope, expectedOrder, inOrder };
+  return { visited, missing, leftScope, expectedOrder, basis, inOrder };
+}
+
+const NAMED_ROLES = 'button|textbox|combobox|checkbox|radio|link|tab|searchbox|spinbutton|switch|menuitem|listbox';
+const ARIA_LINE = new RegExp(String.raw`^\s*- (${NAMED_ROLES})(?: "((?:[^"\\]|\\.)*)")?(?=[\s:[]|$)`);
+
+/**
+ * Controls without an accessible name, from a Playwright ARIA snapshot (`locator.ariaSnapshot()`, the browser's own
+ * accessible-name computation). Returns `<role> #<n>` (n = position among controls of that role); values are never read.
+ */
+export function unnamedControls(ariaSnapshot: string): string[] {
+  const seen = new Map<string, number>();
+  const out: string[] = [];
+  for (const line of ariaSnapshot.split(/\r?\n/)) {
+    const m = ARIA_LINE.exec(line);
+    if (!m?.[1]) continue;
+    const n = (seen.get(m[1]) ?? 0) + 1;
+    seen.set(m[1], n);
+    if (!m[2]?.trim()) out.push(`${m[1]} #${String(n)}`);
+  }
+  return out;
 }

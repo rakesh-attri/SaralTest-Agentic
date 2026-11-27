@@ -1,0 +1,5 @@
+/* Phase 6 visual suite: values marked volatile by tests/support/visual.ts are hidden at their own size during a
+   screenshot (labels and layout stay visible). Applied through toHaveScreenshot stylePath; pierces shadow DOM. */
+[data-qa-volatile] {
+  visibility: hidden !important;
+}

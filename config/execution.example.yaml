@@ -6,9 +6,13 @@ viewports:
   - { name: laptop,  width: 1280, height: 720 }
   - { name: tablet,  width: 1024, height: 768 }
 visual:
-  maxDiffPixelRatio: 0.01
+  maxDiffPixelRatio: 0.0005    # 0.05 %: fixture noise 0 px; a moved field = 409 px (0.135 %) on the Contact Details panel (run cal-p6-c3)
   mask: [dates, recordIds, spinners, userNames, pii]
   allowExternalUpload: false   # screenshots never sent to an external model unless true for the run
+  viewports: [desktop]         # tablet DEFERRED 2026-11-27 (docs/phase-6-notes.md); re-enable: [desktop, tablet]. Visual + a11y projects. Functional tests: viewports[0] only
+  baselineDir: tests/visual-baselines   # <baselineDir>/<org>/<region>-<persona>-<viewport>.png + baselines.json
+  regionRatio: {}              # per-region maxDiffPixelRatio overrides (always shown in the visual-diff report)
+  layoutShiftThreshold: 0.1    # cumulative layout shift above this is a layout finding
 testIdAttribute: data-testid   # custom LWCs only; standard Lightning components are located by role/label
 a11y:
   customNamespaces: [c]        # violations inside these LWC namespaces fail @a11y tests

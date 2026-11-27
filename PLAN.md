@@ -471,8 +471,12 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
   `docs/phase-5-notes.md`.
 
 ### Phase 6 — Visual QA
-- [ ] Baselines + masking + approve command; layout checks; states; viewports; a11y; visual-diff report
+- [x] Baselines + masking + approve command; layout checks; states; viewports; a11y; visual-diff report
 - **Exit:** seeded visual change reported as candidate; approving the baseline clears it.
+- **Status (2026-11-27):** exit met on the **offline fixture**: `run-p6-fixture-9` reported 4 DIFF candidates for the
+  seeded move; after approval `AP-74584af9d3b7`, `run-p6-fixture-10` was 6 MATCH. All fixture runs pass `pnpm validate:visual`.
+  The **live qa-prod proof is pending**: the operator chose "not yet", and the Setup layout move is still to do. See
+  `docs/phase-6-notes.md`.
 
 ### Phase 7 — Investigation, healing, exploration
 - [ ] Failure Investigator (full taxonomy), Self-Healer (AST check: assertions unchanged; repairs auditable/reversible),

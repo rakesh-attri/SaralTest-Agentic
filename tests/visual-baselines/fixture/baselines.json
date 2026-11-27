@@ -1,0 +1,80 @@
+{
+  "org": "fixture",
+  "orgId": "00DFIXTURE00000001",
+  "environment": "FIXTURE",
+  "baselines": [
+    {
+      "name": "account-record-system-admin-desktop",
+      "region": "account-record",
+      "persona": "system-admin",
+      "viewport": "desktop",
+      "sha256": "1b002c6f0ab5ca5717038bb79d4ead10fd2d441a7b492bb000ef04f6ca5a4f0e",
+      "release": "FIXTURE",
+      "approvedBy": "Rakesh Sharma",
+      "approvalId": "AP-02ff7741f095",
+      "approvedAt": "2026-11-27T07:41:53.142Z",
+      "sourceRun": "run-p6-fixture-7"
+    },
+    {
+      "name": "account-record-system-admin-tablet",
+      "region": "account-record",
+      "persona": "system-admin",
+      "viewport": "tablet",
+      "sha256": "75a1daae67284536063d4fec32df407a40d24e02668831a3d5581fbf95f8d3dc",
+      "release": "FIXTURE",
+      "approvedBy": "Rakesh Sharma",
+      "approvalId": "AP-02ff7741f095",
+      "approvedAt": "2026-11-27T07:41:53.142Z",
+      "sourceRun": "run-p6-fixture-7"
+    },
+    {
+      "name": "contact-details-system-admin-desktop",
+      "region": "contact-details",
+      "persona": "system-admin",
+      "viewport": "desktop",
+      "sha256": "a7fce86d89ff1c370b16fa70ef44b45c565385412d8e00fc9b282f71c784e2ff",
+      "release": "FIXTURE",
+      "approvedBy": "Rakesh Sharma",
+      "approvalId": "AP-8dec52d43855",
+      "approvedAt": "2026-11-27T07:50:01.008Z",
+      "sourceRun": "run-p6-fixture-11"
+    },
+    {
+      "name": "contact-details-system-admin-tablet",
+      "region": "contact-details",
+      "persona": "system-admin",
+      "viewport": "tablet",
+      "sha256": "ce382cf07d2b36b0eeda5cefc3fb8950bb95565464acd857ce45e7c401331b09",
+      "release": "FIXTURE",
+      "approvedBy": "Rakesh Sharma",
+      "approvalId": "AP-8dec52d43855",
+      "approvedAt": "2026-11-27T07:50:01.008Z",
+      "sourceRun": "run-p6-fixture-11"
+    },
+    {
+      "name": "new-contact-dialog-system-admin-desktop",
+      "region": "new-contact-dialog",
+      "persona": "system-admin",
+      "viewport": "desktop",
+      "sha256": "3069d3663d8d556f14e98c444967525bfac3382648e1ee1db66ec33c16bbf051",
+      "release": "FIXTURE",
+      "approvedBy": "Rakesh Sharma",
+      "approvalId": "AP-8dec52d43855",
+      "approvedAt": "2026-11-27T07:50:01.008Z",
+      "sourceRun": "run-p6-fixture-11"
+    },
+    {
+      "name": "new-contact-dialog-system-admin-tablet",
+      "region": "new-contact-dialog",
+      "persona": "system-admin",
+      "viewport": "tablet",
+      "sha256": "558a05e740c7724305d3b70fded0dd111d2e66e79ee9394d8240c1bfe8b0cbf7",
+      "release": "FIXTURE",
+      "approvedBy": "Rakesh Sharma",
+      "approvalId": "AP-8dec52d43855",
+      "approvedAt": "2026-11-27T07:50:01.008Z",
+      "sourceRun": "run-p6-fixture-11"
+    }
+  ],
+  "a11y": []
+}

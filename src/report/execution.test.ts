@@ -168,7 +168,7 @@ describe('execution reports', () => {
     const files = await writeExecutionReports(d);
     for (const f of ['index.md', 'release-confidence.md', 'rtm-results.xlsx', 'history.md', 'model-attempts.json'])
       expect(files.some((x) => x.endsWith(f))).toBe(true);
-    expect(readFileSync(join(d.runDir, 'report', 'index.md'), 'utf8')).toMatch(/Not produced in Phase 5/);
+    expect(readFileSync(join(d.runDir, 'report', 'index.md'), 'utf8')).toMatch(/qa visual run/);
   });
 
   it('history keeps one entry per run id and shows the story trend', () => {

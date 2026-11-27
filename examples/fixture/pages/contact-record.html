@@ -37,16 +37,22 @@
 
       <section role="tabpanel" id="details-{{rand}}" aria-labelledby="tab-details-{{rand}}">
         <dl class="fields">
-          <div class="field"><dt>Name</dt><dd>{{Contact.Name}}</dd></div>
-          <div class="field">
+          <!--fields:details-->
+          <!--field:Name--><div class="field"><dt>Name</dt><dd>{{Contact.Name}}</dd></div><!--/field-->
+          <!--field:AccountName--><div class="field">
             <dt>Account Name</dt>
             <dd><a href="/lightning/r/Account/{{Account.Id}}/view">{{Account.Name}}</a></dd>
-          </div>
-          <div class="field"><dt>Email</dt><dd>{{Contact.Email}}</dd></div>
-          <div class="field"><dt>Phone</dt><dd>{{Contact.Phone}}</dd></div>
-          <div class="field"><dt>Title</dt><dd>{{Contact.Title}}</dd></div>
-          <div class="field"><dt>Lead Source</dt><dd>{{Contact.LeadSource}}</dd></div>
-          <div class="field"><dt>Mailing Address</dt><dd>{{Contact.MailingAddress}}</dd></div>
+          </div><!--/field-->
+          <!--field:Email--><div class="field"><dt>Email</dt><dd>{{Contact.Email}}</dd></div><!--/field-->
+          <!--field:Phone--><div class="field"><dt>Phone</dt><dd>{{Contact.Phone}}</dd></div><!--/field-->
+          <!--field:Title--><div class="field"><dt>Title</dt><dd>{{Contact.Title}}</dd></div><!--/field-->
+          <!--field:LeadSource--><div class="field"><dt>Lead Source</dt><dd>{{Contact.LeadSource}}</dd></div><!--/field-->
+          <!--field:MailingAddress--><div class="field"><dt>Mailing Address</dt><dd>{{Contact.MailingAddress}}</dd></div><!--/field-->
+          <!--field:CreatedBy--><div class="field">
+            <dt>Created By</dt>
+            <dd><a href="/lightning/r/User/{{User.Id}}/view">{{User.Name}}</a>, {{Contact.CreatedDate}}</dd>
+          </div><!--/field-->
+          <!--/fields-->
         </dl>
       </section>
 

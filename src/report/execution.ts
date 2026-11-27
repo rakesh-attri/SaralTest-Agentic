@@ -531,7 +531,7 @@ export async function writeExecutionReports(d: ReportData): Promise<string[]> {
           ]
         : []),
       '',
-      'Not produced in Phase 5: visual-diff report (Phase 6); exploration and defect reports (Phase 7).',
+      'Visual QA runs separately (`qa visual run`): its visual-diff report is in that run folder (`report/visual-diff.html`). Not produced yet: exploration and defect reports (Phase 7).',
       '',
     ].join('\n'),
   );
