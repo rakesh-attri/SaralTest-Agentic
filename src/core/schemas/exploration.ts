@@ -119,6 +119,8 @@ export const ExplorationFinding = z.object({
   /** Draft test case id created from it (REVIEW_REQUIRED until a human promotes it). */
   testCaseId: z.string().optional(),
   promoted: z.object({ by: z.string(), at: IsoDate, approvalId: z.string() }).optional(),
+  /** A human reviewed the draft and rejected it (never becomes a test case). */
+  rejected: z.object({ by: z.string(), at: IsoDate, reason: z.string().min(3) }).optional(),
 });
 export type ExplorationFinding = z.infer<typeof ExplorationFinding>;
 

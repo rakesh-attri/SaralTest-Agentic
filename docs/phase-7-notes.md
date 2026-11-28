@@ -82,11 +82,14 @@ Every live run: data CLEAN (re-query 0) and identity verified. The validator ✓
 
 ## Open items and known limits
 
-- **TC-010 after the Setup reverts:** the confirmation runs `run-p7-live-after(-2)` were BLOCKED / PARTIAL because this machine lost DNS (JWT "fetch failed"; curl cannot resolve the org host). The rule states were confirmed by Tooling query: Phone rule active, L2 rule gone. A TC-010 PASS is still to be shown.
-- **Live Explorer findings need the operator's review:**
-  - `-3` (rule not enforced) was caused by the deliberately deactivated rule: dismiss it.
-  - `-2` duplicates TC-055.
-  - The console messages are Salesforce-owned.
+- **TC-010 after the Setup reverts:** confirmed. `run-p7-live-after-4` PASS, data CLEAN (the earlier tries
+  `run-p7-live-after(-2/-3)` were blocked by a lost network on this machine).
+- **Live Explorer findings (explore-p7-live-2), operator review 2026-11-28:**
+  - `-3` (rule not enforced) **rejected**: caused by the staged Phone rule switch-off.
+  - `-2` (truncation) **rejected**: duplicate of TC-055.
+  - `-1` / `-4` (console messages) await a decision. They are questions, so they cannot be promoted as tests as they
+    stand.
+  - `qa explore reject` records the name and reason on the finding.
 - **TC-031 live:** the first attempt is flaky on step 3 (record header after the refusal dialog). The verdict was FLAKY → quarantine; not changed.
 - **A live heal of a shared locator** marks the other specs that use it STALE. That is correct, since they must be re-verified; the revert restores the manifest.
 - **DeepEval faithfulness** is UNEVALUATED until Phase 8; a human reviews every bug text.

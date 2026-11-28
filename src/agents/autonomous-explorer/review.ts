@@ -148,6 +148,33 @@ export interface PromoteResult {
 }
 
 /** Human promotion of one reviewed finding into a story case (case-edits file `<story>-exploratory.yaml`). */
+/** Human rejection of a reviewed finding: recorded on the finding (who, when, why); it can no longer be promoted. */
+export function rejectFinding(o: {
+  root: string;
+  runId: string;
+  findingId: string;
+  by: string;
+  reason: string;
+  now?: Date;
+}): void {
+  const { report } = readExploration(o.root, o.runId);
+  const f = report.findings.find((x) => x.id === o.findingId);
+  if (!f) throw new Error(`no finding ${o.findingId} in ${o.runId}`);
+  if (f.promoted) throw new Error(`${o.findingId} was already promoted (${f.testCaseId ?? '?'})`);
+  const updated = {
+    ...report,
+    findings: report.findings.map((x) =>
+      x.id === o.findingId
+        ? { ...x, rejected: { by: o.by, at: (o.now ?? new Date()).toISOString(), reason: o.reason } }
+        : x,
+    ),
+  };
+  writeFileSync(
+    join(exploreDir(o.root, o.runId), 'exploration.json'),
+    `${JSON.stringify(ExplorationReport.parse(updated), null, 2)}\n`,
+  );
+}
+
 export function promoteFinding(o: {
   root: string;
   runId: string;
@@ -162,6 +189,7 @@ export function promoteFinding(o: {
   const d = drafts.find((x) => x.findingId === o.findingId);
   if (!f || !d) throw new Error(`no finding ${o.findingId} in ${o.runId}`);
   if (f.promoted) throw new Error(`${o.findingId} was already promoted (${f.testCaseId ?? '?'})`);
+  if (f.rejected) throw new Error(`${o.findingId} was rejected by ${f.rejected.by}: ${f.rejected.reason}`);
   const blocking = d.review.filter((n) => n.blocking);
   if (blocking.length) throw new Error(`${o.findingId} cannot be promoted: ${blocking.map((n) => n.text).join('; ')}`);
   // Ids already taken by operator / promoted cases in any case-edits file of the story (an operator case is only

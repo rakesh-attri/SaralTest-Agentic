@@ -18,6 +18,7 @@ import {
   draftCase,
   exploreDir,
   promoteFinding,
+  rejectFinding,
   readExploration,
   reviewDraft,
   type DraftCase,
@@ -272,9 +273,26 @@ export function registerExplore(program: Command, rootOf: () => string, say: Say
         const d = drafts.find((x) => x.findingId === f.id);
         const blocking = d?.review.filter((n) => n.blocking).length ?? 0;
         say(
-          `  ${f.id} ${f.kind} — ${f.title} · ${f.promoted ? `promoted to ${f.testCaseId ?? '?'}` : blocking ? `${String(blocking)} blocking review note(s)` : 'ready for human promotion'}`,
+          `  ${f.id} ${f.kind} — ${f.title} · ${f.rejected ? `rejected by ${f.rejected.by}: ${f.rejected.reason}` : f.promoted ? `promoted to ${f.testCaseId ?? '?'}` : blocking ? `${String(blocking)} blocking review note(s)` : 'ready for human promotion'}`,
         );
       }
+    });
+
+  explore
+    .command('reject')
+    .description('Human rejection of a reviewed finding (recorded with name and reason; it is never promoted)')
+    .requiredOption('--run <id>', 'exploration run id')
+    .requiredOption('--finding <id>', 'finding id (XF-…)')
+    .requiredOption('--by <name>', 'who rejects it (a name or role, never an email)')
+    .requiredOption('--reason <text>', 'why')
+    .action((o: { run: string; finding: string; by: string; reason: string }) => {
+      const root = rootOf();
+      rejectFinding({ root, runId: o.run, findingId: o.finding, by: o.by, reason: o.reason });
+      const { report, drafts } = readExploration(root, o.run);
+      const dir = exploreDir(root, o.run);
+      writeFileSync(join(dir, 'exploration-report.md'), renderExplorationMd(report, drafts));
+      writeFileSync(join(dir, 'exploration-report.html'), renderExplorationHtml(report, drafts));
+      say(`${o.finding} rejected by ${o.by}: ${o.reason}`);
     });
 
   explore

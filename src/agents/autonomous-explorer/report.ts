@@ -39,7 +39,7 @@ export function renderExplorationMd(r: ExplorationReport, drafts: readonly Draft
       if (!d.review.length) L.push('  - no review notes');
     }
     L.push(
-      `- ${f.promoted ? `Promoted to ${f.testCaseId ?? '?'} by ${f.promoted.by} (${f.promoted.approvalId})` : `Not promoted. To promote after review: pnpm qa explore promote --run ${r.runId} --finding ${f.id} --by "<name>"`}`,
+      `- ${f.rejected ? `Rejected by ${f.rejected.by} (${f.rejected.at.slice(0, 10)}): ${f.rejected.reason}` : f.promoted ? `Promoted to ${f.testCaseId ?? '?'} by ${f.promoted.by} (${f.promoted.approvalId})` : `Not promoted. To promote after review: pnpm qa explore promote --run ${r.runId} --finding ${f.id} --by "<name>"`}`,
       '',
     );
   }
