@@ -229,7 +229,11 @@ export async function runCharter(r: CharterRun, d: ExplorerDeps): Promise<Explor
                 kind: 'question',
                 title: `${label} input keeps at most ${String(after.length)} characters (longer input is cut, no message)`,
                 observation: `typing ${String(v.length)} characters left ${String(after.length)} in the ${label} input${len ? `; the field length in the org is ${String(len)}` : ''}`,
-                steps: [...trail, `Type ${String(v.length)} characters into ${label}`],
+                // only what reproduces it: open the dialog and type (explore-p7-fx-2 carried the whole trail)
+                steps: [
+                  'Open the New Contact dialog from the Account Contacts related list',
+                  `Type ${String(v.length)} characters into ${label}`,
+                ],
                 ...(len
                   ? {
                       expected: `${label} accepts at most ${String(len)} characters`,

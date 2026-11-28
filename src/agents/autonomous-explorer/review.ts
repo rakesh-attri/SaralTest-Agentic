@@ -5,7 +5,7 @@
 // A promoted case is APPROVED only when every expectation is assertable (DECLARED_CONFIG from the org's own rules);
 // observed behaviour stays REVIEW_REQUIRED until someone accepts it as a requirement (PLAN.md §7f).
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { parse, stringify } from 'yaml';
 import { z } from 'zod';
@@ -128,6 +128,18 @@ export function readExploration(root: string, runId: string): { report: Explorat
   };
 }
 
+/** Case ids used by the story's case-edits files (operator and promoted cases). */
+export function usedCaseIds(root: string, storyKey: string): Set<string> {
+  const dir = join(root, 'examples', 'case-edits');
+  const out = new Set<string>();
+  if (!existsSync(dir)) return out;
+  for (const f of readdirSync(dir).filter((x) => x.startsWith(storyKey) && /\.ya?ml$/.test(x))) {
+    const doc = parse(readFileSync(join(dir, f), 'utf8')) as { addCases?: { id?: unknown }[] } | null;
+    for (const c of doc?.addCases ?? []) if (typeof c.id === 'string') out.add(c.id);
+  }
+  return out;
+}
+
 export interface PromoteResult {
   caseId: string;
   reviewStatus: TestCase['reviewStatus'];
@@ -152,8 +164,14 @@ export function promoteFinding(o: {
   if (f.promoted) throw new Error(`${o.findingId} was already promoted (${f.testCaseId ?? '?'})`);
   const blocking = d.review.filter((n) => n.blocking);
   if (blocking.length) throw new Error(`${o.findingId} cannot be promoted: ${blocking.map((n) => n.text).join('; ')}`);
+  // Ids already taken by operator / promoted cases in any case-edits file of the story (an operator case is only
+  // reserved in the id store when a build reads it): reserve those first, then allocate (explore-p7-fx-2 collided
+  // with the BR-08 positive case TC-SF-219-054).
   const ids = new TestCaseIdStore(o.storyKey, join(o.root, '.qa-memory'));
-  const caseId = ids.idFor(`exploratory|${o.findingId}`);
+  for (const id of usedCaseIds(o.root, o.storyKey)) ids.idFor(`reserved|${id}`);
+  let caseId = ids.idFor(`exploratory|${o.findingId}`);
+  const taken = usedCaseIds(o.root, o.storyKey);
+  for (let n = 0; taken.has(caseId) && n < 50; n++) caseId = ids.idFor(`exploratory|${o.findingId}#${String(n)}`);
   ids.save();
   const decisionId = o.findingId.replace(/[^A-Z0-9-]/gi, '-').toUpperCase();
   const decisionRef = caseEditEvidenceId(o.storyKey, decisionId);

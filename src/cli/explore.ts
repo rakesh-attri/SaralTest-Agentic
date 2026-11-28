@@ -10,7 +10,7 @@ import { QAError } from '../core/errors.js';
 import { newRunId } from '../core/runFolder.js';
 import { ExplorationCharter, RtmRow, TestCase, type Environment } from '../core/schemas/index.js';
 import type { Autonomy } from '../core/state.js';
-import { contactCreateCatalog } from '../agents/autonomous-explorer/catalog.js';
+import { CONTACT_FIELDS, contactCreateCatalog } from '../agents/autonomous-explorer/catalog.js';
 import { playwrightDriver } from '../agents/autonomous-explorer/driver.js';
 import { runCharter } from '../agents/autonomous-explorer/index.js';
 import { renderExplorationHtml, renderExplorationMd } from '../agents/autonomous-explorer/report.js';
@@ -35,17 +35,52 @@ import { z } from 'zod';
 type Say = (msg: string) => void;
 
 /** Requirements the charter targets and why (RTM of the story's design run: rows without APPROVED coverage). */
+/** Requirements whose text names the field the finding is about; else the charter's targets (first three). */
+export function requirementsFor(
+  title: string,
+  reqs: readonly { id: string; text: string }[],
+  fallback: readonly string[],
+): string[] {
+  const label = Object.keys(CONTACT_FIELDS).find((l) => title.includes(l));
+  const hits = label ? reqs.filter((r) => r.text.toLowerCase().includes(label.toLowerCase())).map((r) => r.id) : [];
+  return hits.length ? hits.slice(0, 5) : fallback.slice(0, 3);
+}
+
 export function charterReason(
   root: string,
   storyKey: string,
-): { requirementIds: string[]; reason: string; design: TestCase[] } {
+): { requirementIds: string[]; reason: string; design: TestCase[]; requirements: { id: string; text: string }[] } {
   const mf = join(root, 'tests', 'generated', storyKey, 'manifest.json');
   const designRun = existsSync(mf)
     ? (JSON.parse(readFileSync(mf, 'utf8')) as { designRun?: string }).designRun
     : undefined;
   const dir = designRun ? join(root, 'runs', designRun, 'design') : undefined;
   if (!dir || !existsSync(join(dir, 'rtm.json')))
-    return { requirementIds: [], reason: "Contact creation is the story's core flow (no RTM available)", design: [] };
+    return {
+      requirementIds: [],
+      reason: "Contact creation is the story's core flow (no RTM available)",
+      design: [],
+      requirements: [],
+    };
+  const reqFile = join(dir, '..', 'analysis', 'requirements.json');
+  const reqRaw: unknown = existsSync(reqFile) ? JSON.parse(readFileSync(reqFile, 'utf8')) : [];
+  const reqList = (Array.isArray(reqRaw) ? reqRaw : ((reqRaw as { requirements?: unknown[] }).requirements ?? [])) as {
+    id?: string;
+    title?: string;
+    businessObjective?: string;
+    expectedOutcomes?: string[];
+    businessRules?: string[];
+  }[];
+  const requirements = reqList.flatMap((r) =>
+    typeof r.id === 'string'
+      ? [
+          {
+            id: r.id,
+            text: [r.title, r.businessObjective, ...(r.expectedOutcomes ?? []), ...(r.businessRules ?? [])].join(' '),
+          },
+        ]
+      : [],
+  );
   const rtm = z.array(RtmRow).safeParse(JSON.parse(readFileSync(join(dir, 'rtm.json'), 'utf8')));
   const design = z.array(TestCase).safeParse(JSON.parse(readFileSync(join(dir, 'test-cases.json'), 'utf8')));
   const rows = rtm.success ? rtm.data : [];
@@ -54,6 +89,7 @@ export function charterReason(
     requirementIds: open.map((r) => r.requirementId).slice(0, 12),
     reason: `${String(open.length)} of ${String(rows.length)} requirements of ${storyKey} have no APPROVED design coverage (RTM ${designRun ?? '?'}: review-required / blocked / gap) — Contact creation carries most of them`,
     design: design.success ? design.data : [],
+    requirements,
   };
 }
 
@@ -203,7 +239,7 @@ export function registerExplore(program: Command, rootOf: () => string, say: Say
               storyKey: o.story,
               persona: ctx.persona.id,
               snapshotId: snap?.info.id ?? 'none',
-              requirementIds: charter.requirementIds.slice(0, 3),
+              requirementIds: requirementsFor(f.title, why.requirements, charter.requirementIds),
             });
             return { findingId: f.id, testCase: tc, review: reviewDraft(f, tc, why.design) };
           });

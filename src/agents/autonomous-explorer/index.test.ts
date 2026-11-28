@@ -260,6 +260,12 @@ describe('runCharter', () => {
         orgId: '00DFIXTURE00000001',
       }),
     ).toThrow(/cannot be promoted/);
+    // an operator case already holds the next free id (explore-p7-fx-2 collided with TC-SF-219-054)
+    mkdirSync(join(root, 'examples', 'case-edits'), { recursive: true });
+    writeFileSync(
+      join(root, 'examples', 'case-edits', 'SF-219.yaml'),
+      ['storyKey: SF-219', 'addCases:', '  - id: TC-SF-219-001', ''].join('\n'),
+    );
     const p = promoteFinding({
       root,
       runId: 'explore-t',
@@ -269,6 +275,7 @@ describe('runCharter', () => {
       orgId: '00DFIXTURE00000001',
     });
     expect(p.caseId).toMatch(/^TC-SF-219-\d{3}$/);
+    expect(p.caseId).not.toBe('TC-SF-219-001');
     expect(p.reviewStatus).toBe('APPROVED'); // DECLARED_CONFIG expectation, human-promoted
     expect(readFileSync(p.editsFile, 'utf8')).toContain(p.caseId);
     expect(() =>

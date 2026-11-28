@@ -37,10 +37,12 @@ security:
   reconcileUncertainWrites: true
   defaultBlocked: [payments, mass-delete, bulk-update-untagged, permission-changes, real-callouts]
   allowExternalUpload: false
-defectPublication:
-  enabled: false               # requires project + field mapping + this flag
-  project: null
-  fieldMapping: null
+defectPublication:             # operator 2026-11-28: JIRA project SF, type Bug. Each bug still needs the operator's
+  enabled: true                #   approval of its exact text (checkpoint publish-defect, all levels) before it is posted
+  project: SF
+  issueType: Bug
+  fieldMapping:
+    labels: [sf-qa-agent]
 exploration:
   minutesPerRun: 20            # time box for the Autonomous Explorer
   maxCharters: 3
