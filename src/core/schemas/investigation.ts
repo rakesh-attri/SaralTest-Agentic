@@ -38,6 +38,7 @@ export const SignalKind = z.enum([
   'DIFFERENT_FAILURE_ON_RETRY', // the retry failed with another error
   'DATA_NOT_CLEAN', // cleanup INCOMPLETE / KEPT
   'LOCAL_ENVIRONMENT', // the test machine itself: SQLite busy, file locks (run-p7-fx-base-2 "database is locked")
+  'PLATFORM_CONSTRAINT', // Salesforce refused the action with a standard platform message (run-p7-live-br08-1)
 ]);
 export type SignalKind = z.infer<typeof SignalKind>;
 

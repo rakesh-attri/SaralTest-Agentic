@@ -78,10 +78,10 @@ export class FixtureStore {
   private readonly objects = new Map<string, ObjectDef>();
   private counter = 1000; // seed ids use 1..999
   private rules: FixtureRule[] = [];
-  private behaviour: { blockContactDeleteWithOpenCases: boolean } = { blockContactDeleteWithOpenCases: false };
+  private behaviour: { contactDeleteWithCases: 'blocked' | 'allowed' } = { contactDeleteWithCases: 'blocked' };
 
-  /** Product behaviour toggles (Phase 7): BR-08 is off by default, as on qa-prod (operator 2026-11-27). */
-  setBehaviour(b: { blockContactDeleteWithOpenCases: boolean }): void {
+  /** Platform behaviour toggles (Phase 7): Contact delete with Cases is blocked by default, as on qa-prod. */
+  setBehaviour(b: { contactDeleteWithCases: 'blocked' | 'allowed' }): void {
     this.behaviour = { ...b };
   }
 
@@ -227,10 +227,16 @@ export class FixtureStore {
     const kind = object.toLowerCase();
     const hasCases = this.objects.has('case');
     if (kind === 'contact' && hasCases) {
-      const open = this.children('Case', 'ContactId', id).filter((c) => c['IsClosed'] !== true);
-      // BR-08 as the product would implement it (a trigger's addError). Off by default: qa-prod does not block it.
-      if (this.behaviour.blockContactDeleteWithOpenCases && open.length) {
-        throw new FixtureError(400, 'DELETE_FAILED', 'A Contact that has open Cases cannot be deleted.');
+      const cases = this.children('Case', 'ContactId', id);
+      // Salesforce platform rule (observed on qa-prod, run-p7-live-br08-1): any associated Case blocks the delete.
+      if (this.behaviour.contactDeleteWithCases === 'blocked' && cases.length) {
+        const c = this.get('Contact', id);
+        const name = [c['FirstName'], c['LastName']].filter(Boolean).join(' ');
+        throw new FixtureError(
+          400,
+          'DELETE_FAILED',
+          `Your attempt to delete ${name} could not be completed because it is associated with the following cases.: ${cases.map((x) => x.Id).join(', ')}`,
+        );
       }
     }
     this.table(object).delete(id);

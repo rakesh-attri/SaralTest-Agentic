@@ -2,7 +2,8 @@
 // failure class the Failure Investigator must tell apart. FIXTURE only — nothing here touches a real org.
 //   labelRenames      → SCRIPT_LOCATOR  (a button / field label changed; the element still exists)
 //   toastDelayMs      → SCRIPT_TIMING   (the success toast appears later than the helper waits)
-//   behaviour.blockContactDeleteWithOpenCases = false (default, as qa-prod) → PRODUCT_DEFECT for BR-08
+//   behaviour.contactDeleteWithCases = allowed → PRODUCT_DEFECT for BR-08 (default: blocked, as the Salesforce
+//     platform does on qa-prod: run-p7-live-br08-1 showed the standard "associated with the following cases" refusal)
 //   disableRules      → PRODUCT_DEFECT  (an approved validation rule stops being enforced)
 //   extraRules        → TEST_DATA       (a new org rule the approved data recipe violates)
 //   unavailablePaths  → ENVIRONMENT     (Lightning pages answer 503 / maintenance)
@@ -13,8 +14,12 @@ import { z } from 'zod';
 import type { FixtureRule } from './store.js';
 
 export const FixtureBehaviour = z.object({
-  /** BR-08 as the product would implement it. qa-prod deliberately does not (operator 2026-11-27): default false. */
-  blockContactDeleteWithOpenCases: z.boolean().default(false),
+  /**
+   * Deleting a Contact that has Cases. Salesforce refuses it (open or closed Cases) with "Your attempt to delete … could
+   * not be completed because it is associated with the following cases." — observed live on qa-prod
+   * (run-p7-live-br08-1). 'allowed' simulates an org where that protection is gone (fault F3: BR-08 broken).
+   */
+  contactDeleteWithCases: z.enum(['blocked', 'allowed']).default('blocked'),
 });
 export type FixtureBehaviour = z.infer<typeof FixtureBehaviour>;
 

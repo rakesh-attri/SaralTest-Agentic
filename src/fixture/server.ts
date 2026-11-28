@@ -376,11 +376,7 @@ export async function startFixtureServer(opts: FixtureServerOptions): Promise<Fi
     }
     if (idOrDescribe === 'describe') {
       const d = describeSf(store, metadata, store.describe(object));
-      send(
-        res,
-        200,
-        isReadOnly(object, faults) ? { ...d, createable: false, updateable: false, deletable: false } : d,
-      );
+      send(res, 200, isReadOnly(object, faults) ? { ...d, createable: false, updateable: false, deletable: false } : d);
       return;
     }
     if (!idOrDescribe) {

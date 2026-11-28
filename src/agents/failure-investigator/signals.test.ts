@@ -153,3 +153,20 @@ describe('failure detail from Playwright JSON + extractSignals', () => {
     expect(extractSignals(old).map((x) => x.kind)).toEqual(['LOCATOR_NOT_FOUND']);
   });
 });
+
+describe('pageStateSignals (ARIA snapshot at failure)', () => {
+  it('recognises the standard Salesforce refusal to delete a record with related Cases (run-p7-live-br08-1)', async () => {
+    const { pageStateSignals } = await import('./signals.js');
+    const md = [
+      '# Error details',
+      '```yaml',
+      '- dialog:',
+      '  - generic: "Your attempt to delete Qa x could not be completed because it is associated with the following cases.: 00001092"',
+      '```',
+    ].join('\n');
+    expect(pageStateSignals(md).map((s) => s.kind)).toEqual(['PLATFORM_CONSTRAINT']);
+    expect(pageStateSignals('```yaml\n- heading "Service Unavailable" [level=1]\n```').map((s) => s.kind)).toEqual([
+      'MAINTENANCE',
+    ]);
+  });
+});

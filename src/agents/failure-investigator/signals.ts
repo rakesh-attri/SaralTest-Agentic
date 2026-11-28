@@ -176,6 +176,15 @@ export function pageStateSignals(errorContextMd: string): FailureSignal[] {
     /service unavailable|maintenance|temporarily unavailable|down for maintenance/i.test(x),
   );
   if (h) out.push({ kind: 'MAINTENANCE', detail: `page shows "${h}"`, source: 'attachment:error-context' });
+  // Standard Salesforce refusals (not org configuration): the platform protects related records (run-p7-live-br08-1:
+  // "Your attempt to delete … could not be completed because it is associated with the following cases.").
+  const platform = /could not be completed because it is associated with the following [a-z ]+/i.exec(yaml)?.[0];
+  if (platform)
+    out.push({
+      kind: 'PLATFORM_CONSTRAINT',
+      detail: `platform refused: "${platform}"`,
+      source: 'attachment:error-context',
+    });
   const login = headings.find((x) => /^(log ?in|sign in)\b|login \| salesforce/i.test(x));
   if (login) out.push({ kind: 'LOGIN_PAGE', detail: `page shows "${login}"`, source: 'attachment:error-context' });
   return out;

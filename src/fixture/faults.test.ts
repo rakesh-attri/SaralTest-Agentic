@@ -41,31 +41,8 @@ describe('fixture with faults', () => {
     fx = undefined;
   });
 
-  it('Case.IsClosed follows Status; BR-08 off (default) deletes the Contact and keeps the Case unlinked', async () => {
+  it('Case.IsClosed follows Status; as the platform (qa-prod), a Contact with any Case — open or closed — cannot be deleted', async () => {
     fx = await startFixtureServer({ fixtureDir, port: 0 });
-    const acc = (await (
-      await api(fx, '/sobjects/Account', { method: 'POST', body: JSON.stringify({ Name: 'A' }) })
-    ).json()) as { id: string };
-    const con = (await (
-      await api(fx, '/sobjects/Contact', { method: 'POST', body: JSON.stringify({ LastName: 'C', AccountId: acc.id }) })
-    ).json()) as { id: string };
-    const cs = (await (
-      await api(fx, '/sobjects/Case', {
-        method: 'POST',
-        body: JSON.stringify({ Subject: 'S', Status: 'New', ContactId: con.id }),
-      })
-    ).json()) as { id: string };
-    expect(fx.store.get('Case', cs.id)['IsClosed']).toBe(false);
-    expect((await api(fx, `/sobjects/Contact/${con.id}`, { method: 'DELETE' })).status).toBe(204);
-    expect(fx.store.get('Case', cs.id)['ContactId']).toBeNull();
-  });
-
-  it('BR-08 on: a Contact with an open Case cannot be deleted; with only closed Cases it can', async () => {
-    fx = await startFixtureServer({
-      fixtureDir,
-      port: 0,
-      faults: FixtureFaults.parse({ behaviour: { blockContactDeleteWithOpenCases: true } }),
-    });
     const con = (await (
       await api(fx, '/sobjects/Contact', { method: 'POST', body: JSON.stringify({ LastName: 'C' }) })
     ).json()) as { id: string };
@@ -75,12 +52,36 @@ describe('fixture with faults', () => {
         body: JSON.stringify({ Subject: 'S', Status: 'Working', ContactId: con.id }),
       })
     ).json()) as { id: string };
+    expect(fx.store.get('Case', cs.id)['IsClosed']).toBe(false);
     const refused = await api(fx, `/sobjects/Contact/${con.id}`, { method: 'DELETE' });
     expect(refused.status).toBe(400);
-    expect(JSON.stringify(await refused.json())).toContain('open Cases');
+    expect(JSON.stringify(await refused.json())).toContain('associated with the following cases');
     await api(fx, `/sobjects/Case/${cs.id}`, { method: 'PATCH', body: JSON.stringify({ Status: 'Closed' }) });
     expect(fx.store.get('Case', cs.id)['IsClosed']).toBe(true);
+    expect((await api(fx, `/sobjects/Contact/${con.id}`, { method: 'DELETE' })).status).toBe(400);
+    const lone = (await (
+      await api(fx, '/sobjects/Contact', { method: 'POST', body: JSON.stringify({ LastName: 'L' }) })
+    ).json()) as { id: string };
+    expect((await api(fx, `/sobjects/Contact/${lone.id}`, { method: 'DELETE' })).status).toBe(204);
+  });
+
+  it('fault F3 (contactDeleteWithCases: allowed): the Contact is deleted and its Case unlinked', async () => {
+    fx = await startFixtureServer({
+      fixtureDir,
+      port: 0,
+      faults: FixtureFaults.parse({ behaviour: { contactDeleteWithCases: 'allowed' } }),
+    });
+    const con = (await (
+      await api(fx, '/sobjects/Contact', { method: 'POST', body: JSON.stringify({ LastName: 'C' }) })
+    ).json()) as { id: string };
+    const cs = (await (
+      await api(fx, '/sobjects/Case', {
+        method: 'POST',
+        body: JSON.stringify({ Subject: 'S', Status: 'New', ContactId: con.id }),
+      })
+    ).json()) as { id: string };
     expect((await api(fx, `/sobjects/Contact/${con.id}`, { method: 'DELETE' })).status).toBe(204);
+    expect(fx.store.get('Case', cs.id)['ContactId']).toBeNull();
   });
 
   it('503 on matching Lightning paths, read-only objects, renamed Save, toast delay script', async () => {

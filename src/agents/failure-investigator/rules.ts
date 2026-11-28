@@ -221,6 +221,24 @@ export const RULES: readonly Rule[] = [
         : undefined,
   },
   {
+    // The Salesforce platform refused the action under test with its own standard message, and the test expected the
+    // action to succeed: the expectation contradicts the platform → requirement / decision to revisit, never a
+    // product defect (run-p7-live-br08-1, TC-054: Contacts with Cases cannot be deleted at all).
+    id: 'R-REQ-2',
+    test: (s, x) =>
+      hasSignal(s, 'PLATFORM_CONSTRAINT') &&
+      hasSignal(s, 'ASSERTION_MISMATCH', 'URL_MISMATCH', 'LOCATOR_NOT_FOUND') &&
+      !is(x, 'rerun-fresh-data', 'REFUTES')
+        ? {
+            rule: 'R-REQ-2',
+            verdict: 'INVALID_REQUIREMENT_ASSUMPTION',
+            confidence: is(x, 'rerun-fresh-data', 'SUPPORTS') ? 0.9 : 0.8,
+            rationale: `the Salesforce platform refused the action with its standard message (${s.find((y) => y.kind === 'PLATFORM_CONSTRAINT')?.detail ?? ''}); the expectation that it succeeds contradicts the platform — revisit the requirement / decision`,
+            evidenceIds: ev(x, 'requirement-trace', 'rerun-fresh-data'),
+          }
+        : undefined,
+  },
+  {
     id: 'R-REQ-1',
     test: (s, x) =>
       hasSignal(s, 'ASSERTION_MISMATCH', 'URL_MISMATCH') &&
@@ -340,6 +358,12 @@ export function hypothesesFor(signals: readonly FailureSignal[]): Hypothesis[] {
   }
   if (hasSignal(signals, 'PASSED_ON_RETRY', 'DIFFERENT_FAILURE_ON_RETRY'))
     add('FLAKY', 'The result is non-deterministic', 'unchanged reruns');
+  if (hasSignal(signals, 'PLATFORM_CONSTRAINT'))
+    add(
+      'INVALID_REQUIREMENT_ASSUMPTION',
+      'The platform itself refuses the action the test expects to succeed',
+      'platform message at failure',
+    );
   // Always keep competing explanations across the taxonomy.
   add('STALE_KNOWLEDGE', 'An org component changed after the spec was built', 'snapshot / locator diff');
   add('ENVIRONMENT', 'The org or network was unavailable', 'identity + health probe');

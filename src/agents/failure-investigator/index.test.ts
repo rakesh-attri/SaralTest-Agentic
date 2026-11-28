@@ -124,6 +124,41 @@ describe('rules', () => {
     });
   });
 
+  it('a platform refusal of an action expected to succeed → INVALID_REQUIREMENT_ASSUMPTION, never a defect (run-p7-live-br08-1, TC-054)', () => {
+    const sig = [
+      { kind: 'ASSERTION_MISMATCH' as const, detail: 'Expected: 0 Received: 1', source: 'e' },
+      { kind: 'PLATFORM_CONSTRAINT' as const, detail: 'platform refused', source: 'attachment:error-context' },
+    ];
+    const base = {
+      action: 'observe' as const,
+      question: 'q',
+      hypothesisIds: [],
+      evidenceIds: ['E'],
+      at: at.toISOString(),
+    };
+    const trace = {
+      ...base,
+      id: 'T',
+      kind: 'requirement-trace' as const,
+      outcome: 'REFUTES' as const,
+      result: 'stated',
+      data: { evidenceLevel: 'APPROVED_REQUIREMENT' },
+    };
+    const fresh = {
+      ...base,
+      id: 'R',
+      kind: 'rerun-fresh-data' as const,
+      outcome: 'SUPPORTS' as const,
+      result: 'reproduced',
+      data: { sameFailure: 2 },
+    };
+    expect(decide(sig, [trace, fresh])).toMatchObject({
+      verdict: 'INVALID_REQUIREMENT_ASSUMPTION',
+      rule: 'R-REQ-2',
+      confidence: 0.9,
+    });
+  });
+
   it('never decides PRODUCT_DEFECT from a single UI failure', () => {
     const s = [{ kind: 'ASSERTION_MISMATCH' as const, detail: 'x', source: 't' }];
     const trace = {

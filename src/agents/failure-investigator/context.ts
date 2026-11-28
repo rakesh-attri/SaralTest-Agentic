@@ -85,6 +85,22 @@ export function loadCaseContext(root: string, caseId: string): CaseContext {
     const tc = found ? TestCase.safeParse(found) : undefined;
     if (tc?.success) ctx.testCase = tc.data;
   }
+  // Cases added by the operator or promoted from exploration live in examples/case-edits/<story>*.yaml (TC-054 was
+  // read as level UNKNOWN in run-p7-live-br08-1 before this).
+  if (!ctx.testCase) {
+    const ceDir = join(root, 'examples', 'case-edits');
+    for (const f of existsSync(ceDir)
+      ? readdirSync(ceDir).filter((x) => x.startsWith(storyKey) && /\.ya?ml$/.test(x))
+      : []) {
+      try {
+        const added = loadCaseEdits(join(ceDir, f)).addCases.find((c) => (c as { id?: string }).id === caseId);
+        const tc = added ? TestCase.safeParse({ origin: 'operator', ...added }) : undefined;
+        if (tc?.success) ctx.testCase = tc.data;
+      } catch {
+        /* invalid edits files are reported by qa build */
+      }
+    }
+  }
   ctx.evidenceText = loadEvidenceText(root, designRun);
   // Operator decisions recorded with the case edits (examples/case-edits/<story>.yaml), e.g. BR-08's positive case.
   const ce = join(root, 'examples', 'case-edits', `${storyKey}.yaml`);

@@ -20,9 +20,9 @@ faults:
     expectedVerdict: SCRIPT_TIMING
     expectHeal: true
   - id: F3-br08-not-enforced
-    title: BR-08 not implemented — a Contact with an open Case can be deleted (as on qa-prod)
+    title: BR-08 broken — a Contact with an open Case can be deleted (the platform protection is switched off)
     caseId: TC-SF-219-031
-    inject: { behaviour: { blockContactDeleteWithOpenCases: false } }
+    inject: { behaviour: { contactDeleteWithCases: allowed } }
     expectedVerdict: PRODUCT_DEFECT
   - id: F4-new-account-rule
     title: A new Account validation rule requires Phone; the approved recipe sets none
