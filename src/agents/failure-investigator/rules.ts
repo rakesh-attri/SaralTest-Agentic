@@ -144,9 +144,34 @@ export const RULES: readonly Rule[] = [
         : undefined,
   },
   {
+    // run-p7-live-1 (TC-026): failed once, passed on Playwright's retry and on 3/3 unchanged reruns. A longer-wait
+    // rerun passing proves nothing then: it is not reproducible → FLAKY (quarantine), never a wait repair.
+    id: 'R-FLAKY-3',
+    test: (s, x) => {
+      const states = x['flaky-reruns']?.data['states'];
+      const allPass = Array.isArray(states) && states.length > 0 && states.every((st) => st === 'PASS');
+      return hasSignal(s, 'PASSED_ON_RETRY') && allPass
+        ? {
+            rule: 'R-FLAKY-3',
+            verdict: 'FLAKY',
+            confidence: 0.75,
+            rationale: `failed once, passed on Playwright's retry and on ${String((states as unknown[]).length)} unchanged reruns: not reproducible — quarantine and watch, no repair`,
+            evidenceIds: ev(x, 'flaky-reruns'),
+          }
+        : undefined;
+    },
+  },
+  {
+    // Timing only when the failure reproduces with normal waits (both Playwright attempts failed, or an unchanged
+    // rerun failed) and the same test passes with only the waits longer.
     id: 'R-TIME-1',
     test: (s, x) =>
-      hasSignal(s, 'LOCATOR_NOT_FOUND', 'WAIT_TIMEOUT') && is(x, 'rerun-extended-waits', 'SUPPORTS')
+      hasSignal(s, 'LOCATOR_NOT_FOUND', 'WAIT_TIMEOUT') &&
+      is(x, 'rerun-extended-waits', 'SUPPORTS') &&
+      !is(x, 'flaky-reruns', 'SUPPORTS') &&
+      (!hasSignal(s, 'PASSED_ON_RETRY') ||
+        (Array.isArray(x['flaky-reruns']?.data['states']) &&
+          (x['flaky-reruns'].data['states'] as unknown[]).includes('FAIL')))
         ? {
             rule: 'R-TIME-1',
             verdict: 'SCRIPT_TIMING',

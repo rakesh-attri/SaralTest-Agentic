@@ -195,7 +195,8 @@ export function failureDetailOf(
       ...(step ? { failedStep: c.redact(step) } : {}),
     };
   });
-  const last = t.results[t.results.length - 1];
+  // Artifacts of the last FAILED attempt: a flaky test's passing retry has no ARIA snapshot (run-p7-live-1, TC-026).
+  const last = [...t.results].reverse().find((r) => r.status !== 'passed') ?? t.results[t.results.length - 1];
   const att = (pred: (a: z.infer<typeof Attachment>) => boolean): string | undefined => {
     const a = last?.attachments.find((x) => typeof x.path === 'string' && pred(x));
     return a?.path ? posix(relative(c.runDir, a.path)) : undefined;

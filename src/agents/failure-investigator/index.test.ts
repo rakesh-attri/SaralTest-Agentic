@@ -89,6 +89,41 @@ describe('rules', () => {
     }
   });
 
+  it('passed on retry + unchanged reruns pass → FLAKY, never SCRIPT_TIMING (run-p7-live-1, TC-026)', () => {
+    const base = {
+      action: 'mutate' as const,
+      question: 'q',
+      hypothesisIds: [],
+      evidenceIds: ['E'],
+      at: at.toISOString(),
+    };
+    const sig = [
+      { kind: 'LOCATOR_NOT_FOUND' as const, detail: 'x', source: 't' },
+      { kind: 'PASSED_ON_RETRY' as const, detail: 'x', source: 'retry' },
+    ];
+    const waits = {
+      ...base,
+      id: 'W',
+      kind: 'rerun-extended-waits' as const,
+      outcome: 'SUPPORTS' as const,
+      result: 'PASS',
+      data: {},
+    };
+    const allPass = {
+      ...base,
+      id: 'F',
+      kind: 'flaky-reruns' as const,
+      outcome: 'REFUTES' as const,
+      result: 'PASS, PASS, PASS',
+      data: { states: ['PASS', 'PASS', 'PASS'] },
+    };
+    expect(decide(sig, [waits, allPass])).toMatchObject({ verdict: 'FLAKY', rule: 'R-FLAKY-3' });
+    const reproduces = { ...allPass, outcome: 'SUPPORTS' as const, data: { states: ['FAIL', 'FAIL', 'FAIL'] } };
+    expect(decide(sig, [waits, { ...reproduces, outcome: 'REFUTES' as const }])).toMatchObject({
+      verdict: 'SCRIPT_TIMING',
+    });
+  });
+
   it('never decides PRODUCT_DEFECT from a single UI failure', () => {
     const s = [{ kind: 'ASSERTION_MISMATCH' as const, detail: 'x', source: 't' }];
     const trace = {
