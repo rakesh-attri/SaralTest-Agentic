@@ -366,6 +366,12 @@ export function renderSpec(i: RenderInput): string {
         return [
           `await expect.poll(() => soqlValue(sf, ${q(a.object)}, ${recordIdExpr(a.ref)}, ${q(a.field)})).toBe(${val(a.equals)});`,
         ];
+      case 'recordExists':
+        fixtures.add('sf');
+        imp.api.add('soqlCount');
+        return [
+          `await expect.poll(() => soqlCount(sf, ${q(a.object)}, 'Id', ${recordIdExpr(a.ref)})).toBe(${a.exists ? '1' : '0'});`,
+        ];
       case 'soqlNoRecord':
         fixtures.add('sf');
         imp.api.add('soqlCount');

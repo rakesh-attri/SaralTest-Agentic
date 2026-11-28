@@ -121,7 +121,7 @@ const MATCHER_CHECKS: [RegExp, IrAssertion['check'][]][] = [
   [/\.toBeHidden\(/, ['hidden']],
   [/\.toHaveValue\(/, ['inputValue']],
   [/\.toBeVisible\(/, ['visible', 'relatedListHasRecord', 'fieldError', 'recordView']],
-  [/expect\.poll|\.toBe\(|\.toEqual\(/, ['soqlField', 'soqlNoRecord', 'historyTracked', 'apiRejects']],
+  [/expect\.poll|\.toBe\(|\.toEqual\(/, ['recordExists', 'soqlField', 'soqlNoRecord', 'historyTracked', 'apiRejects']],
 ];
 
 /** Candidate IR checks for a failure, from the helper in the stack or the matcher in the error's first line. */

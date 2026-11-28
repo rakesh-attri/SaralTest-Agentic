@@ -203,10 +203,15 @@ export async function judgeInvestigation(inv: Investigation, o: JudgeOptions, d:
   }
   const firstFailure =
     inv.observations.find((x) => !x.startsWith('state ') && !x.startsWith('failed at')) ?? inv.rationale ?? '';
+  // Evidence-derived text is redacted before it enters the bug (record ids, emails stay in the local ledger only;
+  // run-p7-fx-br08-1: a SOQL line carried a Contact id). The sanitize gate still checks the final text.
+  const red = (t: string): string => (d.redactor ? d.redactor.redactText(t) : t);
   const actual = [
     `UI: ${fresh?.result ?? 'not rerun'} — ${firstFailure}`,
     ...(api && api.outcome !== 'SKIPPED' ? [`API: ${api.result}`] : []),
-  ].join('\n\n');
+  ]
+    .map(red)
+    .join('\n\n');
 
   const attachments = [
     ...(o.result?.failure?.screenshot && o.sourceRun
@@ -217,7 +222,7 @@ export async function judgeInvestigation(inv: Investigation, o: JudgeOptions, d:
       : []),
   ];
   const apiEvidence = (api?.evidenceIds ?? []).flatMap(
-    (id) => d.ledger.get(id)?.sources.map((s) => `${s.type} ${s.ref}`) ?? [],
+    (id) => d.ledger.get(id)?.sources.map((s) => red(`${s.type} ${s.ref}`)) ?? [],
   );
   const evidenceIds = [
     ...new Set([
@@ -271,7 +276,7 @@ export async function judgeInvestigation(inv: Investigation, o: JudgeOptions, d:
     title,
     stepsToReproduce: [
       ...(tc?.steps.map((s) => s.action) ?? []),
-      ...(api?.outcome === 'SUPPORTS' ? [`Or through the API: ${api.result}`] : []),
+      ...(api?.outcome === 'SUPPORTS' ? [red(`Or through the API: ${api.result}`)] : []),
     ],
     expected: `${step?.expected.text ?? '(no expected text)'} (${step?.expected.evidenceLevel ?? '?'}: ${(step?.expected.evidenceIds ?? []).join(', ')})`,
     actual,
@@ -297,7 +302,7 @@ export async function judgeInvestigation(inv: Investigation, o: JudgeOptions, d:
     components: ctx.artifact?.dependsOn?.map((x) => x.component) ?? [],
     duplicates: [],
     hypotheses: inv.hypotheses.map(
-      (h) => `${h.verdict ?? ''} ${h.status ?? 'OPEN'}: ${h.text}${h.result ? ` (${h.result})` : ''}`,
+      (h) => red(`${h.verdict ?? ''} ${h.status ?? 'OPEN'}: ${h.text}${h.result ? ` (${h.result})` : ''}`),
     ),
     suggestedRegressionTests: [
       `${caseId} (keep: the failing case itself)`,
