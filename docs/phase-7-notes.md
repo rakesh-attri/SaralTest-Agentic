@@ -34,7 +34,7 @@ found in the fixture and live runs. How everything works: `docs/defect-investiga
 | T8 Explorer | Charter, approved catalog, state map, evidence-gain selection, org-rule oracle, guarded saves, findings → draft cases → review → human promotion. `qa explore` | `src/agents/autonomous-explorer/` |
 | T9 Wiring | Graph `execute → investigate → report`, `qa run --investigate`, report links, `/why`, `pnpm validate:investigation` | `src/graph/investigateNode.ts`, `scripts/validate-investigation.ts` |
 
-Tests: **718 passing** (the phase started at 664). `typecheck` and `lint` are green.
+Tests: **721 passing** (the phase started at 664). `typecheck` and `lint` are green.
 
 ## Proof — offline fixture (FIXTURE)
 
@@ -87,8 +87,9 @@ Every live run: data CLEAN (re-query 0) and identity verified. The validator ✓
 - **Live Explorer findings (explore-p7-live-2), operator review 2026-11-28:**
   - `-3` (rule not enforced) **rejected**: caused by the staged Phone rule switch-off.
   - `-2` (truncation) **rejected**: duplicate of TC-055.
-  - `-1` / `-4` (console messages) await a decision. They are questions, so they cannot be promoted as tests as they
-    stand.
+  - `-1` / `-4` (console messages: CSP inline-handler violation; toast without a label) **rejected**: Salesforce-owned.
+    Both are now in the console-noise baseline `config/console-noise.yaml` (CN-001, CN-002, qa-prod only), so the
+    Explorer counts them in the coverage note instead of reporting them. Not yet exercised by a new live charter.
   - `qa explore reject` records the name and reason on the finding.
 - **TC-031 live:** the first attempt is flaky on step 3 (record header after the refusal dialog). The verdict was FLAKY → quarantine; not changed.
 - **A live heal of a shared locator** marks the other specs that use it STALE. That is correct, since they must be re-verified; the revert restores the manifest.

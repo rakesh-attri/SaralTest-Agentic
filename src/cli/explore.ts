@@ -11,6 +11,7 @@ import { newRunId } from '../core/runFolder.js';
 import { ExplorationCharter, RtmRow, TestCase, type Environment } from '../core/schemas/index.js';
 import type { Autonomy } from '../core/state.js';
 import { CONTACT_FIELDS, contactCreateCatalog } from '../agents/autonomous-explorer/catalog.js';
+import { loadConsoleNoise } from '../agents/autonomous-explorer/consoleNoise.js';
 import { playwrightDriver } from '../agents/autonomous-explorer/driver.js';
 import { runCharter } from '../agents/autonomous-explorer/index.js';
 import { renderExplorationHtml, renderExplorationMd } from '../agents/autonomous-explorer/report.js';
@@ -220,6 +221,7 @@ export function registerExplore(program: Command, rootOf: () => string, say: Say
               ...(m.router ? { router: m.router } : {}),
               redactor: ctx.redactor,
               logger: m.logger,
+              consoleNoise: loadConsoleNoise(root, ctx.org.alias),
               say,
               org: {
                 host: new URL(baseUrl).host,

@@ -136,12 +136,15 @@ The scorecard (`runs/<id>/faults/scorecard.{md,json}`) passes at ≥ 80 % correc
   deterministic score is the default.
 - **Stop conditions:** time box, max steps, saturation, error budget, off-domain navigation, or catalog done.
 - **Findings** come from deterministic oddities: a rule not enforced, input truncation, a required-marker mismatch, an
-  unexpected message, a console error (not a 4xx resource error).
+  unexpected message, a console error (not a 4xx resource error, and not a message in the accepted console-noise
+  baseline `config/console-noise.yaml`: Salesforce-owned only, per org, accepted by a named operator; matches are
+  counted in the coverage note instead).
 - **From finding to test case** (`review.ts`):
   1. Code drafts a REVIEW_REQUIRED case and runs a deterministic review (question vs test, assertable or not, similar
      design cases).
   2. Only `qa explore promote --by "<name>"` turns it into a story case (`examples/case-edits/<story>-exploratory.yaml`).
   3. The promoted case is APPROVED only when every expectation is assertable.
+  4. `qa explore reject --by "<name>" --reason "…"` records a human rejection; a rejected finding is never promoted.
 
 ## 6. Operator case edits for new cases — `src/inputs/caseEdits.ts`
 

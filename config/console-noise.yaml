@@ -1,0 +1,21 @@
+# Known browser-console noise, accepted by a human after review (Phase 7, `qa explore`). A message matching an entry
+# for the org is NOT reported as an Explorer finding; it is counted in the run's coverage note with the entry id, so
+# nothing disappears silently. Only Salesforce-owned messages belong here — never one our own code could cause.
+# Matching: case-sensitive substring of the console message text.
+entries:
+  - id: CN-001
+    orgs: [qa-prod]
+    owner: salesforce
+    contains: "Executing inline event handler violates the following Content Security Policy directive"
+    reason: Lightning's own inline event handler blocked by the page's Content Security Policy (Salesforce code)
+    acceptedBy: Rakesh Sharma
+    acceptedOn: "2026-11-28"
+    source: explore-p7-live-2 / XF-explore-p7-live-2-1
+  - id: CN-002
+    orgs: [qa-prod]
+    owner: salesforce
+    contains: 'Toast: please provide at least the "label" property to show the toast'
+    reason: a Lightning component asked for a toast without a label (Salesforce-owned)
+    acceptedBy: Rakesh Sharma
+    acceptedOn: "2026-11-28"
+    source: explore-p7-live-2 / XF-explore-p7-live-2-4

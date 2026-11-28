@@ -7,6 +7,7 @@ import { EvidenceLedger } from '../../knowledge/evidenceLedger.js';
 import type { StoredSnapshot } from '../../knowledge/snapshotStore.js';
 import { SnapshotFacts } from '../../sf/data/plan.js';
 import { contactCreateCatalog } from './catalog.js';
+import { loadConsoleNoise } from './consoleNoise.js';
 import { runCharter, type ExplorerDriver } from './index.js';
 import { predictSave } from './oracle.js';
 import { renderExplorationMd } from './report.js';
@@ -50,7 +51,7 @@ const snap: StoredSnapshot = {
 const facts = new SnapshotFacts(snap);
 
 /** A fake New Contact dialog: Last Name required + truncated at 80; the Title rule is NOT enforced (a defect). */
-function fakeDriver(): ExplorerDriver & { saves: number } {
+function fakeDriver(consoleFeed: string[] = []): ExplorerDriver & { saves: number } {
   let open = false;
   let values: Record<string, string> = {};
   let invalid: string[] = [];
@@ -117,7 +118,7 @@ function fakeDriver(): ExplorerDriver & { saves: number } {
         requiredMarked: open ? ['Last Name'] : [],
         url: 'https://org.example.invalid/lightning/r/Account/x/view',
       }),
-    takeConsoleErrors: () => [],
+    takeConsoleErrors: () => consoleFeed.splice(0),
     screenshot: () => Promise.resolve(undefined),
     close: () => Promise.resolve(),
   };
@@ -289,5 +290,29 @@ describe('runCharter', () => {
       }),
     ).toThrow(/already promoted/);
     expect(renderExplorationMd(report, [])).toContain('FIXTURE');
+  });
+
+  it('ignores console messages in the accepted Salesforce noise baseline and counts them in the coverage note', async () => {
+    const csp = "Executing inline event handler violates the following Content Security Policy directive 'script-src'";
+    const feed = [csp, csp, 'Toast: please provide at least the "label" property to show the toast', 'TypeError: x is undefined'];
+    const report = await runCharter(
+      { root, runId: 'explore-n', orgAlias: 'qa-prod', environment: 'FIXTURE', charter, catalog: contactCreateCatalog(), runPrefix: 'QA-explore-n' },
+      {
+        driver: fakeDriver(feed),
+        facts,
+        ledger,
+        consoleNoise: loadConsoleNoise(join(import.meta.dirname, '..', '..', '..'), 'qa-prod'),
+        org: {
+          host: 'org.example.invalid',
+          contactsOnAccount: () => Promise.resolve([...created]),
+          adopt: () => Promise.resolve(),
+          uiAttempt: (fn) => fn(),
+          cleanup: () => Promise.resolve('CLEAN'),
+        },
+      },
+    );
+    const consoleFindings = report.findings.filter((f) => f.kind === 'console-error');
+    expect(consoleFindings.map((f) => f.observation)).toEqual(['TypeError: x is undefined']);
+    expect(report.coverageNote).toContain('known console noise ignored: CN-001 ×2, CN-002 ×1');
   });
 });

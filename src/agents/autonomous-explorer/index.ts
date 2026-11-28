@@ -18,6 +18,7 @@ import type { Redactor } from '../../security/redact.js';
 import type { SnapshotFacts } from '../../sf/data/plan.js';
 import { runStructured } from '../shared/structured.js';
 import { CONTACT_FIELDS, type ActionDef, type ContactLabel } from './catalog.js';
+import { matchConsoleNoise, type ConsoleNoiseEntry } from './consoleNoise.js';
 import { predictSave, type Prediction } from './oracle.js';
 import { applicable, candidates, formKey, type Candidate } from './select.js';
 import { signatureOf, StateMap, type FormClasses, type Observation } from './stateMap.js';
@@ -68,6 +69,8 @@ export interface ExplorerDeps {
   logger?: Logger;
   say?: (m: string) => void;
   now?: () => Date;
+  /** Accepted Salesforce-owned console noise for this org (config/console-noise.yaml). */
+  consoleNoise?: readonly ConsoleNoiseEntry[];
 }
 
 export interface CharterRun {
@@ -115,6 +118,8 @@ export async function runCharter(r: CharterRun, d: ExplorerDeps): Promise<Explor
   let requiredChecked = false;
   const truncationSeen = new Set<string>();
   const consoleSeen = new Set<string>();
+  /** Console messages matched by the accepted noise baseline, per entry id (reported in the coverage note). */
+  const noiseSeen = new Map<string, number>();
   const trail: string[] = []; // action descriptions since the dialog opened
   let fseq = 0;
 
@@ -375,6 +380,12 @@ export async function runCharter(r: CharterRun, d: ExplorerDeps): Promise<Explor
       // A rejected save shows up as "Failed to load resource … 4xx": that is the expected rejection channel, not an
       // oddity (explore-p7-fx-1). 5xx and script errors stay findings.
       if (/Failed to load resource: the server responded with a status of 4\d\d/.test(c)) continue;
+      // Accepted Salesforce-owned noise (operator 2026-11-28): counted, not reported.
+      const noise = matchConsoleNoise(d.consoleNoise ?? [], c);
+      if (noise) {
+        noiseSeen.set(noise.id, (noiseSeen.get(noise.id) ?? 0) + 1);
+        continue;
+      }
       // de-duplicate by the message's start: one Salesforce-owned console message, many variants (explore-p7-live-1)
       const key = c.slice(0, 60);
       if (consoleSeen.has(key)) continue;
@@ -432,7 +443,7 @@ export async function runCharter(r: CharterRun, d: ExplorerDeps): Promise<Explor
     edges: map.edges,
     saves,
     findings,
-    coverageNote: `${String(steps.length)} steps in ${String(Math.round((endedAt.getTime() - startedAt.getTime()) / 1000))} s, ${String(map.nodes.size)} states (${String([...map.nodes.values()].filter((n) => n.finished).length)} finished), ${String(saves)}/${String(r.charter.maxSaves)} saves, ${String(findings.length)} finding(s); stopped by ${stoppedBy}`,
+    coverageNote: `${String(steps.length)} steps in ${String(Math.round((endedAt.getTime() - startedAt.getTime()) / 1000))} s, ${String(map.nodes.size)} states (${String([...map.nodes.values()].filter((n) => n.finished).length)} finished), ${String(saves)}/${String(r.charter.maxSaves)} saves, ${String(findings.length)} finding(s); stopped by ${stoppedBy}${noiseSeen.size ? `; known console noise ignored: ${[...noiseSeen].map(([id, n]) => `${id} ×${String(n)}`).join(', ')}` : ''}`,
     dataCleanup: cleanup,
   };
 }
