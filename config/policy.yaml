@@ -37,15 +37,26 @@ security:
   reconcileUncertainWrites: true
   defaultBlocked: [payments, mass-delete, bulk-update-untagged, permission-changes, real-callouts]
   allowExternalUpload: false
-defectPublication:
-  enabled: false               # requires project + field mapping + this flag
-  project: null
-  fieldMapping: null
+defectPublication:             # operator 2026-11-28: JIRA project SF, type Bug. Each bug still needs the operator's
+  enabled: true                #   approval of its exact text (checkpoint publish-defect, all levels) before it is posted
+  project: SF
+  issueType: Bug
+  fieldMapping:
+    labels: [sf-qa-agent]
 exploration:
   minutesPerRun: 20            # time box for the Autonomous Explorer
   maxCharters: 3
   priority: [uncovered-acs, high-risks, recent-failures, changed-components]
   promoteFindingsVia: [planner, test-reviewer]   # findings never become tests without review
+  charterMinutes: 10           # Phase 7: one charter's time box
+  maxStepsPerCharter: 60
+  maxSavesPerCharter: 5        # guarded, audited Save attempts; anything created is adopted, tagged and cleaned up
+  saturationSteps: 8           # stop after this many steps without a new state
+investigation:                 # Phase 7: Failure Investigator + Defect Judge
+  reproductions: 2             # fresh-data UI reproductions before a bug can be CONFIRMED (+ one via API when possible)
+  flakyReruns: 3
+  minConfidence: 0.6           # below this the verdict is UNKNOWN and goes to the QA Lead / human
+  extendedWaitFactor: 3
 checkpoints:                     # human checkpoints; autonomy level decides which wait
   - missing-rules-and-unknown-transitions
   - review-required-expectations
@@ -57,9 +68,10 @@ checkpoints:                     # human checkpoints; autonomy level decides whi
   - prod-test-org-mutations
   - publish-run-comment            # JIRA run comment: the exact text is approved by a human at every autonomy level
   - approve-visual-baseline        # visual baselines + accepted Salesforce-owned a11y findings: a human at every level
+  - publish-defect                 # Phase 7: posting a bug to JIRA/ADO: the exact text is approved by a human at every level
 approvals:
   L1: all
   L2: [missing-rules-and-unknown-transitions, review-required-expectations, new-data-recipe-or-mutation-type,
        behaviour-changing-locator-repairs, confirm-bug-and-external-submission, publish-learnings, prod-test-org-mutations,
-       publish-run-comment, approve-visual-baseline]
-  L3: [prod-test-org-mutations, publish-run-comment, approve-visual-baseline]
+       publish-run-comment, approve-visual-baseline, publish-defect]
+  L3: [prod-test-org-mutations, publish-run-comment, approve-visual-baseline, publish-defect]

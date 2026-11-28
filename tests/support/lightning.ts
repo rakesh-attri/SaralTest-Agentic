@@ -1,6 +1,7 @@
 // Shared Lightning helpers (salesforce-lightning-locators skill, "Component patterns"). Generated tests and page
 // objects use these; they never re-implement waits, toasts, tabs or related lists per test.
 import { expect, type Locator, type Page } from '@playwright/test';
+import { scaled } from './waits.js';
 
 type Scope = Page | Locator;
 
@@ -8,7 +9,7 @@ const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\
 
 /** Wait until no visible spinner (role=status named "Loading…") remains inside the scope. */
 export async function waitForSpinners(scope: Scope, timeout = 30_000): Promise<void> {
-  await expect(scope.getByRole('status', { name: /^Loading/ })).toHaveCount(0, { timeout });
+  await expect(scope.getByRole('status', { name: /^Loading/ })).toHaveCount(0, { timeout: scaled(timeout) });
 }
 
 /**
@@ -17,14 +18,14 @@ export async function waitForSpinners(scope: Scope, timeout = 30_000): Promise<v
  */
 export async function expectToast(page: Page, text: string | RegExp, timeout = 20_000): Promise<void> {
   const toasts = page.getByRole('alert').or(page.getByRole('status')).filter({ hasText: text });
-  await expect(toasts).not.toHaveCount(0, { timeout });
+  await expect(toasts).not.toHaveCount(0, { timeout: scaled(timeout) });
 }
 
 /** Navigate to a record by id (from the data ledger, never from a hard-coded value) and wait for it to render. */
 export async function openRecord(page: Page, object: string, recordId: string): Promise<Locator> {
   await page.goto(`/lightning/r/${object}/${recordId}/view`, { waitUntil: 'domcontentloaded' });
   const main = page.getByRole('main');
-  await expect(main.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 60_000 });
+  await expect(main.getByRole('heading', { level: 1 })).toBeVisible({ timeout: scaled(60_000) });
   await waitForSpinners(page);
   return main;
 }
@@ -74,10 +75,10 @@ export async function closeSavePopover(page: Page, timeout = 10_000): Promise<vo
     // the next round, after the popover on top of it is gone.
     const buttons = await popover.getByRole('button', { name: 'Close error dialog' }).all();
     for (const b of buttons.reverse()) {
-      if (await b.isVisible().catch(() => false)) await b.click({ timeout: 2_000 }).catch(() => undefined);
+      if (await b.isVisible().catch(() => false)) await b.click({ timeout: scaled(2_000) }).catch(() => undefined);
     }
-    await expect(popover).toHaveCount(0, { timeout: 1_000 });
-  }).toPass({ timeout });
+    await expect(popover).toHaveCount(0, { timeout: scaled(1_000) });
+  }).toPass({ timeout: scaled(timeout) });
 }
 
 /**
@@ -90,7 +91,7 @@ export async function expectSavePopover(page: Page, heading: string, text: strin
   // every copy is closed afterwards.
   // Accessible (visible) popovers with this heading that show the text: one or more.
   const withText = page.getByRole('dialog', { name: heading }).filter({ hasText: text });
-  await expect(withText).not.toHaveCount(0, { timeout: 20_000 });
+  await expect(withText).not.toHaveCount(0, { timeout: scaled(20_000) });
   await closeSavePopover(page);
 }
 
@@ -106,11 +107,11 @@ export async function expectFieldError(field: Locator, message?: string): Promis
     .getByRole('dialog', { name: /^(We hit a snag|Similar Records Exist)/ })
     .getByRole('button', { name: 'Close error dialog' });
   await expect(popoverClose.or(field.and(page.locator('[aria-invalid="true"]'))))
-    .not.toHaveCount(0, { timeout: 15_000 })
+    .not.toHaveCount(0, { timeout: scaled(15_000) })
     .catch(() => undefined);
   // The field can turn invalid a moment before Lightning's popover renders: give it a short window, then close it.
   await expect(popoverClose)
-    .not.toHaveCount(0, { timeout: 3_000 })
+    .not.toHaveCount(0, { timeout: scaled(3_000) })
     .catch(() => undefined);
   await closeSavePopover(page);
   await expect(field).toHaveAttribute('aria-invalid', 'true');
@@ -127,7 +128,7 @@ export async function selectPicklist(page: Page, combobox: Locator, value: strin
   await combobox.click();
   const option = page.getByRole('option', { name: value, exact: true });
   try {
-    await option.click({ timeout: 5_000 });
+    await option.click({ timeout: scaled(5_000) });
   } catch {
     // A picklist near the bottom of a record modal opens under the docked form footer, which intercepts the click
     // (qa-prod run-p5-live-3): choose the same option by keyboard instead.
@@ -152,7 +153,7 @@ export async function fillLookup(page: Page, combobox: Locator, uniqueName: stri
 /** After Save: the record view URL of `object`; returns the new record id. */
 export async function recordIdFromView(page: Page, object: string, timeout = 60_000): Promise<string> {
   const re = new RegExp(`/lightning/r/${object}/([a-zA-Z0-9]{15,18})/view`);
-  await expect(page).toHaveURL(re, { timeout });
+  await expect(page).toHaveURL(re, { timeout: scaled(timeout) });
   const id = re.exec(page.url())?.[1];
   if (!id) throw new Error(`no ${object} record id in ${page.url()}`);
   return id;

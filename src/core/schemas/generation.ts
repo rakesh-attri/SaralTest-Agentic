@@ -170,6 +170,17 @@ export const IrAssertion = z.discriminatedUnion('check', [
     value: ValueRef,
     expect: ExpectationRef,
   }),
+  /**
+   * Phase 7 (BR-08): the run-created record `ref` still exists (exists: true) or no longer exists (exists: false) —
+   * SOQL by its id. For delete flows: blocked → still exists; allowed → gone.
+   */
+  z.object({
+    check: z.literal('recordExists'),
+    ref: z.string().min(1),
+    object: z.string().min(1),
+    exists: z.boolean(),
+    expect: ExpectationRef,
+  }),
   /** API create with this field value is rejected with one of the error codes (metadata-derived). */
   z.object({
     check: z.literal('apiRejects'),

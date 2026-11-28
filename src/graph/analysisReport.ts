@@ -8,7 +8,6 @@ import type { QAGraphStateType } from './state.js';
  * operator. The Reporter agent (Phase 5) builds the full report set on top of these files.
  */
 
-
 export function finalStatus(s: QAGraphStateType): QAGraphStateType['status'] {
   if (s.status === 'BLOCKED') return 'BLOCKED';
   if (s.executionStatus === 'BLOCKED') return 'BLOCKED';

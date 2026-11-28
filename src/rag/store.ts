@@ -53,7 +53,7 @@ class Manifest {
   readonly db: DatabaseSync;
   constructor(file: string) {
     mkdirSync(dirname(file), { recursive: true });
-    this.db = new DatabaseSync(file);
+    this.db = new DatabaseSync(file, { timeout: 10_000 }); // busy timeout: parallel workers (run-p7-fx-base-2 "database is locked")
     this.db.exec(`
       PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS chunks (id TEXT PRIMARY KEY, tbl TEXT NOT NULL, source_key TEXT NOT NULL, source_ref TEXT NOT NULL,

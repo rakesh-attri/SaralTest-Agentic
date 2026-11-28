@@ -41,6 +41,8 @@ export const LocatorEntry = z
     verifiedBy: z.enum(['explorer', 'healer', 'human']),
     snapshotId: z.string().optional(),
     observationId: z.string(),
+    /** Page-object member name pinned by a heal, so a renamed element keeps its member name (specs stay unchanged). */
+    memberName: z.string().optional(),
     status: z.enum(['ACTIVE', 'RE_VERIFY', 'RETIRED']).default('ACTIVE'),
     environment: z.enum(['LIVE', 'FIXTURE']),
   })
@@ -63,12 +65,15 @@ export class LocatorRegistry {
 
   constructor(readonly file: string) {
     mkdirSync(dirname(file), { recursive: true });
-    this.db = new DatabaseSync(file);
+    this.db = new DatabaseSync(file, { timeout: 10_000 }); // busy timeout: parallel workers (run-p7-fx-base-2 "database is locked")
     this.db.exec(`
       PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS locators (org TEXT NOT NULL, page TEXT NOT NULL, element TEXT NOT NULL, persona TEXT NOT NULL,
         record_type TEXT NOT NULL DEFAULT '', data TEXT NOT NULL, status TEXT NOT NULL, last_verified_at TEXT NOT NULL,
         PRIMARY KEY (org, page, element, persona, record_type));
+      CREATE TABLE IF NOT EXISTS locator_history (repair_id TEXT NOT NULL, org TEXT NOT NULL, page TEXT NOT NULL,
+        element TEXT NOT NULL, persona TEXT NOT NULL, record_type TEXT NOT NULL DEFAULT '', data TEXT NOT NULL,
+        status TEXT NOT NULL, saved_at TEXT NOT NULL, PRIMARY KEY (repair_id, org, page, element, persona, record_type));
     `);
   }
 
@@ -85,6 +90,50 @@ export class LocatorRegistry {
       stmt.run(e.org, e.page, e.element, e.persona, e.recordType ?? '', JSON.stringify(e), e.status, e.lastVerifiedAt);
     }
     return entries.length;
+  }
+
+  /** One row by its key (any status). */
+  get(org: string, page: string, element: string, persona: string, recordType = ''): LocatorEntry | undefined {
+    const r = this.db
+      .prepare(
+        'SELECT data, status FROM locators WHERE org = ? AND page = ? AND element = ? AND persona = ? AND record_type = ?',
+      )
+      .get(org, page, element, persona, recordType) as { data: string; status: string } | undefined;
+    return r ? LocatorEntry.parse({ ...(JSON.parse(r.data) as object), status: r.status }) : undefined;
+  }
+
+  /** Phase 7 Self-Healer: keep the rows a repair replaces, so 'qa heal revert' restores them exactly. */
+  saveHistory(repairId: string, rows: readonly LocatorEntry[], at: Date = new Date()): void {
+    const stmt = this.db.prepare(
+      'INSERT OR REPLACE INTO locator_history (repair_id, org, page, element, persona, record_type, data, status, saved_at) VALUES (?,?,?,?,?,?,?,?,?)',
+    );
+    for (const e of rows)
+      stmt.run(
+        repairId,
+        e.org,
+        e.page,
+        e.element,
+        e.persona,
+        e.recordType ?? '',
+        JSON.stringify(e),
+        e.status,
+        at.toISOString(),
+      );
+  }
+
+  history(repairId: string): LocatorEntry[] {
+    const rows = this.db.prepare('SELECT data, status FROM locator_history WHERE repair_id = ?').all(repairId) as {
+      data: string;
+      status: string;
+    }[];
+    return rows.map((r) => LocatorEntry.parse({ ...(JSON.parse(r.data) as object), status: r.status }));
+  }
+
+  /** Put back the rows saved for a repair. Returns how many were restored. */
+  restoreHistory(repairId: string): number {
+    const rows = this.history(repairId);
+    this.upsert(rows);
+    return rows.length;
   }
 
   list(filter: { org?: string; page?: string; status?: LocatorEntry['status'] } = {}): LocatorEntry[] {

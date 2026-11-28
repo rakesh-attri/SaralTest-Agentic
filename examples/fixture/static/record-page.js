@@ -17,13 +17,19 @@
   const REQUIRED_TEXT = 'Complete this field.';
 
   // ---- toast (survives the navigation after a create, like Lightning's)
+  // Phase 7 fault F2 (window.__fixtureFaults.toastDelayMs): the toast shows late — a timing fault, never a data change.
+  const faults = window.__fixtureFaults ?? {};
   function showToast(text, variant) {
-    toast.textContent = text;
-    toast.dataset.variant = variant;
-    toast.hidden = false;
-    setTimeout(() => {
-      toast.hidden = true;
-    }, 4000);
+    const reveal = () => {
+      toast.textContent = text;
+      toast.dataset.variant = variant;
+      toast.hidden = false;
+      setTimeout(() => {
+        toast.hidden = true;
+      }, 4000);
+    };
+    if (faults.toastDelayMs > 0) setTimeout(reveal, faults.toastDelayMs);
+    else reveal();
   }
   const pending = sessionStorage.getItem('fixture-toast');
   if (pending) {
@@ -156,6 +162,39 @@
     modal.hidden = true;
     if (listbox) closeList();
   }
+
+  // ---- Contact delete (record header "Delete" → confirmation modal → REST DELETE). As in Lightning, a deleted record
+  // leaves the record page for the object home with a toast; a refused delete shows the error and the record stays.
+  const deleteModal = document.querySelector('.delete-modal');
+  const deleteError = deleteModal?.querySelector('.delete-error');
+  document.querySelector('.record-header button[name="Delete"]')?.addEventListener('click', () => {
+    if (!deleteModal) return;
+    deleteError.hidden = true;
+    deleteError.textContent = '';
+    deleteModal.hidden = false;
+    deleteModal.querySelector('button[name="ConfirmDelete"]').focus();
+  });
+  deleteModal?.querySelector('button[name="CancelDelete"]').addEventListener('click', () => {
+    deleteModal.hidden = true;
+  });
+  deleteModal?.querySelector('button[name="ConfirmDelete"]').addEventListener('click', async () => {
+    spinner.hidden = false;
+    await new Promise((r) => setTimeout(r, 300));
+    const res = await fetch(`/services/data/v62.0/sobjects/Contact/${form.dataset.recordId}`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    });
+    spinner.hidden = true;
+    if (!res.ok) {
+      const errs = await res.json().catch(() => []);
+      deleteError.textContent = (Array.isArray(errs) ? errs : []).map((e) => e.message).join(' ') || 'Delete failed';
+      deleteError.hidden = false;
+      return;
+    }
+    const name = document.querySelector('.record-title')?.textContent ?? '';
+    sessionStorage.setItem('fixture-toast', `Contact "${name}" was deleted.`);
+    location.assign('/lightning/o/Contact/home');
+  });
 
   document.querySelector('button[name="NewContact"]')?.addEventListener('click', open);
   document.querySelector('.record-header button[name="Edit"]')?.addEventListener('click', () => {

@@ -178,7 +178,28 @@ export const PolicyConfig = z
       allowExternalUpload: z.boolean(),
     }),
     defectPublication: z.looseObject({ enabled: z.boolean() }),
-    exploration: z.looseObject({ minutesPerRun: z.number().positive(), maxCharters: z.number().int().positive() }),
+    exploration: z.looseObject({
+      minutesPerRun: z.number().positive(),
+      maxCharters: z.number().int().positive(),
+      // Phase 7: one charter's limits
+      charterMinutes: z.number().positive().default(10),
+      maxStepsPerCharter: z.number().int().positive().default(60),
+      maxSavesPerCharter: z.number().int().nonnegative().default(5),
+      saturationSteps: z.number().int().positive().default(8),
+    }),
+    // Phase 7: Failure Investigator / Defect Judge (defect-investigation SKILL)
+    investigation: z
+      .object({
+        /** Fresh-data UI reproductions required by the Defect Judge. */
+        reproductions: z.number().int().min(2).default(2),
+        /** Reruns without change before a FLAKY verdict. */
+        flakyReruns: z.number().int().min(2).default(3),
+        /** Below this confidence the verdict is UNKNOWN. */
+        minConfidence: z.number().min(0).max(1).default(0.6),
+        /** Factor applied to waits by the rerun-extended-waits experiment. */
+        extendedWaitFactor: z.number().min(1).default(3),
+      })
+      .prefault({}),
     checkpoints: z.array(z.string()),
     approvals: z.object({
       L1: z.union([z.literal('all'), z.array(z.string())]),
@@ -323,52 +344,58 @@ export type OrgsConfig = z.infer<typeof OrgsConfig>;
 export const BrowserName = z.enum(['chromium', 'chrome', 'msedge']);
 export type BrowserName = z.infer<typeof BrowserName>;
 
-export const ExecutionConfig = z.object({
-  browser: BrowserName,
-  fallbackBrowser: BrowserName.optional(),
-  headless: z.boolean().default(true),
-  viewports: z.array(z.object({ name: z.string(), width: z.number().int(), height: z.number().int() })).min(1),
-  visual: z.object({
-    maxDiffPixelRatio: z.number().min(0).max(1),
-    mask: z.array(z.string()),
-    allowExternalUpload: z.boolean(),
-    /** Viewport names (from `viewports`) the visual suite runs on; functional tests use `viewports[0]` only. */
-    viewports: z.array(z.string().min(1)).min(1).default(['desktop']),
-    /** Baselines live in `<baselineDir>/<org>/` (repo-relative). */
-    baselineDir: z.string().min(1).default('tests/visual-baselines'),
-    /** Per-region ratio overrides (reported in the visual-diff report whenever used). */
-    regionRatio: z.record(z.string(), z.number().min(0).max(1)).default({}),
-    /** Cumulative layout-shift score above which a `layout-shift` finding is reported. */
-    layoutShiftThreshold: z.number().min(0).default(0.1),
-  }),
-  /** Playwright `testIdAttribute` for custom LWCs that carry test ids (PLAN.md §12: open for custom LWCs). */
-  testIdAttribute: z.string().min(1).default('data-testid'),
-  /**
-   * Accessibility scans (operator rule 2026-11-21): violations whose target path only holds Salesforce-owned
-   * namespaces are known baseline findings; violations in our own custom namespaces fail the test.
-   */
-  a11y: z
-    .object({
-      customNamespaces: z
-        .array(z.string().regex(/^[a-z][a-z0-9_]*$/))
-        .min(1)
-        .default(['c']),
-      standardNamespaces: z
-        .array(z.string().min(1))
-        .default(['lightning', 'force', 'records', 'one', 'forcegenerated', 'runtime_', 'flexipage', 'slds']),
-    })
-    .default({
-      customNamespaces: ['c'],
-      standardNamespaces: ['lightning', 'force', 'records', 'one', 'forcegenerated', 'runtime_', 'flexipage', 'slds'],
+export const ExecutionConfig = z
+  .object({
+    browser: BrowserName,
+    fallbackBrowser: BrowserName.optional(),
+    headless: z.boolean().default(true),
+    viewports: z.array(z.object({ name: z.string(), width: z.number().int(), height: z.number().int() })).min(1),
+    visual: z.object({
+      maxDiffPixelRatio: z.number().min(0).max(1),
+      mask: z.array(z.string()),
+      allowExternalUpload: z.boolean(),
+      /** Viewport names (from `viewports`) the visual suite runs on; functional tests use `viewports[0]` only. */
+      viewports: z.array(z.string().min(1)).min(1).default(['desktop']),
+      /** Baselines live in `<baselineDir>/<org>/` (repo-relative). */
+      baselineDir: z.string().min(1).default('tests/visual-baselines'),
+      /** Per-region ratio overrides (reported in the visual-diff report whenever used). */
+      regionRatio: z.record(z.string(), z.number().min(0).max(1)).default({}),
+      /** Cumulative layout-shift score above which a `layout-shift` finding is reported. */
+      layoutShiftThreshold: z.number().min(0).default(0.1),
     }),
-}).superRefine((c, ctx) => {
-  const names = new Set(c.viewports.map((v) => v.name));
-  c.visual.viewports.forEach((v, i) => {
-    if (!names.has(v)) {
-      ctx.addIssue({ code: 'custom', path: ['visual', 'viewports', i], message: `viewport ${v} not defined in viewports` });
-    }
+    /** Playwright `testIdAttribute` for custom LWCs that carry test ids (PLAN.md §12: open for custom LWCs). */
+    testIdAttribute: z.string().min(1).default('data-testid'),
+    /**
+     * Accessibility scans (operator rule 2026-11-21): violations whose target path only holds Salesforce-owned
+     * namespaces are known baseline findings; violations in our own custom namespaces fail the test.
+     */
+    a11y: z
+      .object({
+        customNamespaces: z
+          .array(z.string().regex(/^[a-z][a-z0-9_]*$/))
+          .min(1)
+          .default(['c']),
+        standardNamespaces: z
+          .array(z.string().min(1))
+          .default(['lightning', 'force', 'records', 'one', 'forcegenerated', 'runtime_', 'flexipage', 'slds']),
+      })
+      .default({
+        customNamespaces: ['c'],
+        standardNamespaces: ['lightning', 'force', 'records', 'one', 'forcegenerated', 'runtime_', 'flexipage', 'slds'],
+      }),
+  })
+  .superRefine((c, ctx) => {
+    const names = new Set(c.viewports.map((v) => v.name));
+    c.visual.viewports.forEach((v, i) => {
+      if (!names.has(v)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['visual', 'viewports', i],
+          message: `viewport ${v} not defined in viewports`,
+        });
+      }
+    });
   });
-});
 export type ExecutionConfig = z.infer<typeof ExecutionConfig>;
 
 // ---------------------------------------------------------------- mcp-tools.yaml

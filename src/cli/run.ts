@@ -14,6 +14,12 @@ import { executeStory, MAX_RUN_ID, planStoryExecution } from '../runner/execute.
 import type { GateItem } from '../runner/gate.js';
 import type { Redactor } from '../security/redact.js';
 import { createRuntime } from './analyze.js';
+import { projectPaths, requireConfig } from '../config/loader.js';
+import { createProviders } from '../agents/failure-investigator/providers.js';
+import { createInvestigateHook } from '../graph/investigateNode.js';
+import { createSfContext } from '../sf/context.js';
+import { registryFile } from './locators.js';
+import { createModelDeps } from './modelDeps.js';
 
 type Say = (msg: string) => void;
 
@@ -74,6 +80,10 @@ export function registerRun(program: Command, rootOf: () => string, say: Say): v
     .option('--autonomy <level>', 'L1 | L2 | L3 (default: policy)')
     .option('--keep-data', 'keep the data the tests create (cleanup becomes KEPT)')
     .option('--plan-only', 'decide and report only; no test is executed')
+    .option(
+      '--investigate',
+      'Phase 7: investigate failures, heal script problems, judge defects (bugs are drafted, never posted)',
+    )
     .option('--run-id <id>', `run id (default run-<timestamp>, at most ${MAX_RUN_ID} characters)`)
     .action(
       async (o: {
@@ -84,6 +94,7 @@ export function registerRun(program: Command, rootOf: () => string, say: Say): v
         autonomy?: string;
         keepData?: boolean;
         planOnly?: boolean;
+        investigate?: boolean;
         runId?: string;
       }) => {
         const root = rootOf();
@@ -122,6 +133,40 @@ export function registerRun(program: Command, rootOf: () => string, say: Say): v
               say,
               redact: (t: string) => red.r?.redactText(t) ?? t,
             }),
+          ...(o.investigate
+            ? {
+                investigate: async (s) => {
+                  const policy = await requireConfig('policy', projectPaths(root));
+                  const ctx = await createSfContext({ root, runId: `${s.runId}-inv`.slice(0, 32), orgAlias: o.org });
+                  const sf = await ctx.connect();
+                  const m = await createModelDeps({ root, say, roles: ['reasoning', 'judge'] });
+                  const hook = createInvestigateHook({
+                    root,
+                    policy,
+                    orgId: ctx.org.orgId,
+                    orgProfile: ctx.org.profile,
+                    providers: createProviders({
+                      root,
+                      runId: `${s.runId}-inv`.slice(0, 32),
+                      orgAlias: o.org,
+                      ctx,
+                      sf,
+                      reruns: true,
+                      say,
+                      autonomy: s.autonomy,
+                    }),
+                    audit: ctx.audit,
+                    registryFile: registryFile(root),
+                    ...(m.router ? { router: m.router } : {}),
+                    skills: m.skills,
+                    redactor: ctx.redactor,
+                    logger: m.logger,
+                    say,
+                  });
+                  return hook(s);
+                },
+              }
+            : {}),
         });
         red.r = rt.deps.redactor;
         try {
@@ -139,7 +184,9 @@ export function registerRun(program: Command, rootOf: () => string, say: Say): v
               autonomy,
               source: { type: 'file' as const, ref: `manifest:tests/generated/${o.story}/manifest.json` },
               storyKey: o.story,
-              tokenLimit: 1,
+              // The Runner needs no model; --investigate does (conclusions, bug titles, the judge): give it a real budget
+              // (run-p7-live-def-1: the judge was refused at 1 token).
+              tokenLimit: o.investigate ? 400_000 : 1,
               timeLimitMin: 120,
               inputs: [],
             }),

@@ -45,8 +45,8 @@ export type TestType = z.infer<typeof TestType>;
 export const RegressionTier = z.enum(['mandatory', 'recommended', 'optional']);
 export type RegressionTier = z.infer<typeof RegressionTier>;
 
-/** Where a case came from: drafted by the Planner, reused from an imported manual test, or built mechanically. */
-export const CaseOrigin = z.enum(['planned', 'manual-reuse', 'mechanical']);
+/** Where a case came from: Planner draft, imported manual test, mechanical, operator-authored (Phase 7 case edits) or an Explorer finding promoted after review (Phase 7). */
+export const CaseOrigin = z.enum(['planned', 'manual-reuse', 'mechanical', 'operator', 'exploratory']);
 export type CaseOrigin = z.infer<typeof CaseOrigin>;
 
 export const TestStep = z.object({ action: z.string().min(1), expected: ExpectedResult });

@@ -13,6 +13,7 @@ config/*.yaml
 !config/*.example.yaml
 !config/policy.yaml
 !config/mcp-tools.yaml
+!config/console-noise.yaml
 eval/.venv/
 dist/
 coverage/

@@ -2452,6 +2452,63 @@
           "lastVerifiedAt": "2026-11-26T08:04:48.433Z"
         }
       ]
+    },
+    {
+      "id": "contact-delete",
+      "className": "DeleteContactDialog",
+      "file": "tests/pages/DeleteContactDialog.ts",
+      "object": "Contact",
+      "kind": "dialog",
+      "title": "Delete Contact confirmation (record page › Delete)",
+      "rootExpr": "getByRole('dialog', { name: 'Delete Contact' })",
+      "members": [
+        {
+          "name": "root",
+          "ref": "contact-delete.root",
+          "kind": "region",
+          "role": "dialog",
+          "accessibleName": "Delete Contact",
+          "expression": "getByRole('dialog', { name: 'Delete Contact' })",
+          "strategyRank": 1,
+          "status": "ACTIVE"
+        },
+        {
+          "name": "cancelButton",
+          "ref": "contact-delete.cancelButton",
+          "kind": "element",
+          "role": "button",
+          "accessibleName": "Cancel",
+          "expression": "getByRole('dialog', { name: 'Delete Contact' }).getByRole('button', { name: 'Cancel', exact: true })",
+          "strategyRank": 1,
+          "status": "ACTIVE",
+          "registryElement": "button:Delete Contact/Cancel",
+          "lastVerifiedAt": "2026-11-27T17:08:32.946Z"
+        },
+        {
+          "name": "cancelAndCloseButton",
+          "ref": "contact-delete.cancelAndCloseButton",
+          "kind": "element",
+          "role": "button",
+          "accessibleName": "Cancel and close",
+          "expression": "getByRole('dialog', { name: 'Delete Contact' }).getByRole('button', { name: 'Cancel and close', exact: true })",
+          "strategyRank": 1,
+          "status": "ACTIVE",
+          "registryElement": "button:Delete Contact/Cancel and close",
+          "lastVerifiedAt": "2026-11-27T17:08:32.904Z"
+        },
+        {
+          "name": "deleteButton",
+          "ref": "contact-delete.deleteButton",
+          "kind": "element",
+          "role": "button",
+          "accessibleName": "Delete",
+          "expression": "getByRole('dialog', { name: 'Delete Contact' }).getByRole('button', { name: 'Delete', exact: true })",
+          "strategyRank": 1,
+          "status": "ACTIVE",
+          "registryElement": "button:Delete Contact/Delete",
+          "lastVerifiedAt": "2026-11-27T17:08:32.970Z"
+        }
+      ]
     }
   ]
 }

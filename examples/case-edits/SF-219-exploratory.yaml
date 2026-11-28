@@ -1,0 +1,46 @@
+# Exploratory findings promoted by a human (qa explore promote). Read by: qa build --case-edits examples/case-edits/SF-219.yaml,SF-219-exploratory.yaml
+storyKey: SF-219
+decidedBy: Rakesh Sharma
+decidedOn: 2026-11-28
+decisions:
+  - id: XF-EXPLORE-P7-FX-3-1
+    text: "Exploration explore-p7-fx-3 (FIXTURE) finding XF-explore-p7-fx-3-1,
+      reviewed and promoted by Rakesh Sharma (AP-4fa4689f86fd): typing 81
+      characters left 80 in the Last Name input; the field length in the org is
+      80. Evidence: EV-explore-p7-fx-3-x2."
+addCases:
+  - id: TC-SF-219-055
+    title: Last Name input keeps at most 80 characters (longer input is cut, no
+      message)
+    requirementIds:
+      - SF-219-R10
+    riskIds: []
+    technique: exploratory (question)
+    persona: system-admin
+    type: exploratory
+    priority: P2
+    severity: MINOR
+    preconditions:
+      - A run-tagged Account exists (approved recipe account-contact)
+      - User is logged in as system-admin
+    dataRecipe: account-contact
+    steps:
+      - action: Open the New Contact dialog from the Account Contacts related list →
+          Type 81 characters into Last Name
+        expected:
+          text: Last Name accepts at most 80 characters
+          evidenceLevel: DECLARED_CONFIG
+          evidenceIds:
+            - Field:Contact.LastName
+            - SF-219-CASE-EDITS#XF-EXPLORE-P7-FX-3-1
+    tags:
+      - "@exploratory"
+      - "@SF-219"
+      - "@persona:system-admin"
+    reviewStatus: APPROVED
+    snapshotId: snap-00DFIXTURE00000-20261127170657-5b22
+    reviewReasons: []
+    origin: exploratory
+    refs: []
+    obligationIds: []
+    regressionTier: optional

@@ -34,7 +34,10 @@ Rules (from the playwright-standards, salesforce-lightning-locators and salesfor
 - A parent of a saved record is checked by its name (`soqlField` field `Account.Name` equals `data Account.Name`),
   never by comparing ids.
 - Prefer an independent API/SOQL oracle in addition to the UI check when the expectation is about saved data
-  (`soqlField`, `soqlNoRecord`, `apiRejects`, `historyTracked`). `apiRejects` error codes must follow from metadata
+  (`soqlField`, `soqlNoRecord`, `apiRejects`, `historyTracked`, `recordExists`).
+- Delete flows: open the record (`openRecord`), click the record page's Delete button, then the Delete button of the
+  `<object>-delete` dialog. Assert the outcome by SOQL with `{"check":"recordExists","ref":"<recipe step>","object":"<Object>","exists":true|false}`
+  (true = the delete was blocked and the record is still there; false = it was deleted). Never compare record ids. `apiRejects` error codes must follow from metadata
   (REQUIRED_FIELD_MISSING for a removed required field, STRING_TOO_LONG for a value over the field length,
   FIELD_CUSTOM_VALIDATION_EXCEPTION when an active validation rule references the field).
 - Accessibility cases: an `a11yScan` scoped to the dialog root plus a `tabOrder` check over its fields and buttons.

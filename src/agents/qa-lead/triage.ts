@@ -58,7 +58,10 @@ const RESOLUTION: Record<PolicyResponse, IssueResolution> = {
   file_bug: 'ESCALATED',
 };
 
-/** Responses that belong to later phases' nodes (investigation, healing, defect judging). */
+/**
+ * Responses done by the Phase 7 investigate node after execute (investigation, healing, defect judging); filing a bug
+ * always waits for the operator (checkpoint publish-defect). The triage records them, it never runs them itself.
+ */
 const LATER_PHASE: ReadonlySet<PolicyResponse> = new Set(['investigate', 'heal', 'judge', 'file_bug']);
 
 function handledInside(issue: Issue): Set<string> {
@@ -126,7 +129,11 @@ export async function triageIssue(
       continue;
     }
     if (LATER_PHASE.has(response)) {
-      skip('handled by a later-phase agent');
+      skip(
+        response === 'file_bug'
+          ? 'filing waits for the operator (qa defects approve / publish)'
+          : 'done by the investigate node after execute',
+      );
       continue;
     }
     switch (response) {

@@ -4,7 +4,7 @@ Status of every capability in PLAN.md. **implemented** = working code with tests
 stated limitation · **blocked** = needs an external prerequisite (exact blocker given) · **planned** = later phase.
 Updated at the end of each phase (CLAUDE.md rule 16).
 
-_Last updated: Phase 6 visual QA — 2026-11-27 (branch `claude/phase-6-visual-qa`)._
+_Last updated: Phase 7 investigation, healing, exploration — 2026-11-28 (branch `claude/phase-7-investigation`)._
 
 ## Phase 0 — Foundation
 
@@ -191,6 +191,30 @@ _Last updated: Phase 6 visual QA — 2026-11-27 (branch `claude/phase-6-visual-q
 | AI classification of candidates (redacted text + ARIA snapshot) | planned | — | Not built in Phase 6; candidates go to a human |
 | Visual QA on Experience Cloud | blocked | — | Digital Experiences not enabled in qa-prod (unchanged) |
 
+## Phase 7 — Investigation, healing, exploration
+
+| Capability | Status | Where | Notes / blocker |
+|---|---|---|---|
+| Contracts: Investigation (signals, experiments, verdictBy, route), DefectDraft (judge standard), HealRepair, fault suite / scorecard, exploration | implemented | `src/core/schemas/investigation.ts`, `exploration.ts` | No new IssueKind. New checkpoint `publish-defect` (L1/L2/L3) |
+| Evidence ledger (SQLite + per-run export, typed and hashed sources) | implemented | `src/knowledge/evidenceLedger.ts` | `.qa-memory/evidence.db`; `runs/<id>/evidence/evidence.json` |
+| Failure detail + deterministic signals (incl. maintenance / login / platform refusal read from the ARIA snapshot) | implemented | `src/runner/results.ts`, `src/agents/failure-investigator/signals.ts` | Artifacts come from the failed attempt |
+| Failure Investigator: hypotheses, experiment catalog, deterministic rules, model fallback, UNKNOWN < 0.6, `qa investigate` | implemented | `src/agents/failure-investigator/` | Live: run-p5-live-4 (4× INVALID_REQUIREMENT_ASSUMPTION), run-p7-live-1 (FLAKY), BR-08 (R-REQ-2), L1, L2, injected defect. The model path was rarely reached |
+| API reproductions (BR-08 delete with open Case; TC-010 9-digit Phone) | implemented | `src/agents/failure-investigator/reproducers.ts` | Per case; other cases get no API reproduction (the judge then cannot CONFIRM) |
+| Self-Healer: locator (registry, pinned names, derived members, chains) + wait repairs, AST fingerprint, scope check, verify, FIXTURE revert, byte-exact revert, `qa heal` | implemented | `src/agents/self-healer/` | Live L1: chain of 2 repairs VERIFIED, fingerprint unchanged. A live heal marks sibling specs STALE (re-verify) |
+| Defect Judge: gate, bug text by code, title model, judge model ≠ coder, faithfulness UNEVALUATED, `qa defects` | implemented | `src/agents/defect-judge/` | Live DEF-SF-219-010-7fe4c4 CONFIRMED (injected defect), not posted |
+| Bug publication (sha-bound approval, policy project SF / Bug, Rovo MCP or REST, audited, idempotent) | partial | `src/agents/defect-judge/publish.ts` | REST path unit-tested; nothing posted live (operator: injected defect). The Rovo MCP site grant is still missing |
+| Fault injection (fixture `--faults`) + suite runner + scorecard | implemented | `src/fixture/faults.ts`, `src/faults/suite.ts` | flt-p7-fx-5: 7/7, 0 assertion changes (FIXTURE) |
+| Live faults (operator Setup changes) | implemented | — | L1 label rename → SCRIPT_LOCATOR + heal; L2 Account rule → TEST_DATA; Phone rule off → PRODUCT_DEFECT |
+| Autonomous Explorer: charter, approved catalog, state map, evidence-gain selection, oracle, guarded saves, stop conditions, `qa explore` | implemented | `src/agents/autonomous-explorer/` | Fixture + live (explore-p7-live-2: 5/5 saves, CLEAN). The model picks only with `--model` |
+| Findings → draft cases → deterministic review → human promotion (`qa explore promote`) / rejection (`qa explore reject`) | implemented | `review.ts`, `examples/case-edits/SF-219-exploratory.yaml` | TC-SF-219-055 promoted, APPROVED, PASS fixture + live. All 4 drafts of explore-p7-live-2 rejected by the operator |
+| Explorer console-noise baseline (Salesforce-owned messages accepted by a named operator; per org; counted in the coverage note, not reported) | implemented | `config/console-noise.yaml`, `src/agents/autonomous-explorer/consoleNoise.ts` | CN-001 (CSP inline handler), CN-002 (toast without label), qa-prod only. Not yet exercised by a new live charter |
+| Operator case edits: decisions, dataRecipe, approve (assertable only), addCases | implemented | `src/inputs/caseEdits.ts` | TC-031 approved; TC-054 added and revised after the live platform finding |
+| Generator: `recordExists`, Delete-dialog transition, parents of data steps | implemented | `src/agents/test-generator/` | |
+| Graph `execute → investigate → report`, `qa run --investigate`, report links, `/why` | implemented | `src/graph/investigateNode.ts` | |
+| Independent validator | implemented | `scripts/validate-investigation.ts` | Re-derives heal fingerprints from the specs on disk |
+| Exit — faults ≥ 4/5, no assertion changed, Explorer finding → reviewed case | implemented | flt-p7-fx-5, heal runs, TC-SF-219-055 | See `docs/phase-7-notes.md` |
+| DeepEval faithfulness of bug text | planned (Phase 8) | — | UNEVALUATED → human review |
+
 ## External prerequisites (open blockers)
 
 | Blocker | Needed for | Owner | How to clear |
@@ -201,7 +225,8 @@ _Last updated: Phase 6 visual QA — 2026-11-27 (branch `claude/phase-6-visual-q
 | Digital Experiences not enabled in qa-prod | Explorer on Experience Cloud | SF admin | Enable + create a site, or explore it in the Full Copy sandbox |
 | Rovo MCP OAuth consent does not grant the Jira site (cloud id) | JIRA writes / reads through MCP (REST carried the comment) | Rakesh | Re-run the MCP consent and grant the site, then `pnpm qa mcp tools --server atlassian-rovo --include-oauth` |
 | sales-rep test user has no Contact access on qa-prod | TC-032 / 044 / 047 / 048 (persona-based AC1 / AC3) | SF admin | Permission set with Contact (and Account) read/create for the sales-rep user, then `pnpm qa locators dry-run --persona sales-rep` and `qa review --pass 2` |
-| Four SF-219 specs assume the Contact page opens after a related-list Save; qa-prod stays on the Account | TC-007 / 010 / 026 / 036 pass | product owner + operator | Decide: requirement (product differs) or assumption (regenerate the specs) |
+| Four SF-219 specs assume the Contact page opens after a related-list Save; qa-prod stays on the Account | TC-007 / 010 / 026 / 036 pass | product owner + operator | Investigated in Phase 7 (inv-p7-offline-3): INVALID_REQUIREMENT_ASSUMPTION — the rebuilt specs no longer assume it and pass live (run-p7-live-1) |
+| Rovo MCP site grant | posting bugs through MCP (REST works) | Rakesh | As for the run comment: re-run the MCP consent and grant the Jira site |
 | Observed message texts not accepted yet | text assertions in TC-046 / 048 / 050 | operator | Accept the texts in `runs/run-p5-observe-8/observe/observed-messages.md`, then `qa build --cases` |
 | Azure DevOps organisation + PAT | ADO work items as input (optional) | Rakesh | Set `ADO_ORG_URL` and `ADO_PAT` (Credential Manager preferred) |
 | Small reasoning model on the Gemini free tier | stable cross-source conflict detection | Rakesh | Enable billing, move `reasoning` + `judge` to a Pro model, re-run the Phase 1 demo — or use NVIDIA NIM (below) |
@@ -215,7 +240,7 @@ _Last updated: Phase 6 visual QA — 2026-11-27 (branch `claude/phase-6-visual-q
 |---|---|---|
 | Runner, reporting-labs + Playwright HTML, JIRA comment, Account→Contact demo | implemented (Phase 5) | 5 |
 | Visual QA | fixture exit met; live desktop: seeded change caught and cleared both ways, final run 2/3 MATCH (header strip open); tablet deferred (Phase 6) | 6 |
-| Investigation, healing, exploration, fault injection | planned | 7 |
+| Investigation, healing, exploration, fault injection | implemented (Phase 7; fixture 7/7, live L1 / L2 / injected defect) | 7 |
 | DeepEval judge model over the judge chain (OpenAI-compatible, failover on 429) | partial (pre-Phase-4) | `src/eval/judgeEndpoint.ts`, `eval/qa_eval/judge_model.py` |
 | DeepEval sidecar runner, metrics/gates, golden set, learning lifecycle | planned | 8 |
 | CI/CD, full CLI, exit codes | planned | 9 |

@@ -22,6 +22,7 @@ import { createPlanNode, type DesignHook } from './designNodes.js';
 import { writeDesignReport } from './designReport.js';
 import { QAGraphState, type QAGraphStateType, type QAGraphUpdate } from './state.js';
 import type { ExecutionOutcome } from '../runner/execute.js';
+import type { InvestigateHook } from './investigateNode.js';
 import { loadReportData, writeExecutionReports } from '../report/execution.js';
 import { attemptLog } from '../models/attemptLog.js';
 
@@ -69,6 +70,8 @@ export interface GraphDeps {
    * seeded with `executeSeed` (`qa run`) enters at execute; a full run reaches it after review2.
    */
   execute?: ExecuteHook;
+  /** Phase 7: investigate → heal → judge on the run's failures (`qa run --investigate`). */
+  investigate?: InvestigateHook;
 }
 
 export type ExecuteHook = (
@@ -116,6 +119,8 @@ const CAPS: Record<string, NodeCapabilities> = {
   review2: { retry: true, fallback: false, degrade: true, ask: false },
   // Playwright retries flaky tests itself; a runner failure is escalated (reported), never retried blindly.
   execute: { retry: false, fallback: false, degrade: false, ask: false },
+  // Investigation failing is reported; the run's results stand as executed.
+  investigate: { retry: false, fallback: false, degrade: false, ask: false },
   report: { retry: false, fallback: false, degrade: false, ask: false },
 };
 
@@ -453,6 +458,13 @@ export function buildMainGraph(deps: GraphDeps) {
     };
   });
 
+  // ------------------------------------------------------------------ investigate (Phase 7: investigate → heal → judge)
+  const investigate = wrap('investigate', 'failure-investigator', async (s) => {
+    if (!deps.investigate) return {};
+    const out = await deps.investigate({ runId: s.runId, org: s.org, autonomy: s.autonomy, results: s.results });
+    return { investigations: out.investigations, defects: out.defects, evidence: out.evidence, issues: out.issues };
+  });
+
   // ------------------------------------------------------------------ report
   const report = wrap(
     'report',
@@ -580,6 +592,10 @@ export function buildMainGraph(deps: GraphDeps) {
       case 'review2':
         return Object.keys(s.buildFeedback).length ? 'build' : deps.execute ? 'execute' : 'report';
       case 'execute':
+        return deps.investigate && s.results.some((r) => r.state === 'FAIL' || (r.state === 'UNCERTAIN' && r.flaky))
+          ? 'investigate'
+          : 'report';
+      case 'investigate':
         return 'report';
       default:
         return 'report';
@@ -596,6 +612,7 @@ export function buildMainGraph(deps: GraphDeps) {
     'build',
     'review2',
     'execute',
+    'investigate',
     'report',
   ] as const;
   /**
@@ -620,6 +637,7 @@ export function buildMainGraph(deps: GraphDeps) {
     .addNode('build', build)
     .addNode('review2', review2)
     .addNode('execute', execute)
+    .addNode('investigate', investigate)
     .addNode('report', report)
     .addNode('triage', triage)
     .addConditionalEdges(START, entry, ['intake', 'plan', 'build', 'execute'])
@@ -632,6 +650,7 @@ export function buildMainGraph(deps: GraphDeps) {
     .addEdge('build', 'triage')
     .addEdge('review2', 'triage')
     .addEdge('execute', 'triage')
+    .addEdge('investigate', 'triage')
     .addConditionalEdges(
       'triage',
       (s) => ((routes as readonly string[]).includes(s.route) ? (s.route as (typeof routes)[number]) : 'report'),

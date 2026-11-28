@@ -54,6 +54,14 @@ export const PAGE_DEFS: readonly PageDef[] = [
     kind: 'edit',
     title: 'Contact edit form (record page › Edit)',
   },
+  {
+    id: 'contact-delete',
+    className: 'DeleteContactDialog',
+    object: 'Contact',
+    rootExpr: "getByRole('dialog', { name: 'Delete Contact' })",
+    kind: 'dialog',
+    title: 'Delete Contact confirmation (record page › Delete)',
+  },
 ];
 
 export const CatalogMember = z.object({
@@ -126,6 +134,7 @@ export function camel(text: string): string {
 
 /** Name for a registry row: field → camel(field); otherwise camel(scope + name) + role suffix. */
 function memberName(e: LocatorEntry, scopeName: string | undefined, isRoot: (s: string) => boolean): string {
+  if (e.memberName) return e.memberName; // pinned by a heal (Phase 7): the spec keeps using the same member
   const role = e.role ?? 'element';
   if (e.fieldApiName && (role === 'textbox' || role === 'combobox' || role === 'checkbox' || role === 'spinbutton')) {
     return camel((e.fieldApiName.split('.')[1] ?? e.fieldApiName).replace(/__c$/, ''));
@@ -257,7 +266,11 @@ export function buildCatalog(input: {
             ...(m.registryElement ? { registryElement: m.registryElement } : {}),
             ...(m.lastVerifiedAt ? { lastVerifiedAt: m.lastVerifiedAt } : {}),
           },
-          `${camel(m.accessibleName.slice(5))}Field`,
+          // A healed (pinned) edit button keeps its derived member too: editTitleButton → titleField even when the
+          // label became "Job Title" (run-p7-live-l1).
+          /^edit[A-Z]\w*Button$/.test(m.name)
+            ? `${m.name.slice(4, 5).toLowerCase()}${m.name.slice(5, -'Button'.length)}Field`
+            : `${camel(m.accessibleName.slice(5))}Field`,
         );
       }
     }

@@ -25,7 +25,8 @@
     "validate:build": "tsx scripts/validate-build.ts",
     "validate:data": "tsx scripts/validate-build.ts --data",
     "validate:run": "tsx scripts/validate-run.ts",
-    "validate:visual": "tsx scripts/validate-visual.ts"
+    "validate:visual": "tsx scripts/validate-visual.ts",
+    "validate:investigation": "tsx scripts/validate-investigation.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

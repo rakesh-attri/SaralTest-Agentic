@@ -12,3 +12,4 @@ export * from './inputs.js';
 export * from './generation.js';
 export * from './execution.js';
 export * from './visual.js';
+export * from './exploration.js';

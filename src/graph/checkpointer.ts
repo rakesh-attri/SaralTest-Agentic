@@ -46,7 +46,7 @@ export class SqliteCheckpointSaver extends MemorySaver {
   constructor(file: string) {
     super();
     mkdirSync(dirname(file), { recursive: true });
-    this.db = new DatabaseSync(file);
+    this.db = new DatabaseSync(file, { timeout: 10_000 }); // busy timeout: parallel workers (run-p7-fx-base-2 "database is locked")
     this.db.exec(
       'CREATE TABLE IF NOT EXISTS lg_threads (thread_id TEXT PRIMARY KEY, storage TEXT NOT NULL, writes TEXT NOT NULL, updated_at TEXT NOT NULL)',
     );

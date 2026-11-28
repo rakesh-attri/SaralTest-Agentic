@@ -11,8 +11,8 @@ import type { CatalogMember, CatalogPage } from './pageObjects.js';
  */
 export const IR_CONTRACT = `Reply with ONE JSON object of this TypeScript type (no prose):
 type IR = { caseId: string; data: StepId[]; steps: Step[]; notes: string[] };
-type StepId = string;             // a recipe step id from "Recipe steps", e.g. "Account" — NOT a page or element ref
-type Ref = string;                // an element ref from the catalog, exactly as listed, e.g. "contact-new.lastName"
+type StepId = string; // a recipe step id from "Recipe steps", e.g. "Account" — not an element ref
+type Ref = string; // a catalog element ref as listed, e.g. "contact-new.lastName"
 type Step = { caseStep: number /* 0-based index of the case step */; title: string; actions: Action[]; assertions: Assertion[] };
 type Value =
   | { kind: "data"; ref: StepId; field: string }                 // a recipe field value
@@ -24,7 +24,7 @@ type Expect = { caseStep: number; evidenceIds: string[] /* subset of that case s
 type Action =
   | { do: "openRecord"; ref: StepId; object: string /* e.g. "Account" */ }
   | { do: "openNewFromRelatedList"; parentRef: StepId; relatedList: string /* e.g. "Contacts" */ }
-  | { do: "fill"; element: Ref; value: Value }               // textbox / spinbutton only
+  | { do: "fill"; element: Ref; value: Value }      // textbox / spinbutton only
   | { do: "select"; element: Ref; value: Value }             // picklist combobox: value = option label (literal)
   | { do: "clear"; element: Ref }
   | { do: "click"; element: Ref }
@@ -52,6 +52,7 @@ type Assertion =
   // field may be "Account.Name" (compare a parent by name, never ids)
   | { check: "soqlField"; ref: StepId | string; object: string; field: string; equals: Value; expect: Expect }
   | { check: "soqlNoRecord"; object: string; field: string; value: Value; expect: Expect }
+  | { check: "recordExists"; ref: StepId; object: string; exists: boolean; expect: Expect }
   | { check: "apiRejects"; object: string; basedOn: StepId; fields?: Record<string, Value>; remove?: string[]; errorCodes: string[]; expect: Expect }
   | { check: "historyTracked"; ref: StepId | string; object: string; fields: string[]; expect: Expect }
   | { check: "a11yScan"; scope: Ref; expect: Expect }

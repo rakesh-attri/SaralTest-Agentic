@@ -402,9 +402,19 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
       case 'clear':
         member(a.element, FILLABLE, true);
         break;
-      case 'click':
-        member(a.element, CLICKABLE, true);
+      case 'click': {
+        const pageOf = member(a.element, CLICKABLE, true);
+        const m = findMember(ctx.catalog, a.element);
+        // Phase 7: a record page's Delete opens "Delete <Object>" (explored as <object>-delete); confirming or
+        // cancelling it returns to the record page (a blocked delete keeps the record; an allowed one leaves it).
+        if (pageOf?.kind === 'record' && m?.member.role === 'button' && m.member.accessibleName === 'Delete') {
+          const dlg = ctx.catalog.pages.find((x) => x.kind === 'dialog' && x.id === `${pageOf.object.toLowerCase()}-delete`);
+          if (dlg) onScreen = [dlg.id, pageOf.id];
+        } else if (pageOf?.kind === 'dialog' && pageOf.id.endsWith('-delete')) {
+          onScreen = onScreen.filter((x) => x !== pageOf.id);
+        }
         break;
+      }
       case 'selectTab':
         member(a.element, new Set(['tab']), true);
         break;
@@ -531,6 +541,13 @@ export function irProblems(tc: TestCase, ir: TestIR, ctx: GenerationContext, rec
           );
         }
         break;
+      case 'recordExists': {
+        recordRef(a.ref, where);
+        const obj = steps.find((s) => s.stepId === a.ref)?.object;
+        if (obj && obj !== a.object) p.push(`${where}: ${a.ref} is a ${obj}, not a ${a.object}`);
+        if (!ctx.facts.object(a.object)) p.push(`${where}: ${a.object} is not in the snapshot`);
+        break;
+      }
       case 'soqlNoRecord': {
         if (!ctx.facts.field(a.object, a.field)) p.push(`${where}: ${a.object}.${a.field} is not in the snapshot`);
         value(a.value, where, cs);
@@ -780,6 +797,8 @@ export function normalizeIr(ir: TestIR, ctx: GenerationContext, recipe: RecipeVi
       }
       case 'soqlNoRecord':
         return { ...a, value: val(a.value) };
+      case 'recordExists':
+        return { ...a, ref: ref(a.ref) };
       case 'apiRejects':
         return { ...a, basedOn: ref(a.basedOn), fields: fields(a.fields) };
       case 'historyTracked':

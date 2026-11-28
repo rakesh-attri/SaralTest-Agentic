@@ -173,11 +173,39 @@ export const contactEditForm: PageSpec = {
   },
 };
 
+/**
+ * Delete Contact confirmation (Phase 7, BR-08): the record page's Delete opens Lightning's "Delete Contact" modal.
+ * Observe only — the modal is read and cancelled, never confirmed (no record is deleted by exploration).
+ */
+export const contactDeleteDialog: PageSpec = {
+  id: 'contact-delete',
+  title: 'Delete Contact confirmation (record page › Delete)',
+  object: 'Contact',
+  async open(page, env) {
+    const main = await recordPage(page, `${env.baseUrl}/lightning/r/Contact/${env.contactId}/view`);
+    await main.getByRole('button', { name: 'Delete', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Delete Contact' });
+    await dialog.waitFor({ state: 'visible', timeout: 60_000 });
+    await waitStable(dialog);
+    return {
+      captures: [{ state: 'dialog', root: dialog, rootExpr: "getByRole('dialog', { name: 'Delete Contact' })" }],
+      path: 'Contact record page › Delete (cancelled)',
+      cleanup: async () => {
+        const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true });
+        if ((await cancel.count()) === 1) await cancel.click();
+        else await page.keyboard.press('Escape');
+        await dialog.waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => undefined);
+      },
+    };
+  },
+};
+
 export const PAGES: Record<string, PageSpec> = {
   'account-record': recordPageSpec('account-record', 'Account', 'Account record page'),
   'contact-record': recordPageSpec('contact-record', 'Contact', 'Contact record page'),
   'contact-new': newContactFromAccount,
   'contact-edit': contactEditForm,
+  'contact-delete': contactDeleteDialog,
 };
 
 export interface ExploreInput {

@@ -209,6 +209,79 @@
           "createable": false
         }
       ]
+    },
+    {
+      "name": "Case",
+      "label": "Case",
+      "keyPrefix": "500",
+      "fields": [
+        {
+          "name": "Id",
+          "label": "Case ID",
+          "type": "id",
+          "createable": false
+        },
+        {
+          "name": "Subject",
+          "label": "Subject",
+          "type": "string",
+          "length": 255
+        },
+        {
+          "name": "Status",
+          "label": "Status",
+          "type": "picklist",
+          "required": true,
+          "picklistValues": [
+            "New",
+            "Working",
+            "Escalated",
+            "Closed"
+          ]
+        },
+        {
+          "name": "Origin",
+          "label": "Case Origin",
+          "type": "picklist",
+          "picklistValues": [
+            "Phone",
+            "Email",
+            "Web"
+          ]
+        },
+        {
+          "name": "ContactId",
+          "label": "Contact Name",
+          "type": "reference",
+          "referenceTo": "Contact",
+          "relationshipName": "Contact"
+        },
+        {
+          "name": "AccountId",
+          "label": "Account Name",
+          "type": "reference",
+          "referenceTo": "Account",
+          "relationshipName": "Account"
+        },
+        {
+          "name": "IsClosed",
+          "label": "Closed",
+          "type": "boolean",
+          "createable": false
+        },
+        {
+          "name": "QA_Run_Id__c",
+          "label": "QA Run Id",
+          "type": "string",
+          "length": 50
+        },
+        {
+          "name": "CreatedDate",
+          "label": "Created Date",
+          "type": "datetime",
+          "createable": false
+        }
+      ]
     }
   ],
   "records": {
@@ -232,6 +305,7 @@
         "Email": "seed.contact@fixture.example.invalid",
         "AccountId": "001FX0000000001AAA"
       }
-    ]
+    ],
+    "Case": []
   }
 }

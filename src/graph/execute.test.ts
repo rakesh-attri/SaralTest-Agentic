@@ -11,6 +11,8 @@ import { initialRunState } from '../core/state.js';
 import type { ExecutionOutcome } from '../runner/execute.js';
 import { SqliteCheckpointSaver } from './checkpointer.js';
 import { buildMainGraph, type ExecuteHook } from './mainGraph.js';
+import type { InvestigateHook } from './investigateNode.js';
+import { createIssue } from '../core/issues.js';
 import type { QAGraphStateType } from './state.js';
 
 const policy = await requireConfig('policy', projectPaths(REPO_ROOT));
@@ -62,7 +64,11 @@ const outcome = (
   files: [],
 });
 
-async function runGraph(hook: ExecuteHook, check?: (root: string) => void): Promise<QAGraphStateType> {
+async function runGraph(
+  hook: ExecuteHook,
+  check?: (root: string) => void,
+  investigate?: InvestigateHook,
+): Promise<QAGraphStateType> {
   const root = mkdtempSync(join(tmpdir(), 'qa exec graph '));
   roots.push(root);
   const checkpointer = new SqliteCheckpointSaver(join(root, '.qa-memory', 'checkpoints.db'));
@@ -74,6 +80,7 @@ async function runGraph(hook: ExecuteHook, check?: (root: string) => void): Prom
     adapter: { root, cwd: root, env: {} },
     memoryDir: join(root, '.qa-memory'),
     checkpointer,
+    ...(investigate ? { investigate } : {}),
     // The real Runner writes results.json + run/execution-summary.json before returning (the reports read them).
     execute: async (st) => {
       const out = await hook(st);
@@ -137,5 +144,57 @@ describe('main graph: execute node (Phase 5)', () => {
     expect(v.status).toBe('PARTIAL');
     expect(v.issues.some((i) => i.node === 'execute' && /ENOENT/.test(i.message))).toBe(true);
     expect(v.lastNode).toBe('report');
+  });
+
+  it('Phase 7: failures route execute → investigate → report; a run without failures skips it', async () => {
+    let called = 0;
+    const investigate: InvestigateHook = (st) => {
+      called++;
+      return Promise.resolve({
+        investigations: [
+          {
+            failureId: 'F-1',
+            caseId: 'TC-2',
+            observations: [],
+            hypotheses: [],
+            verdict: 'SCRIPT_LOCATOR',
+            confidence: 0.85,
+            status: 'SUSPECTED',
+            signals: [],
+            experiments: [],
+            evidenceIds: [],
+          },
+        ],
+        defects: [],
+        repairs: [],
+        evidence: [],
+        issues: [
+          createIssue({
+            kind: 'LOCATOR',
+            node: 'investigate',
+            message: `TC-2 of ${st.runId}: SCRIPT_LOCATOR`,
+            resolution: 'RETRIED',
+            detail: { handled: ['investigate', 'heal'] },
+          }),
+        ],
+        files: [],
+      });
+    };
+    const v = await runGraph(
+      () => Promise.resolve(outcome('COMPLETE', [row('TC-1', 'PASS'), row('TC-2', 'FAIL')])),
+      undefined,
+      investigate,
+    );
+    expect(called).toBe(1);
+    expect(v.investigations.map((i) => i.verdict)).toEqual(['SCRIPT_LOCATOR']);
+    expect(v.issues.some((i) => i.node === 'investigate' && i.kind === 'LOCATOR')).toBe(true);
+    expect(v.lastNode).toBe('report');
+    const clean = await runGraph(
+      () => Promise.resolve(outcome('COMPLETE', [row('TC-1', 'PASS')])),
+      undefined,
+      investigate,
+    );
+    expect(called).toBe(1);
+    expect(clean.investigations).toEqual([]);
   });
 });

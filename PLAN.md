@@ -475,15 +475,27 @@ learning, pipelines and hardening. Every phase: working code, unit + failure + s
 - **Exit:** seeded visual change reported as candidate; approving the baseline clears it.
 - **Status (2026-11-27):** exit met on the **offline fixture**: `run-p6-fixture-9` reported 4 DIFF candidates for the
   seeded move; after approval `AP-74584af9d3b7`, `run-p6-fixture-10` was 6 MATCH. All fixture runs pass `pnpm validate:visual`.
-  The **live qa-prod proof is pending**: the operator chose "not yet", and the Setup layout move is still to do. See
-  `docs/phase-6-notes.md`.
+  Live qa-prod (desktop): R1 approved (`run-p6-live-3`, AP-ad178d5f7b56), R2 3 MATCH (`run-p6-live-9`), the seeded
+  Phone move reported as DIFF and cleared by approval both ways (move `-11` AP-0d3f1447ba4f, revert `-14`
+  AP-176058e3a085). Left open by the operator: account-record header strip (0.091 %, `-15`), intermittent dialog
+  Address shift; tablet viewport deferred. See `docs/phase-6-notes.md`.
 
 ### Phase 7 — Investigation, healing, exploration
-- [ ] Failure Investigator (full taxonomy), Self-Healer (AST check: assertions unchanged; repairs auditable/reversible),
+- [x] Failure Investigator (full taxonomy), Self-Healer (AST check: assertions unchanged; repairs auditable/reversible),
       Defect Judge, evidence ledger, defect reports
-- [ ] Autonomous Explorer: visited/unvisited state map, evidence-gain step selection, approved actions only, stop conditions
-- [ ] Fault-injection suite
+- [x] Autonomous Explorer: visited/unvisited state map, evidence-gain step selection, approved actions only, stop conditions
+- [x] Fault-injection suite
 - **Exit:** faults classified ≥ 4/5 correctly; no assertion changed by healer; Explorer finding → reviewed test case.
+- **Status (2026-11-28):** exit met.
+  - Fixture: `flt-p7-fx-5` 7/7, 0 assertion changes.
+  - Live qa-prod faults made by the operator:
+    - L1 label rename → SCRIPT_LOCATOR, chained heal VERIFIED, fingerprint unchanged, reverted;
+    - L2 Account rule → TEST_DATA;
+    - Phone rule off → PRODUCT_DEFECT → DEF-SF-219-010-7fe4c4 CONFIRMED, not posted.
+  - Explorer: finding promoted by the operator → TC-SF-219-055, APPROVED, PASS fixture + live.
+  - BR-08 holds on qa-prod: Salesforce blocks deleting a Contact with any Case. TC-054 was revised.
+
+  See `docs/phase-7-notes.md`.
 
 ### Phase 8 — Verified learning & evaluation
 - [ ] DeepEval sidecar + gates (scores also sent to Langfuse as Scores on the run's trace); golden dataset; autonomy acceptance scenarios (§9); learning lifecycle

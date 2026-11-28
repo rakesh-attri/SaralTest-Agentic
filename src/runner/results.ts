@@ -6,17 +6,36 @@
 // Gate rows that never ran (NOT_APPROVED / BLOCKED / MANUAL) are added as SKIPPED / BLOCKED rows with the gate reason.
 import { relative, sep } from 'node:path';
 import { z } from 'zod';
-import type { Environment, ResultCleanup, ResultState, TestResult } from '../core/schemas/index.js';
+import type { Environment, FailureDetail, ResultCleanup, ResultState, TestResult } from '../core/schemas/index.js';
 import type { GateItem } from './gate.js';
 
 const Annotation = z.object({ type: z.string(), description: z.string().optional() });
 const Attachment = z.object({ name: z.string(), path: z.string().optional(), contentType: z.string().optional() });
+const PwLocation = z.object({ file: z.string(), line: z.number(), column: z.number().optional() });
+const PwError = z.object({
+  message: z.string().default(''),
+  stack: z.string().optional(),
+  location: PwLocation.optional(),
+});
+interface PwStepT {
+  title: string;
+  error?: { message?: string | undefined } | undefined;
+  steps?: PwStepT[] | undefined;
+}
+const PwStep: z.ZodType<PwStepT> = z.lazy(() =>
+  z.object({
+    title: z.string().default(''),
+    error: z.object({ message: z.string().optional() }).optional(),
+    steps: z.array(PwStep).optional(),
+  }),
+);
 const PwResult = z.object({
   status: z.string().optional(),
   duration: z.number().default(0),
   retry: z.number().default(0),
-  errors: z.array(z.object({ message: z.string().default('') })).default([]),
+  errors: z.array(PwError).default([]),
   attachments: z.array(Attachment).default([]),
+  steps: z.array(PwStep).default([]),
 });
 const PwTest = z.object({
   projectName: z.string().default(''),
@@ -65,6 +84,8 @@ export interface ResultContext {
   gate: readonly GateItem[];
   /** Redact a free-text error before it is stored. */
   redact?: (s: string) => string;
+  /** Repo root: code locations in failure detail are made relative to it. */
+  repoRoot?: string;
 }
 
 function* walk(suites: readonly PwSuiteT[]): Generator<z.infer<typeof PwSpec>> {
@@ -134,6 +155,66 @@ export function stateOf(
   };
 }
 
+/** Innermost failed test.step title. */
+function failedStepOf(steps: readonly PwStepT[]): string | undefined {
+  for (const st of steps) {
+    if (!st.error) continue;
+    return (st.steps ? failedStepOf(st.steps) : undefined) ?? st.title;
+  }
+  return undefined;
+}
+
+const stripAnsi = (s: string): string =>
+  // eslint-disable-next-line no-control-regex -- strip ANSI colour codes from Playwright error text
+  s.replace(/\u001b\[[0-9;]*m/g, '');
+
+/** Failure detail for the investigator (Phase 7). Paths are made relative: repo root for code, run folder for files. */
+export function failureDetailOf(
+  t: z.infer<typeof PwTest>,
+  specFile: string,
+  c: Pick<ResultContext, 'runDir' | 'repoRoot'> & { redact: (s: string) => string },
+): FailureDetail | undefined {
+  if (t.status !== 'unexpected' && t.status !== 'flaky') return undefined;
+  const repoRel = (f: string): string => (c.repoRoot ? posix(relative(c.repoRoot, f)) : posix(f));
+  const specBase = specFile.split(/[\\/]/).pop() ?? specFile;
+  const attempts = t.results.map((r) => {
+    const e = r.errors[0];
+    const frame = e?.stack
+      ? stripAnsi(e.stack)
+          .split('\n')
+          .map((l) => /(?:\(|at )(.+\.spec\.ts):(\d+):\d+\)?\s*$/.exec(l.trim()))
+          .find((m) => m?.[1]?.endsWith(specBase))
+      : undefined;
+    const step = failedStepOf(r.steps);
+    return {
+      attempt: r.retry,
+      status: r.status ?? 'unknown',
+      message: c.redact(firstLines(e?.message ?? '', 25)),
+      ...(e?.location ? { location: `${repoRel(e.location.file)}:${e.location.line}` } : {}),
+      ...(frame?.[1] && frame[2] ? { specLine: `${repoRel(frame[1])}:${frame[2]}` } : {}),
+      ...(step ? { failedStep: c.redact(step) } : {}),
+    };
+  });
+  // Artifacts of the last FAILED attempt: a flaky test's passing retry has no ARIA snapshot (run-p7-live-1, TC-026).
+  const last = [...t.results].reverse().find((r) => r.status !== 'passed') ?? t.results[t.results.length - 1];
+  const att = (pred: (a: z.infer<typeof Attachment>) => boolean): string | undefined => {
+    const a = last?.attachments.find((x) => typeof x.path === 'string' && pred(x));
+    return a?.path ? posix(relative(c.runDir, a.path)) : undefined;
+  };
+  const errorContext = att((a) => a.name === 'error-context' || /error-context\.md$/.test(a.path ?? ''));
+  const trace = att((a) => a.name === 'trace');
+  const screenshot = att(
+    (a) => a.name === 'screenshot' || (a.contentType === 'image/png' && /test-failed/.test(a.path ?? '')),
+  );
+  return {
+    attempts,
+    steps: (last?.steps ?? []).map((st) => ({ title: c.redact(st.title), ok: !st.error })),
+    ...(errorContext ? { errorContext } : {}),
+    ...(trace ? { trace } : {}),
+    ...(screenshot ? { screenshot } : {}),
+  };
+}
+
 const caseIdOf = (file: string): string | undefined => /(TC-[A-Z0-9]+-\d+-\d+)/.exec(file)?.[1];
 const posix = (p: string): string => p.split(sep).join('/');
 
@@ -163,6 +244,7 @@ export function toTestResults(json: PlaywrightJson, c: ResultContext): TestResul
         .filter((a): a is { name: string; path: string } => typeof a.path === 'string')
         .map((a) => ({ name: a.name, path: posix(relative(c.runDir, a.path)) }));
       const errs = last?.errors.map((e) => e.message) ?? [];
+      const failure = failureDetailOf(t, s.file, { runDir: c.runDir, repoRoot: c.repoRoot, redact });
       ran.add(caseId);
       out.push({
         testId: s.id,
@@ -182,6 +264,7 @@ export function toTestResults(json: PlaywrightJson, c: ResultContext): TestResul
         ...(errs.length ? { errorSummary: redact(firstLines(errs[0] ?? '', 4)) } : {}),
         attachments,
         dataCleanup: cleanup ?? 'NONE',
+        ...(failure ? { failure } : {}),
       });
     }
   }

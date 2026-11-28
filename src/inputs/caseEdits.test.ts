@@ -67,4 +67,54 @@ describe('operator case edits', () => {
     expect(f.edits.map((e) => e.caseId)).toContain('TC-SF-219-009');
     expect(f.manualOnly.map((m) => m.caseId)).toEqual(['TC-SF-219-051', 'TC-SF-219-052']);
   });
+
+  it('Phase 7: adds an operator case citing a recorded decision, binds recipes, approves only assertable cases', () => {
+    const repo = loadCaseEdits(join(REPO_ROOT, 'examples', 'case-edits', 'SF-219.yaml'));
+    expect(repo.decisions.map((d) => d.id)).toContain('P7-BR08-POS');
+    const pending = {
+      ...CASE,
+      id: 'TC-SF-219-031',
+      reviewStatus: 'REVIEW_REQUIRED' as const,
+      reviewReasons: ['RF-004'],
+    };
+    const f = CaseEditsFile.parse({
+      storyKey: 'SF-219',
+      decidedBy: 'Op',
+      decidedOn: '2026-11-27',
+      decisions: [{ id: 'P7-X', text: 'A Contact without open Cases can be deleted.' }],
+      dataRecipe: [{ caseId: 'TC-SF-219-031', recipe: 'contact-open-case', reason: 'r' }],
+      approve: [{ caseId: 'TC-SF-219-031', findingIds: ['RF-004'], resolution: 'counterpart added' }],
+      addCases: [
+        {
+          ...CASE,
+          origin: undefined,
+          id: 'TC-SF-219-054',
+          steps: [
+            {
+              action: 'a',
+              expected: { text: 't', evidenceLevel: 'APPROVED_REQUIREMENT', evidenceIds: ['SF-219-CASE-EDITS#P7-X'] },
+            },
+          ],
+        },
+      ],
+    });
+    const r = applyCaseEdits([pending], f, new Set());
+    const added = r.cases.find((c) => c.id === 'TC-SF-219-054');
+    expect(added?.origin).toBe('operator');
+    expect(r.cases.find((c) => c.id === 'TC-SF-219-031')).toMatchObject({
+      reviewStatus: 'APPROVED',
+      dataRecipe: 'contact-open-case',
+      reviewReasons: [],
+    });
+    expect(r.changes.some((c) => c.includes('resolves RF-004'))).toBe(true);
+    // unknown evidence refused
+    const bad = CaseEditsFile.parse({ ...f, decisions: [] });
+    expect(() => applyCaseEdits([pending], bad, new Set())).toThrow(/cites evidence the design run does not have/);
+    // a non-assertable expectation blocks approval
+    const weak = {
+      ...pending,
+      steps: [{ action: 'a', expected: { text: 't', evidenceLevel: 'OBSERVED_ONLY' as const, evidenceIds: ['x'] } }],
+    };
+    expect(() => applyCaseEdits([weak], { ...f, addCases: [] }, new Set())).toThrow(/not assertable/);
+  });
 });

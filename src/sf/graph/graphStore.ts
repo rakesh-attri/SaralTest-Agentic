@@ -50,7 +50,7 @@ export class GraphStore {
 
   constructor(readonly file: string) {
     mkdirSync(dirname(file), { recursive: true });
-    this.db = new DatabaseSync(file);
+    this.db = new DatabaseSync(file, { timeout: 10_000 }); // busy timeout: parallel workers (run-p7-fx-base-2 "database is locked")
     this.db.exec(`
       PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS nodes (org TEXT NOT NULL, id TEXT NOT NULL, type TEXT NOT NULL, api_name TEXT NOT NULL,
