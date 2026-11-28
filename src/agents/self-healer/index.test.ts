@@ -244,6 +244,77 @@ describe('healFailure', () => {
     reg2.close();
   });
 
+  it('chains repairs when the verification rerun fails on another renamed element (run-p7-live-l1), then reverts the chain exactly', async () => {
+    const poFile = join(root, 'tests', 'pages', 'NewContactDialog.ts');
+    const poBefore = readFileSync(poFile, 'utf8');
+    // the spec uses both buttons
+    const mf = join(root, 'tests', 'generated', 'SF-1', 'manifest.json');
+    writeFileSync(
+      mf,
+      readFileSync(mf, 'utf8').replace('"contact-new.root"', '"contact-new.root","contact-new.cancelButton"'),
+    );
+    const rerunDir = join(root, 'runs', 'heal-1-heal1', 'test-results', 'x');
+    mkdirSync(rerunDir, { recursive: true });
+    const fence = '`'.repeat(3);
+    writeFileSync(
+      join(rerunDir, 'error-context.md'),
+      [
+        `${fence}yaml`,
+        '- dialog "New Contact":',
+        '  - button "Cancel Now"',
+        '  - button "Save Record"',
+        fence,
+        '',
+      ].join('\n'),
+    );
+    const msg = [
+      'Error: locator.click: Timeout 20000ms exceeded.',
+      'Call log:',
+      "  - waiting for getByRole('dialog', { name: 'New Contact' }).getByRole('button', { name: 'Cancel' })",
+    ].join('\n');
+    let n = 0;
+    const rerun = () => {
+      n++;
+      const base = {
+        testId: 't',
+        caseId: 'TC-SF-1-001',
+        evidenceIds: [],
+        environment: 'LIVE' as const,
+        snapshotId: 's',
+        runId: 'r',
+        attachments: [],
+      };
+      return Promise.resolve(
+        n === 1
+          ? {
+              runId: 'heal-1-heal1',
+              result: {
+                ...base,
+                state: 'FAIL' as const,
+                failure: {
+                  attempts: [{ attempt: 0, status: 'failed', message: msg }],
+                  steps: [],
+                  errorContext: 'test-results/x/error-context.md',
+                },
+              },
+            }
+          : { runId: 'heal-1-heal2', result: { ...base, state: 'PASS' as const } },
+      );
+    };
+    const out = await healFailure(locatorInv(), deps({ rerun }));
+    expect(out.final).toMatchObject({ status: 'VERIFIED' });
+    expect(out.repairs.filter((r) => r.status === 'VERIFIED')).toHaveLength(2); // first link re-marked by the second rerun
+    const po = readFileSync(poFile, 'utf8');
+    expect(po).toMatch(/Save Record/);
+    expect(po).toMatch(/Cancel Now/);
+    expect(po).toContain('cancelButton');
+    expect(out.repairs.every((r) => r.assertionsUnchanged)).toBe(true);
+    const ids = [...new Set(out.repairs.map((r) => r.id))];
+    for (const id of [...ids].reverse())
+      revertRepair(root, id, { registryFile: regFile(), runId: 'h', orgIdForApprovals: ORG, say: () => undefined });
+    expect(readFileSync(poFile, 'utf8')).toBe(poBefore);
+  });
+
   it('FIXTURE repair is verified and then reverted automatically (never changes live page objects)', async () => {
     const poFile = join(root, 'tests', 'pages', 'NewContactDialog.ts');
     const poBefore = readFileSync(poFile, 'utf8');

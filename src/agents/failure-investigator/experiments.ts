@@ -476,8 +476,11 @@ export function ariaLocateIn(nodes: readonly AriaNode[], expr: string): AriaLoca
  * or the names are very similar. "Edit Title" → "Edit" is NOT strong: a shorter name may be another element
  * (run-p7-fx-base-2, TC-036: the record-level Edit button).
  */
+/** Two thirds of the words match ("Edit Title" → "Edit Job Title" = 2/3; run-p7-live-l1 missed it at 0.67). */
+export const STRONG_SIMILARITY = 2 / 3 - 1e-9;
+
 export function isStrongCandidate(oldName: string, c: { name: string; similarity: number }): boolean {
-  return c.name.toLowerCase().includes(oldName.toLowerCase()) || c.similarity >= 0.67;
+  return c.name.toLowerCase().includes(oldName.toLowerCase()) || c.similarity >= STRONG_SIMILARITY;
 }
 
 export function ariaLocate(env: ExperimentEnv, r: TestResult, signals: readonly FailureSignal[]): ExperimentRun {
@@ -551,7 +554,15 @@ export async function rerunFreshData(
   const reruns: RerunOutcome[] = [];
   for (let i = 1; i <= env.reproductions; i++) reruns.push(await f({ caseId: r.caseId, label: `repro${i}` }));
   const states = reruns.map((x) => x.result?.state ?? 'NO_RESULT');
-  const same = reruns.filter((x) => x.result?.state === 'FAIL' && firstLine(x.result) === firstLine(r)).length;
+  // Same failure = same error line, or a failure in the same test step (flt-p7-fx-3, F7: one rerun hit the test
+  // timeout in the step whose field error never appeared — the same failure, surfaced differently).
+  const stepOf = (x: TestResult | undefined): string | undefined =>
+    x?.failure?.steps.find((st) => !st.ok)?.title ?? x?.failure?.attempts[x.failure.attempts.length - 1]?.failedStep;
+  const same = reruns.filter(
+    (x) =>
+      x.result?.state === 'FAIL' &&
+      (firstLine(x.result) === firstLine(r) || (stepOf(x.result) !== undefined && stepOf(x.result) === stepOf(r))),
+  ).length;
   const sources: SourceRef[] = reruns.map((x) => ({
     type: 'result',
     ref: `${x.runId}/${r.caseId}: ${x.result?.state ?? 'no result'}`,

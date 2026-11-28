@@ -266,7 +266,11 @@ export function buildCatalog(input: {
             ...(m.registryElement ? { registryElement: m.registryElement } : {}),
             ...(m.lastVerifiedAt ? { lastVerifiedAt: m.lastVerifiedAt } : {}),
           },
-          `${camel(m.accessibleName.slice(5))}Field`,
+          // A healed (pinned) edit button keeps its derived member too: editTitleButton → titleField even when the
+          // label became "Job Title" (run-p7-live-l1).
+          /^edit[A-Z]\w*Button$/.test(m.name)
+            ? `${m.name.slice(4, 5).toLowerCase()}${m.name.slice(5, -'Button'.length)}Field`
+            : `${camel(m.accessibleName.slice(5))}Field`,
         );
       }
     }

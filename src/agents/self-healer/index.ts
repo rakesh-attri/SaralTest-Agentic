@@ -32,7 +32,14 @@ import { ApprovalStore, checkpointRequired } from '../../security/approvals.js';
 import type { AuditLog } from '../../security/audit.js';
 import { readWaitOverrides, waitOverridesFile } from '../../runner/waitOverrides.js';
 import { storyOf } from '../failure-investigator/context.js';
-import { locatorTarget, nameSimilarity, type RerunOutcome } from '../failure-investigator/experiments.js';
+import {
+  ariaLocate,
+  locatorTarget,
+  nameSimilarity,
+  STRONG_SIMILARITY,
+  type RerunOutcome,
+} from '../failure-investigator/experiments.js';
+import { extractSignals } from '../failure-investigator/signals.js';
 import { locatorHash } from '../test-generator/dependencies.js';
 import { buildCatalog, PageCatalog, writePageObjects, type CatalogMember } from '../test-generator/pageObjects.js';
 import { storyManifestFile } from '../test-generator/staleness.js';
@@ -69,6 +76,8 @@ export interface LocatorPlan {
   newRole: string;
   similarity: number;
   behaviourChanging: boolean;
+  /** Derived members built from the same registry row (record page `<field>Field` of an "Edit <Field>" button). */
+  alsoChanges: string[];
 }
 export interface WaitPlan {
   kind: 'wait';
@@ -146,6 +155,22 @@ export function planRepairs(
     for (const m of p.members)
       if ((!used || used.has(m.ref)) && m.accessibleName === wantName && (!target.role || m.role === target.role))
         matches.push({ member: m, pageId: p.id });
+  if (!matches.length) {
+    // A derived member the spec uses (record page `titleField` = list item holding the "Edit Title" button) quotes the
+    // failing name: repair its base registry row (run-p7-live-l1, TC-036).
+    for (const p of catalog.pages)
+      for (const m of p.members) {
+        if ((used && !used.has(m.ref)) || !m.registryElement || !m.expression.includes(`name: '${wantName}'`)) continue;
+        const base = p.members.find(
+          (b) =>
+            b.ref !== m.ref &&
+            b.registryElement === m.registryElement &&
+            b.accessibleName === wantName &&
+            (!target.role || b.role === target.role),
+        );
+        if (base && !matches.some((x) => x.member.ref === base.ref)) matches.push({ member: base, pageId: p.id });
+      }
+  }
   if (matches.length !== 1) {
     return {
       plans: [],
@@ -172,7 +197,10 @@ export function planRepairs(
       newName: c.name,
       newRole: c.role,
       similarity: c.similarity,
-      behaviourChanging: roleChanged || !(contains || nameSimilarity(wantName, c.name) >= 0.67),
+      behaviourChanging: roleChanged || !(contains || nameSimilarity(wantName, c.name) >= STRONG_SIMILARITY),
+      alsoChanges: (catalog.pages.find((x) => x.id === pageId)?.members ?? [])
+        .filter((x) => x.ref !== member.ref && x.registryElement === member.registryElement)
+        .map((x) => x.ref),
     };
   });
   return { plans };
@@ -278,7 +306,13 @@ export function renameInExpression(expr: string, oldName: string, newName: strin
 }
 
 /** Only `target` may differ between two catalogs, and only in expression / accessible name. */
-export function catalogScopeCheck(before: PageCatalog, after: PageCatalog, targetRef: string): string[] {
+/** Only `targets` (the repaired member and the members derived from its registry row) may change their locator. */
+export function catalogScopeCheck(
+  before: PageCatalog,
+  after: PageCatalog,
+  targetRef: string | readonly string[],
+): string[] {
+  const targets = new Set(typeof targetRef === 'string' ? [targetRef] : targetRef);
   const problems: string[] = [];
   const names = (c: PageCatalog): string[] => c.pages.flatMap((p) => p.members.map((m) => m.ref)).sort();
   const b = names(before);
@@ -296,7 +330,7 @@ export function catalogScopeCheck(before: PageCatalog, after: PageCatalog, targe
     if (!n) continue;
     const strip = (x: CatalogMember): string =>
       JSON.stringify({ ...x, expression: '', accessibleName: '', lastVerifiedAt: '' });
-    if (ref === targetRef) {
+    if (targets.has(ref)) {
       if (strip(m) !== strip(n)) problems.push(`${ref}: more than the locator changed`);
     } else if (JSON.stringify(m) !== JSON.stringify(n)) problems.push(`${ref}: changed but is not the repaired member`);
   }
@@ -367,26 +401,116 @@ export async function healFailure(inv: Investigation, d: HealDeps): Promise<Heal
   const registry = new LocatorRegistry(d.registryFile);
   const out: HealRepair[] = [];
   try {
-    const { plans, refused } = planRepairs(d.root, inv, d.policy.healing.maxAttemptsPerTest, registry);
+    const max = d.policy.healing.maxAttemptsPerTest;
+    let current = inv;
+    let { plans, refused } = planRepairs(d.root, current, max, registry);
     if (refused || !plans.length) return { repairs: [], refused: refused ?? 'no repair plan' };
     let attempt = 0;
-    for (const plan of plans) {
-      attempt++;
-      const r = await applyOne(inv, plan, attempt, d, registry, now);
-      out.push(r);
-      if (r.status === 'PROPOSED' || r.status === 'REFUSED') return { repairs: out, final: r };
-      if (r.status === 'VERIFIED') {
-        if (d.environment !== 'LIVE') {
-          // Fixture / mock: proven, then reverted — never changes the live org's page objects.
-          out.push(revertRepair(d.root, r.id, d, `${d.environment} repair verified, reverted (rule 13)`));
+    /** Applied repairs kept while the next renamed element is healed (run-p7-live-l1: Title + Edit Title). */
+    const chain: HealRepair[] = [];
+    const revertChain = (why: string): void => {
+      for (const c of [...chain].reverse()) out.push(revertRepair(d.root, c.id, d, why));
+      chain.length = 0;
+    };
+    while (attempt < max) {
+      let advanced = false;
+      for (const plan of plans) {
+        if (attempt >= max) break;
+        attempt++;
+        const ctl: { keepOnFail: boolean; rerun?: RerunOutcome } = { keepOnFail: plan.kind === 'locator' };
+        const r = await applyOne(current, plan, attempt, d, registry, now, ctl);
+        out.push(r);
+        if (r.status === 'PROPOSED' || r.status === 'REFUSED') {
+          revertChain('an earlier repair of this chain is undone: the chain did not complete');
+          return { repairs: out, final: r };
         }
-        return { repairs: out, final: r };
+        if (r.status === 'VERIFIED') {
+          // Earlier links are verified by this rerun too.
+          for (const c of chain)
+            out.push(
+              persist(d.root, {
+                ...c,
+                status: 'VERIFIED',
+                reason: `${c.reason}; verified with ${r.id}`,
+                ...(r.verification ? { verification: r.verification } : {}),
+              }),
+            );
+          if (d.environment !== 'LIVE') {
+            // Fixture / mock: proven, then reverted — never changes the live org's page objects.
+            out.push(revertRepair(d.root, r.id, d, `${d.environment} repair verified, reverted (rule 13)`));
+            for (const c of [...chain].reverse())
+              out.push(revertRepair(d.root, c.id, d, `${d.environment} repair verified, reverted (rule 13)`));
+          }
+          return { repairs: out, final: r };
+        }
+        if (r.status === 'FAILED' && plan.kind === 'locator') {
+          const next = nextLocatorFailure(current, plan, ctl.rerun, d);
+          if (next) {
+            chain.push(r);
+            current = next;
+            ({ plans, refused } = planRepairs(d.root, current, max, registry));
+            advanced = plans.length > 0;
+            if (!advanced) revertChain(`chain stopped: ${refused ?? 'no plan for the next element'}`);
+            break;
+          }
+          out.push(revertRepair(d.root, r.id, d, 'verification failed and no further renamed element was found'));
+        }
       }
+      if (!advanced) break;
     }
-    return { repairs: out, ...(out.length ? { final: out[out.length - 1] } : {}) };
+    revertChain('the chain did not reach a passing rerun within healing.maxAttemptsPerTest');
+    const last = out.filter((x) => !x.revertOf).at(-1); // the repair itself, not its revert record
+    return { repairs: out, ...(last ? { final: last } : {}) };
   } finally {
     registry.close();
   }
+}
+
+/**
+ * After a failed verification rerun: is the new failure another renamed element (different locator, strong ARIA
+ * candidate in the rerun's own snapshot)? Then a synthetic investigation for the next link of the chain.
+ */
+function nextLocatorFailure(
+  prev: Investigation,
+  plan: LocatorPlan,
+  rerun: RerunOutcome | undefined,
+  d: HealDeps,
+): Investigation | undefined {
+  const res = rerun?.result;
+  if (!res || res.state !== 'FAIL') return undefined;
+  const signals = extractSignals(res);
+  if (!signals.some((x) => x.kind === 'LOCATOR_NOT_FOUND' || x.kind === 'LOCATOR_NOT_UNIQUE')) return undefined;
+  const loc = signals.find((x) => x.locator)?.locator;
+  const target = loc ? locatorTarget(loc) : undefined;
+  if (
+    !target ||
+    (target.name ?? target.label) === plan.row.accessibleName ||
+    (target.name ?? target.label) === plan.newName
+  )
+    return undefined;
+  const run = ariaLocate(
+    {
+      root: d.root,
+      runId: d.runId,
+      sourceRunDir: join(d.root, 'runs', rerun.runId),
+      environment: d.environment,
+      failureId: prev.failureId,
+      providers: {},
+      waitFactor: 3,
+      flakyReruns: 3,
+      reproductions: 2,
+    },
+    res,
+    signals,
+  );
+  if (run.experiment.outcome !== 'SUPPORTS') return undefined;
+  for (const e of run.evidence) d.ledger.add(e);
+  return {
+    ...prev,
+    signals,
+    experiments: [run.experiment],
+    evidenceIds: [...prev.evidenceIds, ...run.evidence.map((e) => e.id)],
+  };
 }
 
 async function applyOne(
@@ -396,6 +520,8 @@ async function applyOne(
   d: HealDeps,
   registry: LocatorRegistry,
   now: () => Date,
+  /** Chained repairs: a failed verification keeps the change (the chain decides) and hands back the rerun. */
+  chain?: { keepOnFail: boolean; rerun?: RerunOutcome },
 ): Promise<HealRepair> {
   const caseId = inv.caseId ?? inv.failureId;
   const id = newRepairId(d.root, caseId, now());
@@ -497,7 +623,7 @@ async function applyOne(
   const after = fingerprintOf(d.root, inv);
   const scope =
     plan.kind === 'locator' && catBefore
-      ? catalogScopeCheck(catBefore, readCatalog(d.root) ?? catBefore, plan.member.ref)
+      ? catalogScopeCheck(catBefore, readCatalog(d.root) ?? catBefore, [plan.member.ref, ...plan.alsoChanges])
       : [];
   const unchanged = sameFingerprint(before, after);
   const audit = (outcome: 'SUCCEEDED' | 'FAILED' | 'REFUSED', extra: Record<string, unknown> = {}): void => {
@@ -540,10 +666,11 @@ async function applyOne(
   let status: HealRepair['status'] = 'APPLIED';
   if (d.rerun) {
     const x = await d.rerun({ caseId, label: `heal${attempt}` });
+    if (chain) chain.rerun = x;
     verification = { runId: x.runId, state: x.result?.state ?? 'NO_RESULT', attempts: x.result?.attempts ?? 0 };
     status = x.result?.state === 'PASS' ? 'VERIFIED' : 'FAILED';
   }
-  if (status === 'FAILED') {
+  if (status === 'FAILED' && !chain?.keepOnFail) {
     restore(d.root, id);
     if (plan.kind === 'locator') registry.restoreHistory(id);
   }
