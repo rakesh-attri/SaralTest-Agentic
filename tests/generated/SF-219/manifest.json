@@ -1,7 +1,7 @@
 {
   "storyKey": "SF-219",
   "designRun": "run-p4-design-decided-1",
-  "buildRun": "run-p7-build-2",
+  "buildRun": "run-p7-build-4",
   "org": "qa-prod",
   "environment": "LIVE",
   "artifacts": [
@@ -1634,19 +1634,23 @@
     },
     {
       "kind": "spec",
-      "path": "tests/generated/SF-219/TC-SF-219-054-contact-whose-only-case-is-closed-can-be-deleted.spec.ts",
-      "hash": "36d964864f84947d",
+      "path": "tests/generated/SF-219/TC-SF-219-054-contact-without-any-case-can-be-deleted.spec.ts",
+      "hash": "bf6f49d3fba34d16",
       "testCaseIds": [
         "TC-SF-219-054"
       ],
-      "caseHash": "ebcfba911374b62a",
-      "irHash": "1925d5d95ef91ecb",
+      "caseHash": "52f24601191c5a10",
+      "irHash": "ae35c4806adef6c4",
       "snapshotId": "snap-00DdN00000uQ5dK-20261128030218-bb52",
       "locatorsUsed": [
         "contact-delete.deleteButton",
         "contact-record.deleteButton"
       ],
       "dependsOn": [
+        {
+          "component": "Field:Contact.LastName",
+          "hash": "Field:eec00c423a5132a35817614934a354d4"
+        },
         {
           "component": "Locator:contact-delete/button:Delete Contact/Delete",
           "hash": "208c4708b0d4a99d"
@@ -1657,12 +1661,12 @@
         }
       ],
       "dataBindings": [
-        "contact-closed-case"
+        "account-contact"
       ],
       "origin": "generated",
       "reviewReasons": [],
       "reviewStatus": "APPROVED",
-      "buildRun": "run-p7-build-2"
+      "buildRun": "run-p7-build-4"
     },
     {
       "kind": "spec",

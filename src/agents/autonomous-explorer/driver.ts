@@ -32,7 +32,12 @@ export async function playwrightDriver(i: DriverInput): Promise<ExplorerDriver> 
     if (m.type() === 'error') consoleErrors.push(i.redact(m.text()).slice(0, 300));
   });
   mkdirSync(i.evidenceDir, { recursive: true });
-  const dialog = (): Locator => page.getByRole('dialog', { name: /New Contact/ });
+  // The form dialog = the New Contact dialog with a Save button; Lightning's "We hit a snag" popover is a dialog too
+  // (explore-p7-live-1: two matches made isVisible() fail and the dialog looked closed).
+  const dialog = (): Locator =>
+    page
+      .getByRole('dialog', { name: /New Contact/ })
+      .filter({ has: page.getByRole('button', { name: 'Save', exact: true }) });
   const field = (label: string): Locator => dialog().getByRole('textbox', { name: label, exact: true });
   const spinnersGone = async (): Promise<void> => {
     await page

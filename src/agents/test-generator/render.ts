@@ -426,7 +426,24 @@ export function renderSpec(i: RenderInput): string {
 
   // Body first (collects imports/consts), then assemble the file.
   const body: string[] = [];
-  if (ir.data.length && i.recipe) body.push(`await data.create(${q(i.recipe.name)}, [${ir.data.map(q).join(', ')}]);`);
+  if (ir.data.length && i.recipe) {
+    // Parents of the requested steps are created too, in recipe order (run-p7-live-054: the IR named only Contact and
+    // the engine refused "needs its parent Account in the same create").
+    const steps = i.recipe.plan.steps;
+    const want = new Set(ir.data);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const st of steps) {
+        const parent = st.parent?.stepId;
+        if (want.has(st.stepId) && parent && !want.has(parent)) {
+          want.add(parent);
+          grew = true;
+        }
+      }
+    }
+    const ordered = steps.map((st) => st.stepId).filter((id) => want.has(id));
+    body.push(`await data.create(${q(i.recipe.name)}, [${ordered.map(q).join(', ')}]);`);
+  }
   ir.steps.forEach((st, n) => {
     // An assertion line identical to one already in the step (e.g. the model's "dialog visible" after
     // openNewFromRelatedList, which already waits for the dialog) is dropped: web-first expects are side-effect free.

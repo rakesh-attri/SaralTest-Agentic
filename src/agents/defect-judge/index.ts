@@ -207,7 +207,7 @@ export async function judgeInvestigation(inv: Investigation, o: JudgeOptions, d:
   // run-p7-fx-br08-1: a SOQL line carried a Contact id). The sanitize gate still checks the final text.
   const red = (t: string): string => (d.redactor ? d.redactor.redactText(t) : t);
   const actual = [
-    `UI: ${fresh?.result ?? 'not rerun'} — ${firstFailure}`,
+    `UI: ${fresh?.result ?? 'not rerun'} — ${inv.rationale ?? firstFailure}`,
     ...(api && api.outcome !== 'SKIPPED' ? [`API: ${api.result}`] : []),
   ]
     .map(red)
@@ -301,8 +301,8 @@ export async function judgeInvestigation(inv: Investigation, o: JudgeOptions, d:
     attachments,
     components: ctx.artifact?.dependsOn?.map((x) => x.component) ?? [],
     duplicates: [],
-    hypotheses: inv.hypotheses.map(
-      (h) => red(`${h.verdict ?? ''} ${h.status ?? 'OPEN'}: ${h.text}${h.result ? ` (${h.result})` : ''}`),
+    hypotheses: inv.hypotheses.map((h) =>
+      red(`${h.verdict ?? ''} ${h.status ?? 'OPEN'}: ${h.text}${h.result ? ` (${h.result})` : ''}`),
     ),
     suggestedRegressionTests: [
       `${caseId} (keep: the failing case itself)`,

@@ -375,7 +375,8 @@ export async function runCharter(r: CharterRun, d: ExplorerDeps): Promise<Explor
       // A rejected save shows up as "Failed to load resource … 4xx": that is the expected rejection channel, not an
       // oddity (explore-p7-fx-1). 5xx and script errors stay findings.
       if (/Failed to load resource: the server responded with a status of 4\d\d/.test(c)) continue;
-      const key = c.slice(0, 120);
+      // de-duplicate by the message's start: one Salesforce-owned console message, many variants (explore-p7-live-1)
+      const key = c.slice(0, 60);
       if (consoleSeen.has(key)) continue;
       consoleSeen.add(key);
       addFinding(

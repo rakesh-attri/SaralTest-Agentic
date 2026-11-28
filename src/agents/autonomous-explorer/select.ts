@@ -42,7 +42,8 @@ export function candidates(i: SelectInput): Candidate[] {
   const tried = i.map.triedIn(i.state);
   const out: Candidate[] = [];
   for (const a of applicable(i.catalog, i.dialogOpen)) {
-    if (tried.has(a.id)) continue;
+    // Re-opening the dialog is always possible (saturation / time box end loops); other actions once per state.
+    if (tried.has(a.id) && a.kind !== 'open-dialog') continue;
     const parts: string[] = [];
     let score = KIND_WEIGHT[a.kind];
     parts.push(`${a.kind} ${String(KIND_WEIGHT[a.kind])}`);

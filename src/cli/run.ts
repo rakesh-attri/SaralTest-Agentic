@@ -184,7 +184,9 @@ export function registerRun(program: Command, rootOf: () => string, say: Say): v
               autonomy,
               source: { type: 'file' as const, ref: `manifest:tests/generated/${o.story}/manifest.json` },
               storyKey: o.story,
-              tokenLimit: 1,
+              // The Runner needs no model; --investigate does (conclusions, bug titles, the judge): give it a real budget
+              // (run-p7-live-def-1: the judge was refused at 1 token).
+              tokenLimit: o.investigate ? 400_000 : 1,
               timeLimitMin: 120,
               inputs: [],
             }),

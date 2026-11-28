@@ -2,7 +2,10 @@
 // IR, the designed test case and the text of every evidence id the failing expectation cites. All local files written
 // by earlier phases (tests/generated/<story>/manifest.json, runs/<buildRun>/build/ir, runs/<designRun>/…).
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { caseEditEvidenceId, loadCaseEdits } from '../../inputs/caseEdits.js';
+import { applyCaseEdits, CaseEditsFile, caseEditEvidenceId, loadCaseEdits } from '../../inputs/caseEdits.js';
+import { refreshCaseWording } from '../../inputs/caseRefresh.js';
+import { SnapshotStore } from '../../knowledge/snapshotStore.js';
+import { SnapshotFacts } from '../../sf/data/plan.js';
 import { join } from 'node:path';
 import { z } from 'zod';
 import {
@@ -101,6 +104,10 @@ export function loadCaseContext(root: string, caseId: string): CaseContext {
       }
     }
   }
+  // The case as built: the operator's text edits for this case (examples/case-edits/<story>.yaml) and the wording
+  // refreshed from the spec's build snapshot — a bug must quote what the test checked (run-p7-live-def-1 quoted the
+  // raw design wording: a Lead Source that is not a qa-prod value and an old rule message).
+  if (ctx.testCase) ctx.testCase = asBuilt(root, storyKey, ctx.testCase, ctx.artifact?.snapshotId);
   ctx.evidenceText = loadEvidenceText(root, designRun);
   // Operator decisions recorded with the case edits (examples/case-edits/<story>.yaml), e.g. BR-08's positive case.
   const ce = join(root, 'examples', 'case-edits', `${storyKey}.yaml`);
@@ -112,6 +119,46 @@ export function loadCaseContext(root: string, caseId: string): CaseContext {
     }
   }
   return ctx;
+}
+
+function asBuilt(root: string, storyKey: string, tc: TestCase, builtOn: string | undefined): TestCase {
+  let out = tc;
+  const ce = join(root, 'examples', 'case-edits', `${storyKey}.yaml`);
+  if (existsSync(ce)) {
+    try {
+      const f = loadCaseEdits(ce);
+      const mine = CaseEditsFile.parse({
+        storyKey: f.storyKey,
+        decidedBy: f.decidedBy,
+        decidedOn: f.decidedOn,
+        edits: f.edits.filter((e) => e.caseId === tc.id),
+        dropSteps: f.dropSteps.filter((e) => e.caseId === tc.id),
+      });
+      out = applyCaseEdits([out], mine).cases[0] ?? out;
+    } catch {
+      /* an edit that no longer matches is reported by qa build */
+    }
+  }
+  if (builtOn) {
+    const store = new SnapshotStore(join(root, '.qa-memory', 'knowledge.db'));
+    try {
+      const latest = store.get(builtOn);
+      if (latest) {
+        out =
+          refreshCaseWording(
+            [out],
+            (id) => {
+              const snap = store.get(id);
+              return snap ? new SnapshotFacts(snap) : undefined;
+            },
+            new SnapshotFacts(latest),
+          ).cases[0] ?? out;
+      }
+    } finally {
+      store.close();
+    }
+  }
+  return out;
 }
 
 /** Case step index from a Playwright step title ("2. Enter …" → 1). */

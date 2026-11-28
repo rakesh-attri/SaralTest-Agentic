@@ -91,7 +91,61 @@ export const br08DeleteWithOpenCase: ApiReproducer = async ({ sf, ctx, runId, au
   }
 };
 
+/**
+ * Phone format (SF-219 AC5, ValidationRule Contact.Phone_Must_Be_10_Digits; TC-SF-219-010): a Contact with a 9-digit
+ * Phone must be rejected. REST create on a run-tagged Account (recipe account-contact); reproduced = it was saved.
+ * A saved record is in the ledger and removed by the verified cleanup.
+ */
+export const phoneNineDigits: ApiReproducer = async ({ sf, ctx, runId, autonomy }) => {
+  const { plan } = planData({ ctx, recipe: 'account-contact', runId });
+  if (!plan.valid)
+    throw new QAError('DATA', `recipe account-contact is invalid: ${plan.issues.map((i) => i.code).join(', ')}`);
+  const approval = recipeApproval(ctx, plan, autonomy);
+  if (approval.required && !approval.approval) {
+    throw new QAError('DATA', `recipe account-contact is not approved for ${ctx.org.alias}: ${approval.command}`);
+  }
+  const dir = join(dataDir(ctx.run.dir), 'api-repro-phone');
+  const engine = new DataEngine({
+    sf,
+    plan: { ...plan, negatives: [] },
+    ledger: new WriteLedger(join(dir, 'writes.jsonl')),
+    org: ctx.org,
+  });
+  writeDataOutputs(dir, { plan: engine.plan });
+  const data: Record<string, unknown> = {};
+  try {
+    await engine.create(['Account']);
+    const r = await engine.attempt('Contact', { Phone: '555123456' });
+    data['saved'] = r.saved;
+    data['errorCodes'] = r.errorCodes;
+    const sources: SourceRef[] = [
+      {
+        type: 'api',
+        ref: `POST /sobjects/Contact (Phone 9 digits) → ${r.saved ? 'created' : `rejected: ${r.errorCodes.join(', ') || 'error'}`}`,
+      },
+    ];
+    return r.saved
+      ? {
+          reproduced: true,
+          detail: 'REST create of a Contact with a 9-digit Phone succeeded: the 10-digit Phone rule is not enforced',
+          data,
+          sources,
+        }
+      : {
+          reproduced: false,
+          detail: `REST create with a 9-digit Phone was rejected (${r.errorCodes.join(', ')})`,
+          data,
+          sources,
+        };
+  } finally {
+    const cleanup = await engine.cleanup();
+    writeDataOutputs(dir, { plan: engine.plan, created: engine.createdRecords(), cleanup });
+    data['cleanup'] = cleanup.status;
+  }
+};
+
 /** Registered reproductions by case id. */
 export const REPRODUCERS: Record<string, ApiReproducer> = {
   'TC-SF-219-031': br08DeleteWithOpenCase,
+  'TC-SF-219-010': phoneNineDigits,
 };
